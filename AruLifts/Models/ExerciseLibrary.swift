@@ -24,7 +24,9 @@ extension Exercise {
             "Unrack the bar by straightening your arms",
             "Lower the bar to your mid-chest",
             "Press the bar back up until your arms are straight"
-        ]
+        ],
+        videoURL: "bench_press_demo",
+        requiresWeight: true
     )
     
     static let inclineBenchPress = Exercise(
@@ -40,7 +42,8 @@ extension Exercise {
             "Lower the bar to upper chest",
             "Press the bar up in a straight line",
             "Fully extend arms at the top"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let dumbbellBenchPress = Exercise(
@@ -56,7 +59,9 @@ extension Exercise {
             "Press dumbbells up until arms are extended",
             "Lower dumbbells with control",
             "Keep elbows at 45-degree angle"
-        ]
+        ],
+        videoURL: "dumbbell_bench_demo",
+        requiresWeight: true
     )
     
     static let dumbbellFlyes = Exercise(
@@ -72,7 +77,8 @@ extension Exercise {
             "Lower weights out to sides in arc motion",
             "Feel the stretch in your chest",
             "Bring dumbbells back together at top"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let cableCrossover = Exercise(
@@ -88,7 +94,8 @@ extension Exercise {
             "Lean slightly forward, elbows slightly bent",
             "Bring handles together in front of chest",
             "Squeeze chest at the bottom"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let pushUps = Exercise(
@@ -139,7 +146,8 @@ extension Exercise {
             "Bend knees until shins touch bar",
             "Lift chest and straighten lower back",
             "Stand up with the weight"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let barbellRow = Exercise(
@@ -155,7 +163,8 @@ extension Exercise {
             "Unlock knees while keeping hips high",
             "Pull bar to lower chest",
             "Lower bar with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let pullUps = Exercise(
@@ -172,6 +181,7 @@ extension Exercise {
             "Get chin above bar",
             "Lower with control"
         ],
+        videoURL: "pullup_demo",
         requiresWeight: false
     )
     
@@ -188,7 +198,8 @@ extension Exercise {
             "Pull bar down to upper chest",
             "Squeeze shoulder blades together",
             "Control the weight back up"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let seatedCableRow = Exercise(
@@ -204,7 +215,8 @@ extension Exercise {
             "Pull handle to lower chest",
             "Keep back straight",
             "Squeeze shoulder blades together"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let dumbbellRow = Exercise(
@@ -220,7 +232,8 @@ extension Exercise {
             "Pull dumbbell to hip",
             "Keep back flat",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     // MARK: - Leg Exercises
@@ -237,7 +250,9 @@ extension Exercise {
             "Go down until hips below knees",
             "Drive back up through heels",
             "Lock hips and knees at top"
-        ]
+        ],
+        videoURL: "squat_demo",
+        requiresWeight: true
     )
     
     static let frontSquat = Exercise(
@@ -253,7 +268,8 @@ extension Exercise {
             "Squat down keeping torso upright",
             "Go as deep as possible",
             "Drive back up"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let legPress = Exercise(
@@ -269,7 +285,8 @@ extension Exercise {
             "Lower weight by bending knees",
             "Stop before knees go past toes",
             "Press back up to starting position"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let legExtension = Exercise(
@@ -285,7 +302,8 @@ extension Exercise {
             "Extend legs fully",
             "Squeeze quads at top",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let legCurl = Exercise(
@@ -301,7 +319,8 @@ extension Exercise {
             "Curl legs up towards glutes",
             "Squeeze hamstrings at top",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let lunges = Exercise(
@@ -334,7 +353,8 @@ extension Exercise {
             "Rise up on toes as high as possible",
             "Squeeze calves at top",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     // MARK: - Shoulder Exercises
@@ -351,7 +371,8 @@ extension Exercise {
             "Move torso forward as bar passes face",
             "Lock elbows at top",
             "Lower to shoulders"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let dumbbellShoulderPress = Exercise(
@@ -367,7 +388,8 @@ extension Exercise {
             "Press dumbbells overhead",
             "Bring dumbbells together at top",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let lateralRaises = Exercise(
@@ -383,7 +405,8 @@ extension Exercise {
             "Lift to shoulder height",
             "Pause at top",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let frontRaises = Exercise(
@@ -399,7 +422,8 @@ extension Exercise {
             "Lift to shoulder height",
             "Lower with control",
             "Alternate arms"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let rearDeltFlyes = Exercise(
@@ -415,7 +439,8 @@ extension Exercise {
             "Raise arms out to sides",
             "Squeeze shoulder blades",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     // MARK: - Arm Exercises (Biceps)
@@ -432,7 +457,8 @@ extension Exercise {
             "Curl bar up to shoulders",
             "Squeeze biceps at top",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let dumbbellCurl = Exercise(
@@ -448,7 +474,8 @@ extension Exercise {
             "Curl dumbbells up",
             "Rotate palms up as you lift",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let hammerCurl = Exercise(
@@ -464,7 +491,8 @@ extension Exercise {
             "Curl dumbbells up",
             "Maintain neutral grip throughout",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let preacherCurl = Exercise(
@@ -480,7 +508,8 @@ extension Exercise {
             "Curl bar up",
             "Keep upper arms on pad",
             "Lower with control"
-        ]
+        ],
+        requiresWeight: true
     )
     
     // MARK: - Arm Exercises (Triceps)
@@ -497,7 +526,8 @@ extension Exercise {
             "Keep elbows close to body",
             "Press bar up",
             "Lock out at top"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let tricepDips = Exercise(
@@ -530,7 +560,8 @@ extension Exercise {
             "Push bar down",
             "Keep elbows at sides",
             "Control back up"
-        ]
+        ],
+        requiresWeight: true
     )
     
     static let overheadTricepExtension = Exercise(
@@ -546,7 +577,8 @@ extension Exercise {
             "Keep elbows pointing up",
             "Extend back to starting position",
             "Control the movement"
-        ]
+        ],
+        requiresWeight: true
     )
     
     // MARK: - Core/Abs Exercises
@@ -724,4 +756,3 @@ extension Exercise {
         treadmillRunning, cycling, jumpingJacks, burpees
     ]
 }
-
