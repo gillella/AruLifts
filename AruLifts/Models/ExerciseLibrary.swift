@@ -43,6 +43,7 @@ extension Exercise {
             "Press the bar up in a straight line",
             "Fully extend arms at the top"
         ],
+        videoURL: "incline_bench_demo",
         requiresWeight: true
     )
     
@@ -78,6 +79,7 @@ extension Exercise {
             "Feel the stretch in your chest",
             "Bring dumbbells back together at top"
         ],
+        videoURL: "flyes_demo",
         requiresWeight: true
     )
     
@@ -95,6 +97,7 @@ extension Exercise {
             "Bring handles together in front of chest",
             "Squeeze chest at the bottom"
         ],
+        videoURL: "cable_crossover_demo",
         requiresWeight: true
     )
     

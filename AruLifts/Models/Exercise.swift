@@ -69,7 +69,8 @@ struct Exercise: Identifiable, Codable, Hashable {
         self.primaryMuscles = primaryMuscles
         self.secondaryMuscles = secondaryMuscles
         self.instructions = instructions
-        self.videoURL = videoURL
+        // Provide a default demo video for all exercises if not specified
+        self.videoURL = videoURL ?? "exercise_demo"
         self.requiresWeight = requiresWeight
     }
 }

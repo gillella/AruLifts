@@ -39,14 +39,13 @@ struct ExerciseLibraryView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 0) {
-                    // Search bar
+            List {
+                // Search bar
+                Section {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.gray)
                         TextField("Search exercises...", text: $searchText)
-                            .textFieldStyle(.plain)
                         if !searchText.isEmpty {
                             Button(action: { searchText = "" }) {
                                 Image(systemName: "xmark.circle.fill")
@@ -54,12 +53,10 @@ struct ExerciseLibraryView: View {
                             }
                         }
                     }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-                    .padding()
-                    
-                    // Filters
+                }
+
+                // Filters
+                Section {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
                             FilterChip(
@@ -70,7 +67,7 @@ struct ExerciseLibraryView: View {
                                     selectedMuscleGroup = nil
                                 }
                             )
-                            
+
                             ForEach(ExerciseCategory.allCases, id: \.self) { category in
                                 FilterChip(
                                     title: category.rawValue,
@@ -81,10 +78,10 @@ struct ExerciseLibraryView: View {
                                     }
                                 )
                             }
-                            
+
                             Divider()
                                 .frame(height: 20)
-                            
+
                             ForEach(MuscleGroup.allCases, id: \.self) { muscle in
                                 FilterChip(
                                     title: muscle.rawValue,
@@ -96,32 +93,28 @@ struct ExerciseLibraryView: View {
                                 )
                             }
                         }
-                        .padding(.horizontal)
                     }
-                    .padding(.bottom)
-                    
-                    // Exercise list
-                    LazyVStack(spacing: 16) {
-                        ForEach(filteredExercises) { exercise in
-                            NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
-                                ExerciseCard(exercise: exercise)
+                }
+
+                // Exercise list
+                Section(header: Text("\(filteredExercises.count) Exercises")) {
+                    ForEach(filteredExercises) { exercise in
+                        NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(exercise.name)
+                                    .font(.headline)
+                                Text(exercise.category.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                            .buttonStyle(.plain)
+                            .padding(.vertical, 4)
                         }
                     }
-                    .padding()
                 }
             }
             .navigationTitle("Exercise Library")
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.orange.opacity(0.05), Color.clear]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
         }
+        .navigationViewStyle(.stack)
     }
 }
 
@@ -211,8 +204,7 @@ struct ExerciseDetailView: View {
     @State private var showingVideo = false
     
     var body: some View {
-        NavigationView {
-            ScrollView {
+        ScrollView {
                 VStack(spacing: 0) {
                     // Header with exercise image
                     ExerciseHeaderView(exercise: exercise, showingVideo: $showingVideo)
@@ -224,13 +216,12 @@ struct ExerciseDetailView: View {
                     TabContentView(exercise: exercise, selectedTab: selectedTab)
                 }
             }
-            .navigationTitle(exercise.name)
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
+        .navigationTitle(exercise.name)
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") {
+                    dismiss()
                 }
             }
         }
@@ -744,36 +735,63 @@ struct VideoPlayerView: View {
             }
         }
         
-        // Use more reliable, smaller test videos that work better in simulators
-        let sampleVideos: [String: String] = [
-            "bench_press_demo": "https://www.w3schools.com/html/mov_bbb.mp4",
-            "dumbbell_bench_demo": "https://www.w3schools.com/html/mov_bbb.mp4",
-            "squat_demo": "https://www.w3schools.com/html/mov_bbb.mp4",
-            "pullup_demo": "https://www.w3schools.com/html/mov_bbb.mp4"
+        // ⚠️ PLACEHOLDER VIDEO - SEE VIDEO_SETUP.md FOR IMPLEMENTATION ⚠️
+        //
+        // CURRENT STATUS: Using sample video for all exercises
+        //
+        // TO IMPLEMENT REAL EXERCISE VIDEOS:
+        // 1. Download exercise videos from:
+        //    - Pexels.com (free, royalty-free)
+        //    - Videvo.net (free with attribution)
+        //    - Mixkit.co (free, no watermark)
+        //
+        // 2. Host videos on:
+        //    - AWS S3 + CloudFront
+        //    - Firebase Storage
+        //    - Your own CDN
+        //
+        // 3. Update URLs below with your hosted video URLs
+        //
+        // See VIDEO_SETUP.md for detailed instructions
+
+        let defaultVideo = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+
+        let exerciseVideoMap: [String: String] = [
+            // TODO: Replace these with actual exercise demonstration videos
+            "bench_press_demo": defaultVideo,
+            "incline_bench_demo": defaultVideo,
+            "dumbbell_bench_demo": defaultVideo,
+            "flyes_demo": defaultVideo,
+            "cable_crossover_demo": defaultVideo,
+            "squat_demo": defaultVideo,
+            "pullup_demo": defaultVideo,
+            "exercise_demo": defaultVideo
         ]
-        
-        // Try W3Schools video first (very reliable and small)
-        if let sampleURL = sampleVideos[videoName], let url = URL(string: sampleURL) {
+
+        // Get video URL for this exercise
+        let videoURLString = exerciseVideoMap[videoName] ?? defaultVideo
+
+        // Try sample video URL
+        if let url = URL(string: videoURLString) {
             let playerItem = AVPlayerItem(url: url)
             player = AVPlayer(playerItem: playerItem)
-            
-            // Add error handling
+
+            // Monitor player status
             NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemFailedToPlayToEndTime,
                 object: playerItem,
                 queue: .main
             ) { _ in
-                print("Video failed to load: \(sampleURL)")
-                self.player = nil
+                print("Video failed to load: \(videoURLString)")
                 self.showError = true
             }
-            
-            // Set a timeout for loading
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                if self.isLoading {
-                    print("Video loading timeout")
-                    self.player = nil
-                    self.showError = true
+
+            // Monitor loading status
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                if let status = playerItem.status as AVPlayerItem.Status?, status == .readyToPlay {
+                    self.isLoading = false
+                } else if self.isLoading {
+                    self.isLoading = false
                 }
             }
             return

@@ -147,6 +147,7 @@ struct SettingsView: View {
                 Text("This will permanently delete all your workout data. Are you sure?")
             }
         }
+        .navigationViewStyle(.stack)
     }
     
     private func resetAllProgress() {

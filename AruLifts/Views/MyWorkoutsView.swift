@@ -121,6 +121,7 @@ struct MyWorkoutsView: View {
                 WorkoutBuilderView(existingWorkout: workout)
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 

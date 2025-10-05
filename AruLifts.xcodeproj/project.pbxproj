@@ -33,7 +33,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A10000000030 /* AruLifts.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AruLifts.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000002 /* AruLiftsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AruLiftsApp.swift; sourceTree = "<group>"; };
 		A10000000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -57,6 +56,7 @@
 		A1000000002B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1000000002D /* RestTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerView.swift; sourceTree = "<group>"; };
 		A1000000002F /* WarmUpCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarmUpCalculatorView.swift; sourceTree = "<group>"; };
+		A10000000030 /* AruLifts.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AruLifts.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,14 +78,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		A10000000034 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				A10000000030 /* AruLifts.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		A10000000033 /* AruLifts */ = {
 			isa = PBXGroup;
 			children = (
@@ -102,12 +94,12 @@
 			path = AruLifts;
 			sourceTree = "<group>";
 		};
-		A10000000038 /* Preview Content */ = {
+		A10000000034 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000008 /* Preview Assets.xcassets */,
+				A10000000030 /* AruLifts.app */,
 			);
-			path = "Preview Content";
+			name = Products;
 			sourceTree = "<group>";
 		};
 		A10000000035 /* Models */ = {
@@ -146,6 +138,14 @@
 				A10000000019 /* CustomWorkoutManager.swift */,
 			);
 			path = Managers;
+			sourceTree = "<group>";
+		};
+		A10000000038 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000008 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -372,6 +372,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"AruLifts/Preview Content\"";
+				DEVELOPMENT_TEAM = K9ZPZ4VF73;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -400,6 +401,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"AruLifts/Preview Content\"";
+				DEVELOPMENT_TEAM = K9ZPZ4VF73;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -423,20 +425,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1000000003E /* Build configuration list for PBXProject "AruLifts" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1000000003F /* Debug */,
-				A10000000040 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A1000000003A /* Build configuration list for PBXNativeTarget "AruLifts" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000000041 /* Debug */,
 				A10000000042 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000000003E /* Build configuration list for PBXProject "AruLifts" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000003F /* Debug */,
+				A10000000040 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

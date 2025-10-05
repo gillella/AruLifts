@@ -132,6 +132,7 @@ struct HistoryView: View {
             }
             .navigationTitle("History")
         }
+        .navigationViewStyle(.stack)
     }
     
     private func formatTotalTime(_ total: TimeInterval) -> String {

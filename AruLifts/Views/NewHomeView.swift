@@ -159,6 +159,7 @@ struct NewHomeView: View {
                 WorkoutBuilderView()
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 
