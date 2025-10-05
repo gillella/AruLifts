@@ -225,9 +225,10 @@ struct ExerciseDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingVideo) {
-            VideoPlayerView(exercise: exercise)
-        }
+        // VIDEO FEATURE DISABLED FOR V1.0 - Will add in v1.1
+        // .sheet(isPresented: $showingVideo) {
+        //     VideoPlayerView(exercise: exercise)
+        // }
     }
 }
 
@@ -253,18 +254,20 @@ struct ExerciseHeaderView: View {
                             .multilineTextAlignment(.center)
                     }
                 )
-                        .overlay(
-                            // Video play button
-                            Button(action: { showingVideo = true }) {
-                                Image(systemName: "play.circle.fill")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.white)
-                                    .background(Color.black.opacity(0.3))
-                                    .clipShape(Circle())
-                            }
-                            .opacity(exercise.videoURL != nil ? 1 : 0)
-                            .allowsHitTesting(exercise.videoURL != nil)
-                        )
+                        // VIDEO FEATURE TEMPORARILY DISABLED FOR V1.0 APP STORE SUBMISSION
+                        // Will be re-enabled in v1.1 with real exercise videos
+                        // .overlay(
+                        //     // Video play button
+                        //     Button(action: { showingVideo = true }) {
+                        //         Image(systemName: "play.circle.fill")
+                        //             .font(.system(size: 50))
+                        //             .foregroundColor(.white)
+                        //             .background(Color.black.opacity(0.3))
+                        //             .clipShape(Circle())
+                        //     }
+                        //     .opacity(exercise.videoURL != nil ? 1 : 0)
+                        //     .allowsHitTesting(exercise.videoURL != nil)
+                        // )
             
             // Exercise info cards
             HStack(spacing: 12) {
