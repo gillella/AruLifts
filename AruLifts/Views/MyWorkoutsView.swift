@@ -1,289 +1,134 @@
-//
-//  MyWorkoutsView.swift
-//  AruLifts
-//
-//  Created by Aravind Gillella on 10/1/25.
-//
-
 import SwiftUI
 
 struct MyWorkoutsView: View {
-    @EnvironmentObject var workoutManager: CustomWorkoutManager
-    @Environment(\.managedObjectContext) private var viewContext
-    @State private var showWorkoutBuilder = false
-    @State private var editingWorkout: CustomWorkout? = nil
-    @State private var searchText = ""
-    @State private var selectedCategory: String? = nil
-    
-    var filteredWorkouts: [CustomWorkout] {
-        var workouts = workoutManager.savedWorkouts
-        
-        if !searchText.isEmpty {
-            workouts = workouts.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-        }
-        
-        if let category = selectedCategory {
-            workouts = workouts.filter { $0.category == category }
-        }
-        
-        return workouts
-    }
-    
+    @EnvironmentObject private var store: WorkoutStore
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    @State private var editingTemplate: WorkoutTemplate?
+    @State private var showingBuilder = false
+
     var body: some View {
-        NavigationView {
-            ZStack {
-                if filteredWorkouts.isEmpty {
-                    EmptyWorkoutsView(onCreateTap: { showWorkoutBuilder = true })
-                } else {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            // Search bar
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.gray)
-                                TextField("Search workouts...", text: $searchText)
-                                    .textFieldStyle(.plain)
-                                if !searchText.isEmpty {
-                                    Button(action: { searchText = "" }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .cornerRadius(10)
-                            .padding(.horizontal)
-                            .padding(.top)
-                            
-                            // Category filters
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    FilterChip(
-                                        title: "All",
-                                        isSelected: selectedCategory == nil,
-                                        action: { selectedCategory = nil }
-                                    )
-                                    
-                                    ForEach(WorkoutCategory.allCases, id: \.self) { category in
-                                        FilterChip(
-                                            title: category.rawValue,
-                                            isSelected: selectedCategory == category.rawValue,
-                                            action: {
-                                                selectedCategory = selectedCategory == category.rawValue ? nil : category.rawValue
-                                            }
-                                        )
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                            
-                            // Workouts list
-                            LazyVStack(spacing: 12) {
-                                ForEach(filteredWorkouts) { workout in
-                                    WorkoutCard(
-                                        workout: workout,
-                                        onStart: {
-                                            workoutManager.startWorkout(workout)
-                                        },
-                                        onEdit: {
-                                            editingWorkout = workout
-                                        },
-                                        onDuplicate: {
-                                            workoutManager.duplicateWorkout(workout)
-                                        },
-                                        onDelete: {
-                                            workoutManager.deleteWorkout(workout)
-                                        }
-                                    )
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 32)
-                        }
+        NavigationStack {
+            List {
+                ForEach(store.templates) { template in
+                    NavigationLink {
+                        TemplateDetailView(template: template, onStart: { startWorkout(template) })
+                    } label: {
+                        templateRow(template)
                     }
                 }
+                .onDelete(perform: store.deleteTemplates)
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("My Workouts")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showWorkoutBuilder = true }) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        editingTemplate = nil
+                        showingBuilder = true
+                    } label: {
                         Image(systemName: "plus")
-                            .font(.title3)
-                            .fontWeight(.semibold)
                     }
                 }
             }
-            .sheet(isPresented: $showWorkoutBuilder) {
-                WorkoutBuilderView()
+            .overlay {
+                if store.templates.isEmpty {
+                    ContentUnavailableView(
+                        "No Workouts",
+                        systemImage: "square.grid.2x2",
+                        description: Text("Tap + to build your first workout.")
+                    )
+                }
             }
-            .sheet(item: $editingWorkout) { workout in
-                WorkoutBuilderView(existingWorkout: workout)
+            .sheet(isPresented: $showingBuilder) {
+                WorkoutBuilderView(existing: editingTemplate)
             }
         }
-        .navigationViewStyle(.stack)
+    }
+
+    private func templateRow(_ template: WorkoutTemplate) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(template.category.color.opacity(0.18)).frame(width: 40, height: 40)
+                Image(systemName: template.category.symbol).foregroundStyle(template.category.color)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(template.name).font(.headline)
+                Text("\(template.exerciseCount) exercises · \(template.totalSets) sets")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func startWorkout(_ template: WorkoutTemplate) {
+        let session = WorkoutSession.from(template: template, library: store.exerciseIndex)
+        active.start(session)
     }
 }
 
-// MARK: - Workout Card
-struct WorkoutCard: View {
-    let workout: CustomWorkout
+/// Read-only template overview with Start and Edit actions.
+struct TemplateDetailView: View {
+    @EnvironmentObject private var store: WorkoutStore
+    let template: WorkoutTemplate
     let onStart: () -> Void
-    let onEdit: () -> Void
-    let onDuplicate: () -> Void
-    let onDelete: () -> Void
-    
-    @State private var showActionSheet = false
-    
+    @State private var showingEdit = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(workout.name)
-                        .font(.title3)
-                        .fontWeight(.bold)
-                    
-                    if let category = workout.category {
-                        Text(category)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.2))
-                            .foregroundColor(.orange)
-                            .cornerRadius(6)
+        List {
+            Section {
+                HStack {
+                    CategoryBadge(category: template.category)
+                    Spacer()
+                    Text("~\(template.estimatedMinutes) min")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                if !template.notes.isEmpty {
+                    Text(template.notes).font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Exercises") {
+                ForEach(template.exercises) { ex in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ex.name).font(.body.weight(.medium))
+                            Text("\(ex.targetSets) × \(ex.targetReps)" + (ex.weight > 0 ? " · \(formatWeight(ex.weight, units: store.settings.units))" : ""))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("\(ex.restSeconds)s rest")
+                            .font(.caption2).foregroundStyle(.tertiary)
                     }
                 }
-                
-                Spacer()
-                
-                Button(action: { showActionSheet = true }) {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3)
-                        .foregroundColor(.gray)
-                }
             }
-            
-            Divider()
-            
-            // Workout stats
-            HStack(spacing: 20) {
-                StatItem(icon: "figure.strengthtraining.traditional", value: "\(workout.totalExercises)", label: "Exercises")
-                StatItem(icon: "repeat", value: "\(workout.totalSets)", label: "Sets")
-                StatItem(icon: "clock", value: "~\(workout.estimatedDuration)m", label: "Duration")
-            }
-            
-            if let lastUsed = workout.lastUsedDate {
-                Text("Last used: \(lastUsed, style: .relative) ago")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            // Start button
+        }
+        .navigationTitle(template.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
             Button(action: onStart) {
-                HStack {
-                    Image(systemName: "play.fill")
-                    Text("Start Workout")
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    LinearGradient(
-                        colors: [.orange, .red],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .foregroundColor(.white)
-                .cornerRadius(12)
+                Label("Start Workout", systemImage: "play.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.orange, in: RoundedRectangle(cornerRadius: 16))
+                    .foregroundStyle(.white)
+            }
+            .padding()
+            .background(.bar)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Edit") { showingEdit = true }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-        .confirmationDialog("Workout Options", isPresented: $showActionSheet, titleVisibility: .visible) {
-            Button("Edit") { onEdit() }
-            Button("Duplicate") { onDuplicate() }
-            Button("Delete", role: .destructive) { onDelete() }
-            Button("Cancel", role: .cancel) {}
+        .sheet(isPresented: $showingEdit) {
+            WorkoutBuilderView(existing: template)
         }
-    }
-}
-
-struct StatItem: View {
-    let icon: String
-    let value: String
-    let label: String
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.orange)
-            Text(value)
-                .font(.headline)
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Empty State
-struct EmptyWorkoutsView: View {
-    let onCreateTap: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "dumbbell")
-                .font(.system(size: 80))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.orange, .red],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            
-            VStack(spacing: 8) {
-                Text("No Workouts Yet")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("Create your first custom workout\nto get started!")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            
-            Button(action: onCreateTap) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Create Workout")
-                        .fontWeight(.semibold)
-                }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 16)
-                .background(
-                    LinearGradient(
-                        colors: [.orange, .red],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .foregroundColor(.white)
-                .cornerRadius(12)
-            }
-        }
-        .padding()
     }
 }
 
 #Preview {
     MyWorkoutsView()
-        .environmentObject(CustomWorkoutManager.shared)
-        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+        .environmentObject(WorkoutStore())
+        .environmentObject(ActiveWorkoutManager())
 }
-
