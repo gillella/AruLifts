@@ -10,6 +10,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     statsHeader
+                    progressionBanner
                     watchStatus
                     quickStartSection
                 }
@@ -32,6 +33,26 @@ struct HomeView: View {
             StatTile(value: "\(store.history.count)", label: "Workouts", systemImage: "checkmark.seal.fill")
             StatTile(value: "\(thisWeekCount)", label: "This Week", systemImage: "calendar")
             StatTile(value: "\(store.templates.count)", label: "Plans", systemImage: "square.grid.2x2.fill")
+        }
+    }
+
+    /// "Next time: X" after a successful session bumps template weights.
+    @ViewBuilder
+    private var progressionBanner: some View {
+        if !store.lastProgression.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Weights increased!", systemImage: "arrow.up.circle.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.green)
+                ForEach(store.lastProgression) { change in
+                    Text("\(change.name): next time \(change.toWeight.formatted()) \(store.settings.units.label)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.green.opacity(0.12)))
         }
     }
 

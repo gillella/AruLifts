@@ -68,6 +68,10 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
     var weight: Double
     /// Rest after each set, in seconds. Defaults to the app-wide rest if 0.
     var restSeconds: Int
+    /// Auto-increase the weight after a fully successful session.
+    var progressionEnabled: Bool
+    /// Weight added on success. nil = unit-aware default (see `Progression`).
+    var progressionIncrement: Double?
 
     init(
         id: UUID = UUID(),
@@ -76,7 +80,9 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         targetSets: Int = 3,
         targetReps: Int = 10,
         weight: Double = 0,
-        restSeconds: Int = 180
+        restSeconds: Int = 180,
+        progressionEnabled: Bool = true,
+        progressionIncrement: Double? = nil
     ) {
         self.id = id
         self.exerciseID = exerciseID
@@ -85,6 +91,22 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         self.targetReps = targetReps
         self.weight = weight
         self.restSeconds = restSeconds
+        self.progressionEnabled = progressionEnabled
+        self.progressionIncrement = progressionIncrement
+    }
+
+    // Manual decode so templates saved before progression existed still load.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        exerciseID = try c.decode(UUID.self, forKey: .exerciseID)
+        name = try c.decode(String.self, forKey: .name)
+        targetSets = try c.decode(Int.self, forKey: .targetSets)
+        targetReps = try c.decode(Int.self, forKey: .targetReps)
+        weight = try c.decode(Double.self, forKey: .weight)
+        restSeconds = try c.decode(Int.self, forKey: .restSeconds)
+        progressionEnabled = try c.decodeIfPresent(Bool.self, forKey: .progressionEnabled) ?? true
+        progressionIncrement = try c.decodeIfPresent(Double.self, forKey: .progressionIncrement)
     }
 }
 

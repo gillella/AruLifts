@@ -28,6 +28,9 @@ final class WorkoutStore: ObservableObject {
     @Published var templates: [WorkoutTemplate] = []
     @Published var history: [WorkoutSession] = []
     @Published var customExercises: [Exercise] = []
+    /// Weight bumps applied by the most recent finished session, for the
+    /// "next time: X" UI. Not persisted — informational only.
+    @Published var lastProgression: [ProgressionChange] = []
     @Published var settings: AppSettings = AppSettings() {
         didSet { saveSettings() }
     }
@@ -95,6 +98,19 @@ final class WorkoutStore: ObservableObject {
         if finished.finishedAt == nil { finished.finishedAt = Date() }
         history.insert(finished, at: 0)
         saveHistory()
+        applyProgression(from: finished)
+    }
+
+    /// StrongLifts-style auto progression: exercises where every target rep
+    /// was completed get their template weight bumped for next session.
+    private func applyProgression(from session: WorkoutSession) {
+        guard let templateID = session.templateID,
+              let idx = templates.firstIndex(where: { $0.id == templateID }) else { return }
+        let result = Progression.apply(session: session, to: templates[idx], units: settings.units)
+        guard !result.changes.isEmpty else { return }
+        templates[idx] = result.template
+        lastProgression = result.changes
+        saveTemplates()
     }
 
     func deleteHistory(at offsets: IndexSet) {
