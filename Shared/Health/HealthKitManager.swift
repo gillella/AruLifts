@@ -21,10 +21,13 @@ final class HealthKitManager {
     }
 
     /// Presents the Health permission sheet on first call; no-op afterwards.
-    /// Read access to active energy lets the watch's HKLiveWorkoutBuilder
-    /// collect energy samples during a live session.
+    /// Read access to active energy and heart rate lets the watch's
+    /// HKLiveWorkoutBuilder collect those samples during a live session.
     func requestAuthorization() async throws {
-        let readTypes: Set<HKObjectType> = [HKQuantityType(.activeEnergyBurned)]
+        let readTypes: Set<HKObjectType> = [
+            HKQuantityType(.activeEnergyBurned),
+            HKQuantityType(.heartRate),
+        ]
         try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
     }
 

@@ -4,12 +4,16 @@ import SwiftUI
 /// actions. A haptic fires when the timer completes (handled by the manager).
 struct WatchRestView: View {
     @ObservedObject var timer: RestTimerManager
+    @ObservedObject private var liveSession = WatchWorkoutSession.shared
 
     var body: some View {
         VStack(spacing: 10) {
-            Text("REST")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("REST")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                WatchActiveView.WatchHeartRateChip(bpm: liveSession.heartRateBPM)
+            }
 
             ZStack {
                 Circle()

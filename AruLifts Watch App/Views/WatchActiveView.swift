@@ -5,6 +5,7 @@ import SwiftUI
 /// automatically while the rest timer runs.
 struct WatchActiveView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
+    @ObservedObject private var liveSession = WatchWorkoutSession.shared
 
     private var exercise: SessionExercise? { active.currentExercise }
 
@@ -54,9 +55,12 @@ struct WatchActiveView: View {
             Text(exercise.name)
                 .font(.headline)
                 .multilineTextAlignment(.center)
-            Text("\(exercise.completedSets)/\(exercise.sets.count) sets")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("\(exercise.completedSets)/\(exercise.sets.count) sets")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                WatchHeartRateChip(bpm: liveSession.heartRateBPM)
+            }
         }
     }
 
@@ -91,6 +95,24 @@ struct WatchActiveView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .background(Color.gray.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    /// Live heart rate from the watch workout session; renders nothing when
+    /// there's no reading (no session, no data yet, or permission denied).
+    struct WatchHeartRateChip: View {
+        let bpm: Double?
+
+        var body: some View {
+            if let bpm {
+                HStack(spacing: 2) {
+                    Image(systemName: "heart.fill")
+                        .foregroundStyle(.red)
+                    Text("\(Int(bpm))")
+                        .monospacedDigit()
+                }
+                .font(.caption2)
             }
         }
     }

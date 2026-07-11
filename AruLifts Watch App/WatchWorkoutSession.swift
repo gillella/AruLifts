@@ -15,6 +15,11 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
 
+    /// Latest heart-rate reading from the live session, in beats per minute.
+    /// nil when there's no running session, no data yet, or permission was
+    /// denied — views hide the HR chip in that case.
+    @Published private(set) var heartRateBPM: Double?
+
     var isRunning: Bool { session != nil }
 
     /// Starts the live session. Failures are logged, never fatal — the
@@ -31,6 +36,7 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
             let newSession = try HKWorkoutSession(healthStore: store, configuration: config)
             let newBuilder = newSession.associatedWorkoutBuilder()
             newBuilder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
+            newBuilder.delegate = self
 
             newSession.startActivity(with: Date())
             try await newBuilder.beginCollection(at: Date())
@@ -43,11 +49,14 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
         }
     }
 
-    /// Ends the live session and saves the workout to Health.
+    /// Ends the live session and saves the workout to Health. Collected
+    /// samples (heart rate, active energy) are persisted with the HKWorkout,
+    /// so average HR and calories appear in the Fitness app automatically.
     func finish() async {
         guard let liveSession = session, let liveBuilder = builder else { return }
         session = nil
         builder = nil
+        heartRateBPM = nil
         liveSession.end()
         do {
             try await liveBuilder.endCollection(at: Date())
@@ -63,7 +72,21 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
         guard let liveSession = session, let liveBuilder = builder else { return }
         session = nil
         builder = nil
+        heartRateBPM = nil
         liveSession.end()
         liveBuilder.discardWorkout()
     }
+}
+
+extension WatchWorkoutSession: HKLiveWorkoutBuilderDelegate {
+    nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
+        let hrType = HKQuantityType(.heartRate)
+        guard collectedTypes.contains(hrType),
+              let stats = workoutBuilder.statistics(for: hrType),
+              let latest = stats.mostRecentQuantity() else { return }
+        let bpm = latest.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+        Task { @MainActor in self.heartRateBPM = bpm }
+    }
+
+    nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
 }
