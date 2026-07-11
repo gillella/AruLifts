@@ -10,6 +10,9 @@ import WatchConnectivity
 struct EndEvent: Equatable {
     let id: UUID
     let finished: Bool
+    /// The sender already saved this workout to Apple Health (watch live
+    /// session), so the receiver must not write a duplicate HKWorkout.
+    let healthSaved: Bool
     /// Makes each delivery distinct so `@Published` always emits.
     let nonce = UUID()
 }
@@ -59,8 +62,13 @@ final class ConnectivityManager: NSObject, ObservableObject {
     }
 
     /// Either direction: the session has finished (save) or been cancelled.
-    func sendEnd(_ id: UUID, finished: Bool) {
-        let payload: [String: Any] = ["type": "end", "id": id.uuidString, "finished": finished]
+    func sendEnd(_ id: UUID, finished: Bool, healthSaved: Bool = false) {
+        let payload: [String: Any] = [
+            "type": "end",
+            "id": id.uuidString,
+            "finished": finished,
+            "healthSaved": healthSaved,
+        ]
         transmit(payload)
     }
 
@@ -107,7 +115,10 @@ final class ConnectivityManager: NSObject, ObservableObject {
         case "end":
             if let idString = payload["id"] as? String, let id = UUID(uuidString: idString) {
                 let finished = (payload["finished"] as? Bool) ?? false
-                DispatchQueue.main.async { self.endEvent = EndEvent(id: id, finished: finished) }
+                let healthSaved = (payload["healthSaved"] as? Bool) ?? false
+                DispatchQueue.main.async {
+                    self.endEvent = EndEvent(id: id, finished: finished, healthSaved: healthSaved)
+                }
             }
         default:
             break

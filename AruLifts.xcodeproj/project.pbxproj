@@ -20,6 +20,7 @@
 		AA0000000000000000000027 /* ConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000006 /* ConnectivityManager.swift */; };
 		AA0000000000000000000070 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000072 /* HealthKitManager.swift */; };
 		AA0000000000000000000071 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000072 /* HealthKitManager.swift */; };
+		AA0000000000000000000074 /* WatchWorkoutSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000075 /* WatchWorkoutSession.swift */; };
 		AA0000000000000000000028 /* ConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000006 /* ConnectivityManager.swift */; };
 		AA0000000000000000000029 /* RestTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* RestTimerManager.swift */; };
 		AA000000000000000000002A /* RestTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* RestTimerManager.swift */; };
@@ -80,6 +81,7 @@
 		AA0000000000000000000005 /* WorkoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkoutStore.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000006 /* ConnectivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConnectivityManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000072 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HealthKitManager.swift"; sourceTree = "<group>"; };
+		AA0000000000000000000075 /* WatchWorkoutSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WatchWorkoutSession.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000007 /* RestTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestTimerManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000008 /* ActiveWorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActiveWorkoutManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000009 /* AruLiftsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AruLiftsApp.swift"; sourceTree = "<group>"; };
@@ -150,6 +152,7 @@
 			children = (
 				AA0000000000000000000063 /* Views */,
 				AA0000000000000000000015 /* AruLiftsWatchApp.swift */,
+				AA0000000000000000000075 /* WatchWorkoutSession.swift */,
 				AA000000000000000000001C /* Assets.xcassets */,
 			);
 			path = "AruLifts Watch App";
@@ -396,6 +399,7 @@
 				AA000000000000000000002A /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002C /* ActiveWorkoutManager.swift in Sources */,
 				AA0000000000000000000039 /* AruLiftsWatchApp.swift in Sources */,
+				AA0000000000000000000074 /* WatchWorkoutSession.swift in Sources */,
 				AA000000000000000000003A /* WatchRootView.swift in Sources */,
 				AA000000000000000000003B /* WatchActiveView.swift in Sources */,
 				AA000000000000000000003C /* WatchSetLogView.swift in Sources */,
@@ -581,8 +585,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = "AruLifts Watch App/AruLifts Watch App.entitlements";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AruLifts;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "AruLifts reads active energy during workouts to credit your activity rings.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AruLifts saves your finished workouts and estimated calories to Apple Health.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.arulifts.app;
@@ -609,8 +616,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = "AruLifts Watch App/AruLifts Watch App.entitlements";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AruLifts;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "AruLifts reads active energy during workouts to credit your activity rings.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AruLifts saves your finished workouts and estimated calories to Apple Health.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.arulifts.app;

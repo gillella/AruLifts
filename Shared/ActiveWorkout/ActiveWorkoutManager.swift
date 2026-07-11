@@ -24,7 +24,9 @@ final class ActiveWorkoutManager: ObservableObject {
     private var applyingRemote = false
 
     /// Called on the phone when a session finishes, so it can be stored.
-    var onFinish: ((WorkoutSession) -> Void)?
+    /// The Bool is true when the watch already saved the workout to Apple
+    /// Health via its live session, so the phone must not save a duplicate.
+    var onFinish: ((WorkoutSession, _ healthAlreadySaved: Bool) -> Void)?
 
     var isActive: Bool { session != nil }
 
@@ -51,8 +53,13 @@ final class ActiveWorkoutManager: ObservableObject {
         guard session?.id == event.id else { return }
         if event.finished, var finished = session {
             finished.finishedAt = Date()
-            onFinish?(finished)   // only the phone sets onFinish, so it records.
+            onFinish?(finished, event.healthSaved)   // only the phone sets onFinish, so it records.
         }
+        #if os(watchOS)
+        // The phone ended the workout and owns the Health entry; drop any
+        // live session without saving so Health doesn't get a duplicate.
+        WatchWorkoutSession.shared.discard()
+        #endif
         session = nil
         restTimer.stop()
     }
@@ -64,11 +71,19 @@ final class ActiveWorkoutManager: ObservableObject {
         currentExerciseIndex = 0
         restTimer.stop()
         if broadcast { connectivity.sendStart(newSession) }
+        #if os(watchOS)
+        // Watch-initiated workout: run a real HKWorkoutSession so the app
+        // stays alive through rest and the workout earns activity-ring credit.
+        Task { await WatchWorkoutSession.shared.start() }
+        #endif
     }
 
     func cancel() {
         guard let id = session?.id else { return }
         connectivity.sendEnd(id, finished: false)
+        #if os(watchOS)
+        WatchWorkoutSession.shared.discard()
+        #endif
         session = nil
         restTimer.stop()
     }
@@ -76,8 +91,15 @@ final class ActiveWorkoutManager: ObservableObject {
     func finish() {
         guard var finished = session else { return }
         finished.finishedAt = Date()
-        onFinish?(finished)                       // records on the phone
+        onFinish?(finished, false)                // records on the phone
+        #if os(watchOS)
+        // Save via the live session; tell the phone so it skips its own save.
+        let healthSaved = WatchWorkoutSession.shared.isRunning
+        Task { await WatchWorkoutSession.shared.finish() }
+        connectivity.sendEnd(finished.id, finished: true, healthSaved: healthSaved)
+        #else
         connectivity.sendEnd(finished.id, finished: true)
+        #endif
         restTimer.stop()
         session = nil
     }
