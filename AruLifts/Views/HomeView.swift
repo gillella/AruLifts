@@ -41,11 +41,11 @@ struct HomeView: View {
     private var progressionBanner: some View {
         if !store.lastProgression.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Label("Weights increased!", systemImage: "arrow.up.circle.fill")
+                Label("Weights updated", systemImage: "arrow.up.arrow.down.circle.fill")
                     .font(.subheadline.bold())
                     .foregroundStyle(.green)
                 ForEach(store.lastProgression) { change in
-                    Text("\(change.name): next time \(change.toWeight.formatted()) \(store.settings.units.label)")
+                    Text(changeText(change))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -53,6 +53,14 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.green.opacity(0.12)))
+        }
+    }
+
+    private func changeText(_ change: ProgressionChange) -> String {
+        let weight = "\(change.toWeight.formatted()) \(store.settings.units.label)"
+        switch change.kind {
+        case .increase: return "\(change.name): next time \(weight)"
+        case .deload: return "\(change.name): deload to \(weight)"
         }
     }
 

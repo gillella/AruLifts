@@ -72,6 +72,8 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
     var progressionEnabled: Bool
     /// Weight added on success. nil = unit-aware default (see `Progression`).
     var progressionIncrement: Double?
+    /// Consecutive failed sessions; drives the auto deload (see `Progression`).
+    var failureCount: Int
 
     init(
         id: UUID = UUID(),
@@ -82,7 +84,8 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         weight: Double = 0,
         restSeconds: Int = 180,
         progressionEnabled: Bool = true,
-        progressionIncrement: Double? = nil
+        progressionIncrement: Double? = nil,
+        failureCount: Int = 0
     ) {
         self.id = id
         self.exerciseID = exerciseID
@@ -93,6 +96,7 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         self.restSeconds = restSeconds
         self.progressionEnabled = progressionEnabled
         self.progressionIncrement = progressionIncrement
+        self.failureCount = failureCount
     }
 
     // Manual decode so templates saved before progression existed still load.
@@ -107,6 +111,7 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         restSeconds = try c.decode(Int.self, forKey: .restSeconds)
         progressionEnabled = try c.decodeIfPresent(Bool.self, forKey: .progressionEnabled) ?? true
         progressionIncrement = try c.decodeIfPresent(Double.self, forKey: .progressionIncrement)
+        failureCount = try c.decodeIfPresent(Int.self, forKey: .failureCount) ?? 0
     }
 }
 

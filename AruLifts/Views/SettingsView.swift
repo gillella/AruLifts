@@ -18,6 +18,21 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Stepper(
+                        "Deload after \(store.settings.deloadFailureThreshold) failures",
+                        value: $store.settings.deloadFailureThreshold,
+                        in: 1...5
+                    )
+                    Picker("Deload by", selection: $store.settings.deloadPercent) {
+                        ForEach([5.0, 10.0, 15.0, 20.0], id: \.self) { Text("\(Int($0))%").tag($0) }
+                    }
+                } header: {
+                    Text("Progression")
+                } footer: {
+                    Text("Weights increase automatically after a fully successful session. After \(store.settings.deloadFailureThreshold) failed sessions in a row, an exercise deloads by \(Int(store.settings.deloadPercent))%.")
+                }
+
                 Section("Rest Timer") {
                     Picker("Default rest", selection: $store.settings.defaultRestSeconds) {
                         ForEach(restOptions, id: \.self) { s in

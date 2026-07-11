@@ -18,6 +18,26 @@ struct AppSettings: Codable, Equatable {
     var autoStartRest: Bool = true
     /// Increment used by the +/- weight steppers.
     var weightIncrement: Double = 2.5
+    /// Consecutive failed sessions before an exercise deloads.
+    var deloadFailureThreshold: Int = 3
+    /// Percent taken off the working weight on deload.
+    var deloadPercent: Double = 10
+
+    init() {}
+
+    // Manual decode so settings saved before new fields existed still load
+    // (a plain memberwise decode would throw on the missing keys and
+    // silently reset every setting to defaults).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        units = try c.decodeIfPresent(Units.self, forKey: .units) ?? .kg
+        defaultRestSeconds = try c.decodeIfPresent(Int.self, forKey: .defaultRestSeconds) ?? 180
+        restAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .restAlertsEnabled) ?? true
+        autoStartRest = try c.decodeIfPresent(Bool.self, forKey: .autoStartRest) ?? true
+        weightIncrement = try c.decodeIfPresent(Double.self, forKey: .weightIncrement) ?? 2.5
+        deloadFailureThreshold = try c.decodeIfPresent(Int.self, forKey: .deloadFailureThreshold) ?? 3
+        deloadPercent = try c.decodeIfPresent(Double.self, forKey: .deloadPercent) ?? 10
+    }
 }
 
 /// Single source of truth for templates, history and settings. Persists to JSON
@@ -102,14 +122,23 @@ final class WorkoutStore: ObservableObject {
     }
 
     /// StrongLifts-style auto progression: exercises where every target rep
-    /// was completed get their template weight bumped for next session.
+    /// was completed get their template weight bumped for next session, and
+    /// repeated failures trigger a deload. Failure counters live on the
+    /// template, so this must run even when no weight changed.
     private func applyProgression(from session: WorkoutSession) {
         guard let templateID = session.templateID,
               let idx = templates.firstIndex(where: { $0.id == templateID }) else { return }
-        let result = Progression.apply(session: session, to: templates[idx], units: settings.units)
-        guard !result.changes.isEmpty else { return }
+        let result = Progression.apply(
+            session: session,
+            to: templates[idx],
+            units: settings.units,
+            failureThreshold: settings.deloadFailureThreshold,
+            deloadPercent: settings.deloadPercent
+        )
+        let countersChanged = result.template != templates[idx]
+        guard countersChanged || !result.changes.isEmpty else { return }
         templates[idx] = result.template
-        lastProgression = result.changes
+        if !result.changes.isEmpty { lastProgression = result.changes }
         saveTemplates()
     }
 

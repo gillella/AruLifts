@@ -85,5 +85,67 @@ if let legacy = try? JSONDecoder().decode(TemplateExercise.self, from: legacyJSO
     failures += 1; print("FAIL legacy JSON did not decode")
 }
 
+// --- Deload (issue #5) ---
+
+// 9. Failures below threshold only increment the counter.
+let sFail = makeSession(from: template, reps: [squatID: [5,5,5,5,3]], completed: [:])
+let d1 = Progression.apply(session: sFail, to: template, units: .kg, failureThreshold: 3, deloadPercent: 10)
+expect(d1.template.exercises[0].failureCount == 1, "first failure counts to 1")
+expect(d1.template.exercises[0].weight == 100, "weight unchanged below threshold")
+expect(!d1.changes.contains { $0.kind == .deload }, "no deload change below threshold")
+
+// 10. Reaching the threshold deloads by percent, rounded to increment, counter resets.
+var t10 = template
+t10.exercises[0].failureCount = 2
+let s10 = makeSession(from: t10, reps: [squatID: [5,5,5,5,3]], completed: [:])
+let d2 = Progression.apply(session: s10, to: t10, units: .kg, failureThreshold: 3, deloadPercent: 10)
+expect(d2.template.exercises[0].weight == 90, "100kg -10% -> 90kg")
+expect(d2.template.exercises[0].failureCount == 0, "counter resets after deload")
+expect(d2.changes.contains { $0.kind == .deload && $0.exerciseID == squatID }, "deload change reported")
+
+// 11. Deload rounds to a plate-loadable multiple of the increment.
+var t11 = template
+t11.exercises[0].weight = 102.5
+t11.exercises[0].failureCount = 2
+let s11 = makeSession(from: t11, reps: [squatID: [5,5,5,5,3]], completed: [:])
+let d3 = Progression.apply(session: s11, to: t11, units: .kg, failureThreshold: 3, deloadPercent: 10)
+// 102.5 * 0.9 = 92.25 -> nearest 2.5 = 92.5
+expect(d3.template.exercises[0].weight == 92.5, "deload rounds to nearest 2.5")
+
+// 12. Success resets an accumulated failure counter.
+var t12 = template
+t12.exercises[0].failureCount = 2
+let s12 = makeSession(from: t12, reps: [:], completed: [:])
+let d4 = Progression.apply(session: s12, to: t12, units: .kg, failureThreshold: 3, deloadPercent: 10)
+expect(d4.template.exercises[0].failureCount == 0, "success resets failure counter")
+expect(d4.template.exercises[0].weight == 102.5, "success still bumps weight")
+
+// 13. Unattempted exercise keeps its counter.
+var t13 = template
+t13.exercises[1].failureCount = 2
+var s13 = makeSession(from: t13, reps: [:], completed: [:])
+s13.exercises.removeAll { $0.exerciseID == dlID }
+let d5 = Progression.apply(session: s13, to: t13, units: .kg, failureThreshold: 3, deloadPercent: 10)
+expect(d5.template.exercises[1].failureCount == 2, "unattempted exercise keeps counter")
+expect(d5.template.exercises[1].weight == 140, "unattempted exercise keeps weight")
+
+// 14. Legacy JSON without failureCount decodes to 0.
+let legacy2 = """
+{"id":"\(UUID().uuidString)","exerciseID":"\(UUID().uuidString)","name":"Row",
+"targetSets":3,"targetReps":5,"weight":60,"restSeconds":180}
+""".data(using: .utf8)!
+if let l2 = try? JSONDecoder().decode(TemplateExercise.self, from: legacy2) {
+    expect(l2.failureCount == 0, "legacy decode defaults failureCount=0")
+} else { failures += 1; print("FAIL legacy JSON (failureCount) did not decode") }
+
+// 15. Legacy AppSettings JSON gains deload defaults.
+let legacySettings = """
+{"units":"kg","defaultRestSeconds":180,"restAlertsEnabled":true,"autoStartRest":true,"weightIncrement":2.5}
+""".data(using: .utf8)!
+if let ls = try? JSONDecoder().decode(AppSettings.self, from: legacySettings) {
+    expect(ls.deloadFailureThreshold == 3 && ls.deloadPercent == 10, "legacy settings decode with deload defaults")
+    expect(ls.defaultRestSeconds == 180 && ls.units == .kg, "legacy settings keep saved values")
+} else { failures += 1; print("FAIL legacy AppSettings did not decode") }
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
