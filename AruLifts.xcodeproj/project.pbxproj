@@ -18,6 +18,8 @@
 		AA0000000000000000000025 /* WorkoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000005 /* WorkoutStore.swift */; };
 		AA0000000000000000000026 /* WorkoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000005 /* WorkoutStore.swift */; };
 		AA0000000000000000000027 /* ConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000006 /* ConnectivityManager.swift */; };
+		AA0000000000000000000070 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000072 /* HealthKitManager.swift */; };
+		AA0000000000000000000071 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000072 /* HealthKitManager.swift */; };
 		AA0000000000000000000028 /* ConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000006 /* ConnectivityManager.swift */; };
 		AA0000000000000000000029 /* RestTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* RestTimerManager.swift */; };
 		AA000000000000000000002A /* RestTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* RestTimerManager.swift */; };
@@ -77,6 +79,7 @@
 		AA0000000000000000000004 /* ExerciseLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExerciseLibrary.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000005 /* WorkoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkoutStore.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000006 /* ConnectivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConnectivityManager.swift"; sourceTree = "<group>"; };
+		AA0000000000000000000072 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HealthKitManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000007 /* RestTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestTimerManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000008 /* ActiveWorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActiveWorkoutManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000009 /* AruLiftsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AruLiftsApp.swift"; sourceTree = "<group>"; };
@@ -157,6 +160,7 @@
 			children = (
 				AA000000000000000000005D /* ActiveWorkout */,
 				AA000000000000000000005B /* Connectivity */,
+				AA0000000000000000000073 /* Health */,
 				AA0000000000000000000060 /* Models */,
 				AA0000000000000000000064 /* Store */,
 			);
@@ -215,6 +219,14 @@
 				AA0000000000000000000006 /* ConnectivityManager.swift */,
 			);
 			path = "Connectivity";
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000073 /* Health */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000072 /* HealthKitManager.swift */,
+			);
+			path = "Health";
 			sourceTree = "<group>";
 		};
 		AA0000000000000000000060 /* Models */ = {
@@ -352,6 +364,7 @@
 				AA0000000000000000000023 /* ExerciseLibrary.swift in Sources */,
 				AA0000000000000000000025 /* WorkoutStore.swift in Sources */,
 				AA0000000000000000000027 /* ConnectivityManager.swift in Sources */,
+				AA0000000000000000000070 /* HealthKitManager.swift in Sources */,
 				AA0000000000000000000029 /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002B /* ActiveWorkoutManager.swift in Sources */,
 				AA000000000000000000002D /* AruLiftsApp.swift in Sources */,
@@ -379,6 +392,7 @@
 				AA0000000000000000000024 /* ExerciseLibrary.swift in Sources */,
 				AA0000000000000000000026 /* WorkoutStore.swift in Sources */,
 				AA0000000000000000000028 /* ConnectivityManager.swift in Sources */,
+				AA0000000000000000000071 /* HealthKitManager.swift in Sources */,
 				AA000000000000000000002A /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002C /* ActiveWorkoutManager.swift in Sources */,
 				AA0000000000000000000039 /* AruLiftsWatchApp.swift in Sources */,
@@ -504,7 +518,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"AruLifts/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = "AruLifts/AruLifts.entitlements";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "AruLifts reads nothing yet; sharing is requested so future features can show your Health data.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AruLifts saves your finished workouts, estimated calories, and body weight to Apple Health.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -533,7 +550,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"AruLifts/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = "AruLifts/AruLifts.entitlements";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "AruLifts reads nothing yet; sharing is requested so future features can show your Health data.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AruLifts saves your finished workouts, estimated calories, and body weight to Apple Health.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

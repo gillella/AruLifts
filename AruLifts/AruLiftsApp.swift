@@ -16,9 +16,12 @@ struct AruLiftsApp: App {
                 .environmentObject(active)
                 .tint(.orange)
                 .onAppear {
-                    // Persist finished sessions to history.
+                    // Persist finished sessions to history and Apple Health.
                     active.onFinish = { session in
                         store.recordSession(session)
+                        var finished = session
+                        if finished.finishedAt == nil { finished.finishedAt = Date() }
+                        Task { await HealthKitManager.shared.saveWorkout(finished) }
                     }
                 }
         }
