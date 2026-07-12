@@ -42,7 +42,7 @@ struct SetLogList: View {
 
                 ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { setIndex, set in
                     SetRow(
-                        number: setIndex + 1,
+                        label: setLabel(setIndex, in: exercise),
                         set: set,
                         usesWeight: exercise.usesWeight,
                         increment: store.settings.weightIncrement,
@@ -109,6 +109,13 @@ struct SetLogList: View {
         .padding(.top, 8)
     }
 
+    /// Warmups label as W1, W2…; work sets number from 1.
+    private func setLabel(_ index: Int, in exercise: SessionExercise) -> String {
+        let set = exercise.sets[index]
+        let peers = exercise.sets.prefix(index).filter { $0.isWarmup == set.isWarmup }.count
+        return set.isWarmup ? "W\(peers + 1)" : "\(peers + 1)"
+    }
+
     private func completeSet(_ setIndex: Int) {
         active.completeSet(
             exerciseIndex: exerciseIndex,
@@ -119,9 +126,9 @@ struct SetLogList: View {
     }
 }
 
-/// A single set row.
+/// A single set row. Warmup rows are tinted orange with a "W" label.
 struct SetRow: View {
-    let number: Int
+    let label: String
     let set: SetEntry
     let usesWeight: Bool
     let increment: Double
@@ -132,10 +139,10 @@ struct SetRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("\(number)")
+            Text(label)
                 .font(.headline.monospacedDigit())
                 .frame(width: 40, alignment: .leading)
-                .foregroundStyle(set.isCompleted ? .secondary : .primary)
+                .foregroundStyle(set.isCompleted ? Color.secondary : (set.isWarmup ? Color.orange : Color.primary))
 
             if usesWeight {
                 StepValue(
@@ -163,7 +170,9 @@ struct SetRow: View {
         .padding(.horizontal, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(set.isCompleted ? Color.green.opacity(0.10) : Color(.secondarySystemBackground))
+                .fill(set.isCompleted
+                      ? Color.green.opacity(0.10)
+                      : (set.isWarmup ? Color.orange.opacity(0.08) : Color(.secondarySystemBackground)))
         )
     }
 }

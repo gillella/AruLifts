@@ -10,5 +10,6 @@ swiftc -o "$OUT" \
   Shared/Models/ExerciseLibrary.swift \
   Shared/Store/WorkoutStore.swift \
   Shared/ActiveWorkout/Progression.swift \
+  Shared/ActiveWorkout/Warmup.swift \
   Tests/LogicTests/main.swift
 exec "$OUT"

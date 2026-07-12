@@ -22,6 +22,10 @@ struct AppSettings: Codable, Equatable {
     var deloadFailureThreshold: Int = 3
     /// Percent taken off the working weight on deload.
     var deloadPercent: Double = 10
+    /// Prepend generated warmup sets when starting a workout.
+    var warmupsEnabled: Bool = true
+    /// Bar the warmup ramp starts from. nil = standard bar for the units.
+    var barWeight: Double?
 
     init() {}
 
@@ -37,6 +41,8 @@ struct AppSettings: Codable, Equatable {
         weightIncrement = try c.decodeIfPresent(Double.self, forKey: .weightIncrement) ?? 2.5
         deloadFailureThreshold = try c.decodeIfPresent(Int.self, forKey: .deloadFailureThreshold) ?? 3
         deloadPercent = try c.decodeIfPresent(Double.self, forKey: .deloadPercent) ?? 10
+        warmupsEnabled = try c.decodeIfPresent(Bool.self, forKey: .warmupsEnabled) ?? true
+        barWeight = try c.decodeIfPresent(Double.self, forKey: .barWeight)
     }
 }
 

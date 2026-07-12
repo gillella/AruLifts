@@ -22,6 +22,8 @@
 		AA0000000000000000000071 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000072 /* HealthKitManager.swift */; };
 		AA0000000000000000000074 /* WatchWorkoutSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000075 /* WatchWorkoutSession.swift */; };
 		AA0000000000000000000076 /* Progression.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000077 /* Progression.swift */; };
+		AA0000000000000000000079 /* Warmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007B /* Warmup.swift */; };
+		AA000000000000000000007A /* Warmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007B /* Warmup.swift */; };
 		AA0000000000000000000078 /* Progression.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000077 /* Progression.swift */; };
 		AA0000000000000000000028 /* ConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000006 /* ConnectivityManager.swift */; };
 		AA0000000000000000000029 /* RestTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* RestTimerManager.swift */; };
@@ -85,6 +87,7 @@
 		AA0000000000000000000072 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HealthKitManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000075 /* WatchWorkoutSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WatchWorkoutSession.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000077 /* Progression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Progression.swift"; sourceTree = "<group>"; };
+		AA000000000000000000007B /* Warmup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Warmup.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000007 /* RestTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestTimerManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000008 /* ActiveWorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActiveWorkoutManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000009 /* AruLiftsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AruLiftsApp.swift"; sourceTree = "<group>"; };
@@ -216,6 +219,7 @@
 				AA0000000000000000000007 /* RestTimerManager.swift */,
 				AA0000000000000000000008 /* ActiveWorkoutManager.swift */,
 				AA0000000000000000000077 /* Progression.swift */,
+				AA000000000000000000007B /* Warmup.swift */,
 			);
 			path = "ActiveWorkout";
 			sourceTree = "<group>";
@@ -373,6 +377,7 @@
 				AA0000000000000000000027 /* ConnectivityManager.swift in Sources */,
 				AA0000000000000000000070 /* HealthKitManager.swift in Sources */,
 				AA0000000000000000000076 /* Progression.swift in Sources */,
+				AA0000000000000000000079 /* Warmup.swift in Sources */,
 				AA0000000000000000000029 /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002B /* ActiveWorkoutManager.swift in Sources */,
 				AA000000000000000000002D /* AruLiftsApp.swift in Sources */,
@@ -402,6 +407,7 @@
 				AA0000000000000000000028 /* ConnectivityManager.swift in Sources */,
 				AA0000000000000000000071 /* HealthKitManager.swift in Sources */,
 				AA0000000000000000000078 /* Progression.swift in Sources */,
+				AA000000000000000000007A /* Warmup.swift in Sources */,
 				AA000000000000000000002A /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002C /* ActiveWorkoutManager.swift in Sources */,
 				AA0000000000000000000039 /* AruLiftsWatchApp.swift in Sources */,

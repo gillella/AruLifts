@@ -26,10 +26,12 @@ enum Progression {
         }
     }
 
-    /// True when the logged exercise hit every target rep in every set.
+    /// True when the logged exercise hit every target rep in every work set.
+    /// Warmup sets never affect progression.
     static func isSuccessful(_ logged: SessionExercise, targetReps: Int) -> Bool {
-        guard !logged.sets.isEmpty else { return false }
-        return logged.sets.allSatisfy { $0.isCompleted && $0.reps >= targetReps }
+        let workSets = logged.sets.filter { !$0.isWarmup }
+        guard !workSets.isEmpty else { return false }
+        return workSets.allSatisfy { $0.isCompleted && $0.reps >= targetReps }
     }
 
     /// Deload target: weight minus `percent`, rounded to the nearest multiple

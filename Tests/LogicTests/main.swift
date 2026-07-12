@@ -147,5 +147,56 @@ if let ls = try? JSONDecoder().decode(AppSettings.self, from: legacySettings) {
     expect(ls.defaultRestSeconds == 180 && ls.units == .kg, "legacy settings keep saved values")
 } else { failures += 1; print("FAIL legacy AppSettings did not decode") }
 
+// --- Warmup (issue #6) ---
+
+// 16. Standard ramp for 100 kg: bar 2x5, 40x5, 60x3, 80x2.
+let w1 = Warmup.sets(workingWeight: 100, units: .kg)
+expect(w1.map { $0.weight } == [20, 20, 40, 60, 80], "100kg ramp weights")
+expect(w1.map { $0.reps } == [5, 5, 5, 3, 2], "100kg ramp reps")
+expect(w1.allSatisfy { $0.isWarmup && !$0.isCompleted }, "warmups flagged and incomplete")
+
+// 17. Working weight at or below the bar -> no warmups.
+expect(Warmup.sets(workingWeight: 20, units: .kg).isEmpty, "bar-weight work: no warmups")
+expect(Warmup.sets(workingWeight: 15, units: .kg).isEmpty, "below-bar work: no warmups")
+
+// 18. Light working weight collapses ramp steps that round into each other.
+let w3 = Warmup.sets(workingWeight: 30, units: .kg)
+// 40%=12(below bar, skip), 60%=17.5(below bar, skip), 80%=25 -> bar,bar,25
+expect(w3.map { $0.weight } == [20, 20, 25], "30kg ramp collapses to bar+25")
+
+// 19. Custom bar weight is respected.
+let w4 = Warmup.sets(workingWeight: 60, units: .kg, barWeight: 15)
+expect(w4.first?.weight == 15, "custom 15kg bar honored")
+expect(w4.allSatisfy { $0.weight < 60 }, "all warmups below working weight")
+
+// 20. lb bar default is 45.
+expect(Warmup.defaultBarWeight(units: .lb) == 45, "lb bar = 45")
+expect(Warmup.sets(workingWeight: 135, units: .lb).first?.weight == 45, "lb ramp starts at 45")
+
+// 21. Warmup sets don't affect progression success or volume.
+var ex21 = SessionExercise(
+    exerciseID: squatID, name: "Squat",
+    sets: [SetEntry(reps: 5, weight: 20, isCompleted: false, isWarmup: true),
+           SetEntry(reps: 5, weight: 100, isCompleted: true),
+           SetEntry(reps: 5, weight: 100, isCompleted: true)]
+)
+expect(Progression.isSuccessful(ex21, targetReps: 5), "uncompleted warmup doesn't block success")
+expect(ex21.volume == 1000, "volume counts work sets only")
+ex21.sets[0].isCompleted = true
+expect(ex21.volume == 1000, "completed warmup still excluded from volume")
+
+// 22. Session built with warmups enabled prepends flagged sets; disabled -> none.
+var settingsOn = AppSettings()
+settingsOn.warmupsEnabled = true
+let libEmpty: [UUID: Exercise] = [:]
+let sess22 = WorkoutSession.from(template: template, library: libEmpty, settings: settingsOn)
+let squat22 = sess22.exercises.first { $0.exerciseID == squatID }!
+expect(squat22.sets.filter { $0.isWarmup }.count == 5, "session prepends 5 warmups for 100kg squat")
+expect(squat22.sets.filter { !$0.isWarmup }.count == 5, "5 work sets intact")
+var settingsOff = AppSettings()
+settingsOff.warmupsEnabled = false
+let sess22b = WorkoutSession.from(template: template, library: libEmpty, settings: settingsOff)
+expect(sess22b.exercises.first { $0.exerciseID == squatID }!.sets.allSatisfy { !$0.isWarmup }, "disabled -> no warmups")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

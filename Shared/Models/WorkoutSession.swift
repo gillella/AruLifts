@@ -50,8 +50,10 @@ struct SessionExercise: Identifiable, Codable, Hashable {
 
     var completedSets: Int { sets.filter { $0.isCompleted }.count }
     var isComplete: Bool { !sets.isEmpty && sets.allSatisfy { $0.isCompleted } }
+    /// Work sets only — warmups don't count toward training volume.
     var volume: Double {
-        sets.filter { $0.isCompleted }.reduce(0) { $0 + Double($1.reps) * $1.weight }
+        sets.filter { $0.isCompleted && !$0.isWarmup }
+            .reduce(0) { $0 + Double($1.reps) * $1.weight }
     }
 }
 
@@ -100,10 +102,25 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
     }
 
     /// Builds a fresh session from a template, pre-populating each set.
-    static func from(template: WorkoutTemplate, library: [UUID: Exercise]) -> WorkoutSession {
+    /// Pass `settings` to prepend generated warmup sets (when enabled) for
+    /// weighted exercises.
+    static func from(
+        template: WorkoutTemplate,
+        library: [UUID: Exercise],
+        settings: AppSettings? = nil
+    ) -> WorkoutSession {
         let exercises = template.exercises.map { te -> SessionExercise in
             let usesWeight = library[te.exerciseID]?.usesWeight ?? true
-            let sets = (0..<max(1, te.targetSets)).map { _ in
+            var sets: [SetEntry] = []
+            if let settings, settings.warmupsEnabled, usesWeight {
+                sets = Warmup.sets(
+                    workingWeight: te.weight,
+                    units: settings.units,
+                    barWeight: settings.barWeight,
+                    roundTo: settings.weightIncrement
+                )
+            }
+            sets += (0..<max(1, te.targetSets)).map { _ in
                 SetEntry(reps: te.targetReps, weight: te.weight)
             }
             return SessionExercise(

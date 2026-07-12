@@ -6,6 +6,11 @@ struct SettingsView: View {
 
     private let restOptions = [60, 90, 120, 150, 180, 240, 300]
 
+    /// Non-standard bar choices for the current unit system.
+    private var barOptions: [Double] {
+        store.settings.units == .kg ? [10, 15] : [25, 35]
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -31,6 +36,23 @@ struct SettingsView: View {
                     Text("Progression")
                 } footer: {
                     Text("Weights increase automatically after a fully successful session. After \(store.settings.deloadFailureThreshold) failed sessions in a row, an exercise deloads by \(Int(store.settings.deloadPercent))%.")
+                }
+
+                Section {
+                    Toggle("Warmup sets", isOn: $store.settings.warmupsEnabled)
+                    if store.settings.warmupsEnabled {
+                        Picker("Bar weight", selection: $store.settings.barWeight) {
+                            Text("Standard (\(Int(Warmup.defaultBarWeight(units: store.settings.units))) \(store.settings.units.label))")
+                                .tag(Double?.none)
+                            ForEach(barOptions, id: \.self) { w in
+                                Text("\(Int(w)) \(store.settings.units.label)").tag(Double?.some(w))
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Warmup")
+                } footer: {
+                    Text("New workouts start each weighted exercise with empty-bar sets and ramped jumps up to the working weight. Warmups don't count toward progression or volume.")
                 }
 
                 Section("Rest Timer") {

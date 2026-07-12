@@ -106,7 +106,7 @@ struct HomeView: View {
     }
 
     private func startWorkout(_ template: WorkoutTemplate) {
-        let session = WorkoutSession.from(template: template, library: store.exerciseIndex)
+        let session = WorkoutSession.from(template: template, library: store.exerciseIndex, settings: store.settings)
         active.start(session)
     }
 }

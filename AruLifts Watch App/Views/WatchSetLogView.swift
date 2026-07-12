@@ -21,9 +21,9 @@ struct WatchSetLogView: View {
     var body: some View {
         if let set {
             VStack(spacing: 8) {
-                Text("Set \(setIndex + 1)")
+                Text(set.isWarmup ? "Warmup" : "Set \(setIndex + 1)")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(set.isWarmup ? .orange : .secondary)
 
                 if usesWeight {
                     Stepper(value: Binding(

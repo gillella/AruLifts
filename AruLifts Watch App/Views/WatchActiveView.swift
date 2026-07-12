@@ -81,7 +81,9 @@ struct WatchActiveView: View {
         VStack(spacing: 4) {
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { idx, set in
                 HStack {
-                    Text("Set \(idx + 1)").font(.caption2)
+                    Text(set.isWarmup ? "Warmup" : "Set \(idx + 1)")
+                        .font(.caption2)
+                        .foregroundStyle(set.isWarmup ? .orange : .primary)
                     Spacer()
                     if exercise.usesWeight {
                         Text("\(Int(set.weight))×\(set.reps)").font(.caption2.monospacedDigit())
