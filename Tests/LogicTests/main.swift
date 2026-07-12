@@ -198,5 +198,39 @@ settingsOff.warmupsEnabled = false
 let sess22b = WorkoutSession.from(template: template, library: libEmpty, settings: settingsOff)
 expect(sess22b.exercises.first { $0.exerciseID == squatID }!.sets.allSatisfy { !$0.isWarmup }, "disabled -> no warmups")
 
+// --- Plate calculator (issue #7) ---
+
+let kgPlates = PlateCalculator.defaultPlates(units: .kg)
+
+// 23. Exact load: 100kg on 20kg bar = 40/side = 25+15.
+let p1 = PlateCalculator.plates(target: 100, bar: 20, available: kgPlates)
+expect(p1.platesPerSide == [25, 15], "100kg -> 25+15 per side")
+expect(p1.isExact && p1.achievedWeight == 100, "100kg exact")
+
+// 24. Greedy with repeats: 170kg -> 75/side = 25,25,25.
+let p2 = PlateCalculator.plates(target: 170, bar: 20, available: kgPlates)
+expect(p2.platesPerSide == [25, 25, 25] && p2.isExact, "170kg greedy stack")
+
+// 25. Fractional plates: 62.5kg -> 21.25/side = 20+1.25.
+let p3 = PlateCalculator.plates(target: 62.5, bar: 20, available: kgPlates)
+expect(p3.platesPerSide == [20, 1.25], "62.5kg uses fractional 1.25")
+expect(p3.isExact, "62.5kg exact with fractionals")
+
+// 26. Non-loadable: 101kg -> closest below (100).
+let p4 = PlateCalculator.plates(target: 101, bar: 20, available: kgPlates)
+expect(!p4.isExact && p4.achievedWeight == 100, "101kg -> closest 100")
+
+// 27. Target at/below bar -> empty bar.
+expect(PlateCalculator.plates(target: 20, bar: 20, available: kgPlates).platesPerSide.isEmpty, "bar weight -> no plates")
+expect(PlateCalculator.plates(target: 15, bar: 20, available: kgPlates).achievedWeight == 20, "below bar -> bar")
+
+// 28. Restricted plate set: no 25s -> 100kg = 20+20/side.
+let p5 = PlateCalculator.plates(target: 100, bar: 20, available: [20, 15, 10, 5, 2.5, 1.25])
+expect(p5.platesPerSide == [20, 20], "no-25s gym uses 20+20")
+
+// 29. lb set: 135lb on 45lb bar = one 45 per side.
+let p6 = PlateCalculator.plates(target: 135, bar: 45, available: PlateCalculator.defaultPlates(units: .lb))
+expect(p6.platesPerSide == [45] && p6.isExact, "135lb -> 45/side")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

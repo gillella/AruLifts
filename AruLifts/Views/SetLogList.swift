@@ -28,6 +28,8 @@ struct SetLogList: View {
                     }
                 }
 
+                plateGuide(exercise)
+
                 // Column headers
                 HStack {
                     Text("SET").frame(width: 40, alignment: .leading)
@@ -109,6 +111,22 @@ struct SetLogList: View {
         .padding(.top, 8)
     }
 
+    /// Plate breakdown for the next uncompleted set's weight.
+    @ViewBuilder
+    private func plateGuide(_ exercise: SessionExercise) -> some View {
+        if exercise.usesWeight,
+           let next = exercise.sets.first(where: { !$0.isCompleted }),
+           next.weight > 0 {
+            let bar = store.settings.barWeight ?? Warmup.defaultBarWeight(units: store.settings.units)
+            let result = PlateCalculator.plates(
+                target: next.weight,
+                bar: bar,
+                available: store.settings.plateSet ?? PlateCalculator.defaultPlates(units: store.settings.units)
+            )
+            BarbellView(result: result, units: store.settings.units)
+        }
+    }
+
     /// Warmups label as W1, W2…; work sets number from 1.
     private func setLabel(_ index: Int, in exercise: SessionExercise) -> String {
         let set = exercise.sets[index]
@@ -123,6 +141,64 @@ struct SetLogList: View {
             autoStartRest: store.settings.autoStartRest,
             restAlerts: store.settings.restAlertsEnabled
         )
+    }
+}
+
+/// Visual barbell: bar line with per-side plates as height-scaled slabs,
+/// plus a text summary. Warns when the target isn't exactly loadable.
+struct BarbellView: View {
+    let result: PlateCalculator.Result
+    let units: AppSettings.Units
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 3) {
+                // Bar sleeve
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.gray.opacity(0.6))
+                    .frame(width: 26, height: 6)
+                ForEach(Array(result.platesPerSide.enumerated()), id: \.offset) { _, plate in
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.orange.gradient)
+                        .frame(width: 10, height: plateHeight(plate))
+                        .overlay(alignment: .bottom) {
+                            Text(plateLabel(plate))
+                                .font(.system(size: 7).bold())
+                                .foregroundStyle(.white)
+                                .padding(.bottom, 2)
+                        }
+                }
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.gray.opacity(0.6))
+                    .frame(width: 14, height: 6)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(summary).font(.caption2.weight(.medium))
+                    if !result.isExact {
+                        Text("closest: \(result.achievedWeight.formatted()) \(units.label)")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var summary: String {
+        result.platesPerSide.isEmpty
+            ? "empty bar"
+            : result.platesPerSide.map(plateLabel).joined(separator: " · ") + " / side"
+    }
+
+    private func plateLabel(_ w: Double) -> String {
+        w == w.rounded() ? String(Int(w)) : String(format: "%.2g", w)
+    }
+
+    private func plateHeight(_ plate: Double) -> CGFloat {
+        let biggest = units == .kg ? 25.0 : 45.0
+        return CGFloat(16 + (plate / biggest) * 22)
     }
 }
 

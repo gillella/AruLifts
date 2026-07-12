@@ -26,6 +26,8 @@ struct AppSettings: Codable, Equatable {
     var warmupsEnabled: Bool = true
     /// Bar the warmup ramp starts from. nil = standard bar for the units.
     var barWeight: Double?
+    /// Plates available in the gym. nil = standard set for the units.
+    var plateSet: [Double]?
 
     init() {}
 
@@ -43,6 +45,7 @@ struct AppSettings: Codable, Equatable {
         deloadPercent = try c.decodeIfPresent(Double.self, forKey: .deloadPercent) ?? 10
         warmupsEnabled = try c.decodeIfPresent(Bool.self, forKey: .warmupsEnabled) ?? true
         barWeight = try c.decodeIfPresent(Double.self, forKey: .barWeight)
+        plateSet = try c.decodeIfPresent([Double].self, forKey: .plateSet)
     }
 }
 

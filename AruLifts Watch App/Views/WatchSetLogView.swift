@@ -25,6 +25,13 @@ struct WatchSetLogView: View {
                     .font(.caption2)
                     .foregroundStyle(set.isWarmup ? .orange : .secondary)
 
+                if usesWeight, set.weight > 0 {
+                    Text(plateString(for: set.weight))
+                        .font(.system(size: 9).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
                 if usesWeight {
                     Stepper(value: Binding(
                         get: { set.weight },
@@ -65,6 +72,21 @@ struct WatchSetLogView: View {
 
     private func weightString(_ w: Double) -> String {
         w == w.rounded() ? String(Int(w)) : String(format: "%.1f", w)
+    }
+
+    /// Compact per-side plate list, e.g. "25·10·2.5 /side". Watch uses
+    /// default bar/plates (settings live on the phone).
+    private func plateString(for weight: Double) -> String {
+        let result = PlateCalculator.plates(
+            target: weight,
+            bar: Warmup.defaultBarWeight(units: .kg),
+            available: PlateCalculator.defaultPlates(units: .kg)
+        )
+        guard !result.platesPerSide.isEmpty else { return "empty bar" }
+        let list = result.platesPerSide
+            .map { $0 == $0.rounded() ? String(Int($0)) : String(format: "%.2g", $0) }
+            .joined(separator: "·")
+        return list + " /side"
     }
 }
 

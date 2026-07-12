@@ -55,6 +55,16 @@ struct SettingsView: View {
                     Text("New workouts start each weighted exercise with empty-bar sets and ramped jumps up to the working weight. Warmups don't count toward progression or volume.")
                 }
 
+                Section {
+                    ForEach(PlateCalculator.defaultPlates(units: store.settings.units), id: \.self) { plate in
+                        Toggle(plateLabel(plate) + " " + store.settings.units.label, isOn: plateBinding(plate))
+                    }
+                } header: {
+                    Text("Available Plates")
+                } footer: {
+                    Text("The plate guide on the workout screen only uses plates you have. Weights that can't be loaded exactly show the closest achievable load.")
+                }
+
                 Section("Rest Timer") {
                     Picker("Default rest", selection: $store.settings.defaultRestSeconds) {
                         ForEach(restOptions, id: \.self) { s in
@@ -88,6 +98,28 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
         }
+    }
+
+    private func plateLabel(_ w: Double) -> String {
+        w == w.rounded() ? String(Int(w)) : String(format: "%.2f", w).replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
+    }
+
+    /// nil plateSet means "all standard plates"; toggling materializes it.
+    private func plateBinding(_ plate: Double) -> Binding<Bool> {
+        Binding(
+            get: {
+                (store.settings.plateSet ?? PlateCalculator.defaultPlates(units: store.settings.units)).contains(plate)
+            },
+            set: { enabled in
+                var set = store.settings.plateSet ?? PlateCalculator.defaultPlates(units: store.settings.units)
+                if enabled {
+                    if !set.contains(plate) { set.append(plate) }
+                } else {
+                    set.removeAll { $0 == plate }
+                }
+                store.settings.plateSet = set.sorted(by: >)
+            }
+        )
     }
 
     private var watchStatusText: String {
