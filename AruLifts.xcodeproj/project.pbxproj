@@ -24,6 +24,9 @@
 		AA0000000000000000000076 /* Progression.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000077 /* Progression.swift */; };
 		AA0000000000000000000079 /* Warmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007B /* Warmup.swift */; };
 		AA000000000000000000007C /* PlateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007E /* PlateCalculator.swift */; };
+		AA0000000000000000000080 /* ProgressSeries.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007F /* ProgressSeries.swift */; };
+		AA0000000000000000000081 /* ProgressSeries.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007F /* ProgressSeries.swift */; };
+		AA0000000000000000000083 /* ProgressChartsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000082 /* ProgressChartsView.swift */; };
 		AA000000000000000000007D /* PlateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007E /* PlateCalculator.swift */; };
 		AA000000000000000000007A /* Warmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007B /* Warmup.swift */; };
 		AA0000000000000000000078 /* Progression.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000077 /* Progression.swift */; };
@@ -91,6 +94,8 @@
 		AA0000000000000000000077 /* Progression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Progression.swift"; sourceTree = "<group>"; };
 		AA000000000000000000007B /* Warmup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Warmup.swift"; sourceTree = "<group>"; };
 		AA000000000000000000007E /* PlateCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlateCalculator.swift"; sourceTree = "<group>"; };
+		AA000000000000000000007F /* ProgressSeries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProgressSeries.swift"; sourceTree = "<group>"; };
+		AA0000000000000000000082 /* ProgressChartsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProgressChartsView.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000007 /* RestTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestTimerManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000008 /* ActiveWorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActiveWorkoutManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000009 /* AruLiftsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AruLiftsApp.swift"; sourceTree = "<group>"; };
@@ -201,6 +206,7 @@
 				AA0000000000000000000012 /* SetLogList.swift */,
 				AA0000000000000000000013 /* HistoryView.swift */,
 				AA0000000000000000000014 /* SettingsView.swift */,
+				AA0000000000000000000082 /* ProgressChartsView.swift */,
 			);
 			path = "Views";
 			sourceTree = "<group>";
@@ -251,6 +257,7 @@
 				AA0000000000000000000002 /* WorkoutTemplate.swift */,
 				AA0000000000000000000003 /* WorkoutSession.swift */,
 				AA0000000000000000000004 /* ExerciseLibrary.swift */,
+				AA000000000000000000007F /* ProgressSeries.swift */,
 			);
 			path = "Models";
 			sourceTree = "<group>";
@@ -383,6 +390,8 @@
 				AA0000000000000000000076 /* Progression.swift in Sources */,
 				AA0000000000000000000079 /* Warmup.swift in Sources */,
 				AA000000000000000000007C /* PlateCalculator.swift in Sources */,
+				AA0000000000000000000080 /* ProgressSeries.swift in Sources */,
+				AA0000000000000000000083 /* ProgressChartsView.swift in Sources */,
 				AA0000000000000000000029 /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002B /* ActiveWorkoutManager.swift in Sources */,
 				AA000000000000000000002D /* AruLiftsApp.swift in Sources */,
@@ -414,6 +423,7 @@
 				AA0000000000000000000078 /* Progression.swift in Sources */,
 				AA000000000000000000007A /* Warmup.swift in Sources */,
 				AA000000000000000000007D /* PlateCalculator.swift in Sources */,
+				AA0000000000000000000081 /* ProgressSeries.swift in Sources */,
 				AA000000000000000000002A /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002C /* ActiveWorkoutManager.swift in Sources */,
 				AA0000000000000000000039 /* AruLiftsWatchApp.swift in Sources */,

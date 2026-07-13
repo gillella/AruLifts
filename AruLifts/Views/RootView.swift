@@ -20,13 +20,17 @@ struct RootView: View {
                 .tabItem { Label("Exercises", systemImage: "figure.strengthtraining.traditional") }
                 .tag(2)
 
+            ProgressChartsView()
+                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(3)
+
             HistoryView()
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
-                .tag(3)
+                .tag(4)
 
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(4)
+                .tag(5)
         }
         .fullScreenCover(isPresented: Binding(
             get: { active.isActive },

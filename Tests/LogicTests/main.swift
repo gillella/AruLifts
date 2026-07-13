@@ -232,5 +232,43 @@ expect(p5.platesPerSide == [20, 20], "no-25s gym uses 20+20")
 let p6 = PlateCalculator.plates(target: 135, bar: 45, available: PlateCalculator.defaultPlates(units: .lb))
 expect(p6.platesPerSide == [45] && p6.isExact, "135lb -> 45/side")
 
+// --- Progress series (issue #8) ---
+
+func datedSession(daysAgo: Int, weight: Double, completed: Bool = true, warmup: Bool = false, finished: Bool = true) -> WorkoutSession {
+    let date = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!
+    let ex = SessionExercise(
+        exerciseID: squatID, name: "Squat",
+        sets: [SetEntry(reps: 5, weight: weight, isCompleted: completed, isWarmup: warmup)]
+    )
+    return WorkoutSession(templateID: template.id, name: "A", exercises: [ex],
+                          startedAt: date, finishedAt: finished ? date : nil)
+}
+
+// 30. Max-weight series: oldest first, completed work sets only.
+let hist = [
+    datedSession(daysAgo: 1, weight: 105),
+    datedSession(daysAgo: 10, weight: 100),
+    datedSession(daysAgo: 5, weight: 0),                       // zero weight skipped
+    datedSession(daysAgo: 3, weight: 200, completed: false),   // uncompleted skipped
+    datedSession(daysAgo: 2, weight: 300, warmup: true),       // warmup-only skipped
+    datedSession(daysAgo: 4, weight: 150, finished: false),    // unfinished skipped
+]
+let series = ProgressSeries.exerciseMaxWeight(history: hist, exerciseID: squatID, since: nil)
+expect(series.map { $0.value } == [100, 105], "max-weight series: filtered + oldest first")
+
+// 31. Timeframe filter cuts old sessions.
+let recent = ProgressSeries.exerciseMaxWeight(
+    history: hist, exerciseID: squatID,
+    since: Calendar.current.date(byAdding: .day, value: -7, to: Date()))
+expect(recent.map { $0.value } == [105], "since-filter drops older sessions")
+
+// 32. Volume series uses work sets only.
+let vol = ProgressSeries.totalVolume(history: hist, since: nil)
+expect(vol.map { $0.value } == [500, 525], "volume series from work sets (5x100, 5x105)")
+
+// 33. Tracked exercises: weighted with completed work sets, deduped.
+let tracked = ProgressSeries.trackedExercises(history: hist)
+expect(tracked.count == 1 && tracked.first?.name == "Squat", "tracked exercises deduped")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

@@ -8,6 +8,7 @@ swiftc -o "$OUT" \
   Shared/Models/WorkoutSession.swift \
   Shared/Models/Exercise.swift \
   Shared/Models/ExerciseLibrary.swift \
+  Shared/Models/ProgressSeries.swift \
   Shared/Store/WorkoutStore.swift \
   Shared/ActiveWorkout/Progression.swift \
   Shared/ActiveWorkout/Warmup.swift \
