@@ -27,6 +27,7 @@ final class HealthKitManager {
         let readTypes: Set<HKObjectType> = [
             HKQuantityType(.activeEnergyBurned),
             HKQuantityType(.heartRate),
+            HKQuantityType(.bodyMass),
         ]
         try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
     }
@@ -74,6 +75,41 @@ final class HealthKitManager {
     static func estimatedActiveEnergyKcal(start: Date, end: Date) -> Double {
         let hours = end.timeIntervalSince(start) / 3600
         return 3.5 * 75.0 * hours
+    }
+
+    /// Writes a body-mass sample. Errors logged, never thrown — logging a
+    /// weight in the app must not fail because Health declined.
+    func saveBodyMass(kg: Double, date: Date) async {
+        guard isAvailable, kg > 0 else { return }
+        do {
+            try await requestAuthorization()
+            let sample = HKQuantitySample(
+                type: HKQuantityType(.bodyMass),
+                quantity: HKQuantity(unit: .gramUnit(with: .kilo), doubleValue: kg),
+                start: date,
+                end: date
+            )
+            try await store.save(sample)
+        } catch {
+            print("HealthKit: body mass save failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Most recent body-mass sample in Health (any source), in kilograms.
+    /// nil when unavailable, unauthorized, or no data.
+    func latestBodyMassKg() async -> Double? {
+        guard isAvailable else { return nil }
+        try? await requestAuthorization()
+        let type = HKQuantityType(.bodyMass)
+        return await withCheckedContinuation { continuation in
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+            let query = HKSampleQuery(sampleType: type, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+                let kg = (samples?.first as? HKQuantitySample)?
+                    .quantity.doubleValue(for: .gramUnit(with: .kilo))
+                continuation.resume(returning: kg)
+            }
+            store.execute(query)
+        }
     }
     #endif
 }

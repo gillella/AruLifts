@@ -270,5 +270,29 @@ expect(vol.map { $0.value } == [500, 525], "volume series from work sets (5x100,
 let tracked = ProgressSeries.trackedExercises(history: hist)
 expect(tracked.count == 1 && tracked.first?.name == "Squat", "tracked exercises deduped")
 
+// --- Body weight (issue #9) ---
+
+// 34. Series converts kg to display units and sorts oldest first.
+let now = Date()
+let bwEntries = [
+    BodyWeightEntry(date: now, weightKg: 80),
+    BodyWeightEntry(date: now.addingTimeInterval(-86400 * 10), weightKg: 82),
+]
+let bwKg = ProgressSeries.bodyWeight(entries: bwEntries, since: nil, units: .kg)
+expect(bwKg.map { $0.value } == [82, 80], "body-weight kg series oldest first")
+let bwLb = ProgressSeries.bodyWeight(entries: bwEntries, since: nil, units: .lb)
+expect(abs(bwLb.last!.value - 176.37) < 0.01, "80kg -> 176.37lb")
+
+// 35. Since-filter applies.
+let bwRecent = ProgressSeries.bodyWeight(
+    entries: bwEntries,
+    since: now.addingTimeInterval(-86400 * 5),
+    units: .kg)
+expect(bwRecent.count == 1 && bwRecent[0].value == 80, "body-weight since-filter")
+
+// 36. Unit constants round-trip.
+expect(AppSettings.Units.kg.kgPerUnit == 1, "kg unit constant")
+expect(abs(100 * AppSettings.Units.lb.kgPerUnit - 45.359237) < 0.0001, "lb unit constant")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

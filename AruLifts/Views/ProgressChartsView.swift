@@ -24,6 +24,7 @@ struct ProgressChartsView: View {
 
     @State private var timeframe: Timeframe = .threeMonths
     @State private var selectedExerciseID: UUID?
+    @State private var showingWeightSheet = false
 
     private var exercises: [(id: UUID, name: String)] {
         ProgressSeries.trackedExercises(history: store.history)
@@ -106,12 +107,44 @@ struct ProgressChartsView: View {
         }
     }
 
-    // MARK: - Body weight (data arrives with issue #9)
+    // MARK: - Body weight
 
     @ViewBuilder
     private var bodyWeightSection: some View {
         chartCard(title: "Body Weight") {
-            emptyState("Body-weight tracking is coming soon.")
+            let points = ProgressSeries.bodyWeight(
+                entries: store.bodyWeights,
+                since: timeframe.startDate,
+                units: store.settings.units
+            )
+            if let latest = store.bodyWeights.first {
+                Text("Latest: \((latest.weightKg / store.settings.units.kgPerUnit).formatted(.number.precision(.fractionLength(0...1)))) \(store.settings.units.label)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if points.count < 2 {
+                emptyState("Log your weight a few times to see the trend.")
+            } else {
+                Chart(points) {
+                    LineMark(x: .value("Date", $0.date), y: .value("Weight", $0.value))
+                        .foregroundStyle(.teal)
+                    PointMark(x: .value("Date", $0.date), y: .value("Weight", $0.value))
+                        .foregroundStyle(.teal)
+                }
+                .chartYScale(domain: .automatic(includesZero: false))
+                .chartYAxisLabel(store.settings.units.label)
+                .frame(height: 160)
+            }
+            Button {
+                showingWeightSheet = true
+            } label: {
+                Label("Log Weight", systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+        .sheet(isPresented: $showingWeightSheet) {
+            LogWeightSheet()
+                .presentationDetents([.height(260)])
         }
     }
 
@@ -137,6 +170,53 @@ struct ProgressChartsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 24)
+    }
+}
+
+/// Bottom sheet to log a body-weight measurement in the user's units.
+/// Prefills from the last app entry, else the latest Apple Health sample.
+struct LogWeightSheet: View {
+    @EnvironmentObject private var store: WorkoutStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var weightText = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Log Body Weight").font(.headline)
+            HStack {
+                TextField("Weight", text: $weightText)
+                    .keyboardType(.decimalPad)
+                    .focused($focused)
+                    .font(.title2.monospacedDigit())
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 120)
+                Text(store.settings.units.label).foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+
+            Button {
+                if let value = Double(weightText.replacingOccurrences(of: ",", with: ".")), value > 0 {
+                    store.logBodyWeight(kg: value * store.settings.units.kgPerUnit)
+                    dismiss()
+                }
+            } label: {
+                Text("Save").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+            .disabled(Double(weightText.replacingOccurrences(of: ",", with: ".")) == nil)
+        }
+        .padding()
+        .task {
+            if let last = store.bodyWeights.first {
+                weightText = String(format: "%.1f", last.weightKg / store.settings.units.kgPerUnit)
+            } else if let healthKg = await HealthKitManager.shared.latestBodyMassKg() {
+                weightText = String(format: "%.1f", healthKg / store.settings.units.kgPerUnit)
+            }
+            focused = true
+        }
     }
 }
 

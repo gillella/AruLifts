@@ -7,6 +7,8 @@ struct AppSettings: Codable, Equatable {
         case kg, lb
         var id: String { rawValue }
         var label: String { rawValue.uppercased() }
+        /// Kilograms per one display unit (lb → 0.4536).
+        var kgPerUnit: Double { self == .kg ? 1 : 0.45359237 }
     }
 
     var units: Units = .kg
@@ -60,6 +62,8 @@ final class WorkoutStore: ObservableObject {
     /// Weight bumps applied by the most recent finished session, for the
     /// "next time: X" UI. Not persisted — informational only.
     @Published var lastProgression: [ProgressionChange] = []
+    /// Body-weight log, newest first. Canonical kilograms (see BodyWeightEntry).
+    @Published var bodyWeights: [BodyWeightEntry] = []
     @Published var settings: AppSettings = AppSettings() {
         didSet { saveSettings() }
     }
@@ -68,6 +72,7 @@ final class WorkoutStore: ObservableObject {
     private let historyFile = "history.json"
     private let exercisesFile = "custom_exercises.json"
     private let settingsFile = "settings.json"
+    private let bodyWeightFile = "bodyweight.json"
 
     init() {
         load()
@@ -156,6 +161,25 @@ final class WorkoutStore: ObservableObject {
         saveHistory()
     }
 
+    // MARK: - Body weight
+
+    /// Logs a measurement (kilograms), keeps the list newest-first, and
+    /// mirrors it to Apple Health on the phone.
+    func logBodyWeight(kg: Double, date: Date = Date()) {
+        guard kg > 0 else { return }
+        bodyWeights.insert(BodyWeightEntry(date: date, weightKg: kg), at: 0)
+        bodyWeights.sort { $0.date > $1.date }
+        saveBodyWeights()
+        #if os(iOS)
+        Task { await HealthKitManager.shared.saveBodyMass(kg: kg, date: date) }
+        #endif
+    }
+
+    func deleteBodyWeights(at offsets: IndexSet) {
+        bodyWeights.remove(atOffsets: offsets)
+        saveBodyWeights()
+    }
+
     /// Most recent completed weight for an exercise, to prefill new sessions.
     func lastWeight(for exerciseID: UUID) -> Double? {
         for session in history {
@@ -179,6 +203,7 @@ final class WorkoutStore: ObservableObject {
         history = decode([WorkoutSession].self, from: historyFile) ?? []
         customExercises = decode([Exercise].self, from: exercisesFile) ?? []
         settings = decode(AppSettings.self, from: settingsFile) ?? AppSettings()
+        bodyWeights = decode([BodyWeightEntry].self, from: bodyWeightFile) ?? []
 
         if templates.isEmpty {
             templates = ExerciseLibrary.defaultTemplates()
@@ -200,4 +225,5 @@ final class WorkoutStore: ObservableObject {
     private func saveHistory() { encode(history, to: historyFile) }
     private func saveExercises() { encode(customExercises, to: exercisesFile) }
     private func saveSettings() { encode(settings, to: settingsFile) }
+    private func saveBodyWeights() { encode(bodyWeights, to: bodyWeightFile) }
 }

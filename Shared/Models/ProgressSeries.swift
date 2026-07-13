@@ -7,6 +7,20 @@ struct ProgressPoint: Identifiable, Equatable {
     let value: Double
 }
 
+/// One body-weight measurement. Stored canonically in kilograms so the
+/// user can switch display units without corrupting history.
+struct BodyWeightEntry: Identifiable, Codable, Hashable {
+    var id: UUID
+    var date: Date
+    var weightKg: Double
+
+    init(id: UUID = UUID(), date: Date = Date(), weightKg: Double) {
+        self.id = id
+        self.date = date
+        self.weightKg = weightKg
+    }
+}
+
 /// Pure chart-series extraction from workout history. Kept UI-free so the
 /// rules (completed work sets only, finished sessions only) are testable.
 enum ProgressSeries {
@@ -49,6 +63,14 @@ enum ProgressSeries {
             }
         }
         return seen.map { (id: $0.key, name: $0.value) }.sorted { $0.name < $1.name }
+    }
+
+    /// Body-weight trend in the user's display units, oldest first.
+    static func bodyWeight(entries: [BodyWeightEntry], since: Date?, units: AppSettings.Units) -> [ProgressPoint] {
+        entries
+            .filter { entry in since.map { entry.date >= $0 } ?? true }
+            .map { ProgressPoint(date: $0.date, value: $0.weightKg / units.kgPerUnit) }
+            .sorted { $0.date < $1.date }
     }
 
     private static func inRange(_ session: WorkoutSession, since: Date?) -> Bool {
