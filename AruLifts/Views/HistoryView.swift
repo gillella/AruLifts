@@ -2,6 +2,12 @@ import SwiftUI
 
 struct HistoryView: View {
     @EnvironmentObject private var store: WorkoutStore
+    @State private var mode: Mode = .list
+
+    enum Mode: String, CaseIterable, Identifiable {
+        case list = "List", calendar = "Calendar"
+        var id: String { rawValue }
+    }
 
     /// True when this session broke any record vs. sessions before it.
     /// History is small (personal training log), so per-row recompute is fine.
@@ -12,22 +18,23 @@ struct HistoryView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(store.history) { session in
-                    NavigationLink {
-                        SessionDetailView(session: session)
-                    } label: {
-                        HistoryRow(
-                            session: session,
-                            units: store.settings.units,
-                            isPR: isPRSession(session)
-                        )
-                    }
+            Group {
+                if mode == .list {
+                    sessionList
+                } else {
+                    ScrollView { WorkoutCalendarView() }
                 }
-                .onDelete(perform: store.deleteHistory)
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("History")
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Mode", selection: $mode) {
+                        ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 180)
+                }
+            }
             .overlay {
                 if store.history.isEmpty {
                     ContentUnavailableView(
@@ -38,6 +45,24 @@ struct HistoryView: View {
                 }
             }
         }
+    }
+
+    private var sessionList: some View {
+        List {
+            ForEach(store.history) { session in
+                NavigationLink {
+                    SessionDetailView(session: session)
+                } label: {
+                    HistoryRow(
+                        session: session,
+                        units: store.settings.units,
+                        isPR: isPRSession(session)
+                    )
+                }
+            }
+            .onDelete(perform: store.deleteHistory)
+        }
+        .listStyle(.insetGrouped)
     }
 }
 
@@ -78,6 +103,7 @@ struct HistoryRow: View {
 struct SessionDetailView: View {
     @EnvironmentObject private var store: WorkoutStore
     let session: WorkoutSession
+    @State private var notesDraft = ""
 
     private var durationText: String {
         let mins = Int(session.durationSeconds) / 60
@@ -91,6 +117,17 @@ struct SessionDetailView: View {
                 LabeledContent("Duration", value: durationText)
                 LabeledContent("Sets completed", value: "\(session.completedSets)/\(session.totalSets)")
                 LabeledContent("Total volume", value: formatWeight(session.totalVolume, units: store.settings.units))
+            }
+            Section("Notes") {
+                TextField("How did it go?", text: $notesDraft, axis: .vertical)
+                    .lineLimit(2...6)
+                    .onSubmit { store.updateSessionNotes(id: session.id, notes: notesDraft) }
+            }
+            .onAppear { notesDraft = session.notes }
+            .onDisappear {
+                if notesDraft != session.notes {
+                    store.updateSessionNotes(id: session.id, notes: notesDraft)
+                }
             }
             ForEach(session.exercises) { ex in
                 Section(ex.name) {

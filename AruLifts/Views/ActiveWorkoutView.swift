@@ -6,6 +6,7 @@ struct ActiveWorkoutView: View {
     @ObservedObject private var connectivity = ConnectivityManager.shared
     @State private var showingCancelConfirm = false
     @State private var showingExercisePicker = false
+    @State private var showingNotes = false
 
     var body: some View {
         NavigationStack {
@@ -35,9 +36,23 @@ struct ActiveWorkoutView: View {
                     ElapsedLabel(start: active.session?.startedAt ?? Date())
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingNotes = true
+                    } label: {
+                        Image(systemName: "note.text")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Finish") { active.finish() }
                         .fontWeight(.semibold)
                 }
+            }
+            .sheet(isPresented: $showingNotes) {
+                SessionNotesSheet(
+                    notes: active.session?.notes ?? "",
+                    onSave: { active.updateNotes($0) }
+                )
+                .presentationDetents([.medium])
             }
             .confirmationDialog("Discard this workout?", isPresented: $showingCancelConfirm, titleVisibility: .visible) {
                 Button("Discard workout", role: .destructive) { active.cancel() }
@@ -73,6 +88,30 @@ struct ActiveWorkoutView: View {
     private func currentIndex(in session: WorkoutSession) -> Int? {
         guard session.exercises.indices.contains(active.currentExerciseIndex) else { return nil }
         return active.currentExerciseIndex
+    }
+}
+
+/// Free-text note editor for the running session.
+struct SessionNotesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State var notes: String
+    let onSave: (String) -> Void
+
+    var body: some View {
+        NavigationStack {
+            TextEditor(text: $notes)
+                .padding(8)
+                .navigationTitle("Session Notes")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            onSave(notes)
+                            dismiss()
+                        }
+                    }
+                }
+        }
     }
 }
 

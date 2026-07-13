@@ -154,6 +154,13 @@ final class ActiveWorkoutManager: ObservableObject {
         broadcast()
     }
 
+    func updateNotes(_ text: String) {
+        guard var session else { return }
+        session.notes = text
+        self.session = session
+        broadcast()
+    }
+
     func goToNextExercise() {
         guard let session else { return }
         if currentExerciseIndex < session.exercises.count - 1 {

@@ -165,6 +165,12 @@ final class WorkoutStore: ObservableObject {
         saveHistory()
     }
 
+    func updateSessionNotes(id: UUID, notes: String) {
+        guard let idx = history.firstIndex(where: { $0.id == id }) else { return }
+        history[idx].notes = notes
+        saveHistory()
+    }
+
     // MARK: - Body weight
 
     /// Logs a measurement (kilograms), keeps the list newest-first, and

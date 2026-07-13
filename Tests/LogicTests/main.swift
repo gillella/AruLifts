@@ -325,5 +325,25 @@ expect(firstPRs.first?.kinds == ["First"], "first-ever session flagged First")
 let weaker = Records.newPRs(session: datedSession(daysAgo: 0, weight: 90), priorHistory: prior)
 expect(weaker.isEmpty, "weaker session: no PR")
 
+// --- Session notes (issue #11) ---
+
+// 41. Legacy session JSON without notes decodes with empty string.
+let legacySession = """
+{"id":"\(UUID().uuidString)","name":"A","category":"custom","exercises":[],
+"startedAt":\(Date().timeIntervalSinceReferenceDate)}
+""".data(using: .utf8)!
+let dec = JSONDecoder(); dec.dateDecodingStrategy = .deferredToDate
+if let ls = try? dec.decode(WorkoutSession.self, from: legacySession) {
+    expect(ls.notes == "", "legacy session decodes with empty notes")
+} else { failures += 1; print("FAIL legacy session did not decode") }
+
+// 42. Notes round-trip through Codable.
+var noted = WorkoutSession(name: "B")
+noted.notes = "felt heavy"
+if let data = try? JSONEncoder().encode(noted),
+   let back = try? JSONDecoder().decode(WorkoutSession.self, from: data) {
+    expect(back.notes == "felt heavy", "notes survive encode/decode")
+} else { failures += 1; print("FAIL notes round-trip") }
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

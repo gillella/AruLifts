@@ -28,6 +28,7 @@
 		AA0000000000000000000081 /* ProgressSeries.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007F /* ProgressSeries.swift */; };
 		AA0000000000000000000083 /* ProgressChartsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000082 /* ProgressChartsView.swift */; };
 		AA0000000000000000000084 /* Records.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000086 /* Records.swift */; };
+		AA0000000000000000000087 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000088 /* CalendarView.swift */; };
 		AA0000000000000000000085 /* Records.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000086 /* Records.swift */; };
 		AA000000000000000000007D /* PlateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007E /* PlateCalculator.swift */; };
 		AA000000000000000000007A /* Warmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000007B /* Warmup.swift */; };
@@ -99,6 +100,7 @@
 		AA000000000000000000007F /* ProgressSeries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProgressSeries.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000082 /* ProgressChartsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProgressChartsView.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000086 /* Records.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Records.swift"; sourceTree = "<group>"; };
+		AA0000000000000000000088 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CalendarView.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000007 /* RestTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestTimerManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000008 /* ActiveWorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActiveWorkoutManager.swift"; sourceTree = "<group>"; };
 		AA0000000000000000000009 /* AruLiftsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AruLiftsApp.swift"; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 				AA0000000000000000000013 /* HistoryView.swift */,
 				AA0000000000000000000014 /* SettingsView.swift */,
 				AA0000000000000000000082 /* ProgressChartsView.swift */,
+				AA0000000000000000000088 /* CalendarView.swift */,
 			);
 			path = "Views";
 			sourceTree = "<group>";
@@ -397,6 +400,7 @@
 				AA0000000000000000000080 /* ProgressSeries.swift in Sources */,
 				AA0000000000000000000083 /* ProgressChartsView.swift in Sources */,
 				AA0000000000000000000084 /* Records.swift in Sources */,
+				AA0000000000000000000087 /* CalendarView.swift in Sources */,
 				AA0000000000000000000029 /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002B /* ActiveWorkoutManager.swift in Sources */,
 				AA000000000000000000002D /* AruLiftsApp.swift in Sources */,

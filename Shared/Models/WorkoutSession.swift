@@ -67,6 +67,8 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
     var exercises: [SessionExercise]
     var startedAt: Date
     var finishedAt: Date?
+    /// Free-text session note ("felt heavy", "new gym"…).
+    var notes: String
 
     init(
         id: UUID = UUID(),
@@ -75,7 +77,8 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         category: WorkoutCategory = .custom,
         exercises: [SessionExercise] = [],
         startedAt: Date = Date(),
-        finishedAt: Date? = nil
+        finishedAt: Date? = nil,
+        notes: String = ""
     ) {
         self.id = id
         self.templateID = templateID
@@ -84,6 +87,20 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         self.exercises = exercises
         self.startedAt = startedAt
         self.finishedAt = finishedAt
+        self.notes = notes
+    }
+
+    // Manual decode so history saved before notes existed still loads.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        templateID = try c.decodeIfPresent(UUID.self, forKey: .templateID)
+        name = try c.decode(String.self, forKey: .name)
+        category = try c.decode(WorkoutCategory.self, forKey: .category)
+        exercises = try c.decode([SessionExercise].self, forKey: .exercises)
+        startedAt = try c.decode(Date.self, forKey: .startedAt)
+        finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }
 
     var isFinished: Bool { finishedAt != nil }
