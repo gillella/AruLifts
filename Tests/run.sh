@@ -13,5 +13,6 @@ swiftc -o "$OUT" \
   Shared/ActiveWorkout/Progression.swift \
   Shared/ActiveWorkout/Warmup.swift \
   Shared/ActiveWorkout/PlateCalculator.swift \
+  Shared/ActiveWorkout/Records.swift \
   Tests/LogicTests/main.swift
 exec "$OUT"

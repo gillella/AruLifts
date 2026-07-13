@@ -41,6 +41,7 @@ struct ProgressChartsView: View {
                     }
                     .pickerStyle(.segmented)
 
+                    recordsLink
                     exerciseSection
                     volumeSection
                     bodyWeightSection
@@ -50,6 +51,25 @@ struct ProgressChartsView: View {
             .navigationTitle("Progress")
             .background(Color(.systemGroupedBackground))
         }
+    }
+
+    private var recordsLink: some View {
+        NavigationLink {
+            RecordsView()
+        } label: {
+            HStack {
+                Label("Personal Records", systemImage: "trophy.fill")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(.secondarySystemBackground)))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Exercise weight
@@ -170,6 +190,46 @@ struct ProgressChartsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 24)
+    }
+}
+
+/// All-time bests per exercise: heaviest set, estimated 1RM, best session
+/// volume. Warmups never count (enforced by Records).
+struct RecordsView: View {
+    @EnvironmentObject private var store: WorkoutStore
+
+    var body: some View {
+        List {
+            let records = Records.all(history: store.history)
+            if records.isEmpty {
+                ContentUnavailableView(
+                    "No Records Yet",
+                    systemImage: "trophy",
+                    description: Text("Finish workouts with weighted exercises to start setting records.")
+                )
+            } else {
+                ForEach(records) { record in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(record.name).font(.headline)
+                        HStack {
+                            recordStat("Best set", "\(record.maxWeight.formatted()) \(store.settings.units.label) × \(record.repsAtMaxWeight)")
+                            recordStat("Est. 1RM", "\(record.best1RM.formatted(.number.precision(.fractionLength(0...1)))) \(store.settings.units.label)")
+                            recordStat("Volume", record.maxSessionVolume.formatted(.number.notation(.compactName)))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationTitle("Records")
+    }
+
+    private func recordStat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Text(value).font(.subheadline.weight(.semibold).monospacedDigit())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -294,5 +294,36 @@ expect(bwRecent.count == 1 && bwRecent[0].value == 80, "body-weight since-filter
 expect(AppSettings.Units.kg.kgPerUnit == 1, "kg unit constant")
 expect(abs(100 * AppSettings.Units.lb.kgPerUnit - 45.359237) < 0.0001, "lb unit constant")
 
+// --- Records (issue #10) ---
+
+// 37. Epley formula.
+expect(Records.epley1RM(weight: 100, reps: 5) == 100 * (1 + 5.0/30), "Epley 100x5")
+expect(Records.epley1RM(weight: 100, reps: 1) == 100, "Epley 1 rep = weight")
+
+// 38. Records aggregate across sessions; warmups/uncompleted excluded.
+let recHist = [
+    datedSession(daysAgo: 10, weight: 100),                    // 100x5
+    datedSession(daysAgo: 5, weight: 105),                     // 105x5 (PR)
+    datedSession(daysAgo: 2, weight: 300, warmup: true),       // ignored
+    datedSession(daysAgo: 1, weight: 200, completed: false),   // ignored
+]
+let recs = Records.all(history: recHist)
+expect(recs.count == 1 && recs[0].maxWeight == 105, "max weight 105")
+expect(recs[0].repsAtMaxWeight == 5, "reps at max weight")
+expect(abs(recs[0].best1RM - 105 * (1 + 5.0/30)) < 0.001, "best 1RM from 105x5")
+expect(recs[0].maxSessionVolume == 525, "max session volume")
+
+// 39. newPRs: beats prior -> Weight/1RM/Volume; first time -> First.
+let prior = [datedSession(daysAgo: 10, weight: 100)]
+let prSession = datedSession(daysAgo: 0, weight: 105)
+let prs = Records.newPRs(session: prSession, priorHistory: prior)
+expect(prs.count == 1 && prs[0].kinds.contains("Weight") && prs[0].kinds.contains("1RM"), "105 beats 100: weight+1RM PR")
+let firstPRs = Records.newPRs(session: prSession, priorHistory: [])
+expect(firstPRs.first?.kinds == ["First"], "first-ever session flagged First")
+
+// 40. No PR when weaker.
+let weaker = Records.newPRs(session: datedSession(daysAgo: 0, weight: 90), priorHistory: prior)
+expect(weaker.isEmpty, "weaker session: no PR")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

@@ -64,6 +64,8 @@ final class WorkoutStore: ObservableObject {
     @Published var lastProgression: [ProgressionChange] = []
     /// Body-weight log, newest first. Canonical kilograms (see BodyWeightEntry).
     @Published var bodyWeights: [BodyWeightEntry] = []
+    /// Records broken by the most recent finished session. Not persisted.
+    @Published var lastPRs: [PRHighlight] = []
     @Published var settings: AppSettings = AppSettings() {
         didSet { saveSettings() }
     }
@@ -130,6 +132,8 @@ final class WorkoutStore: ObservableObject {
     func recordSession(_ session: WorkoutSession) {
         var finished = session
         if finished.finishedAt == nil { finished.finishedAt = Date() }
+        // PRs compare against history BEFORE this session joins it.
+        lastPRs = Records.newPRs(session: finished, priorHistory: history)
         history.insert(finished, at: 0)
         saveHistory()
         applyProgression(from: finished)

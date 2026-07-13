@@ -10,6 +10,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     statsHeader
+                    prBanner
                     progressionBanner
                     watchStatus
                     quickStartSection
@@ -33,6 +34,26 @@ struct HomeView: View {
             StatTile(value: "\(store.history.count)", label: "Workouts", systemImage: "checkmark.seal.fill")
             StatTile(value: "\(thisWeekCount)", label: "This Week", systemImage: "calendar")
             StatTile(value: "\(store.templates.count)", label: "Plans", systemImage: "square.grid.2x2.fill")
+        }
+    }
+
+    /// Celebrates records broken by the last finished session.
+    @ViewBuilder
+    private var prBanner: some View {
+        if !store.lastPRs.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("New personal records!", systemImage: "trophy.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.yellow)
+                ForEach(store.lastPRs) { pr in
+                    Text("\(pr.name): \(pr.kinds.joined(separator: ", ")) PR")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.yellow.opacity(0.12)))
         }
     }
 

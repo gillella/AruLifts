@@ -3,6 +3,13 @@ import SwiftUI
 struct HistoryView: View {
     @EnvironmentObject private var store: WorkoutStore
 
+    /// True when this session broke any record vs. sessions before it.
+    /// History is small (personal training log), so per-row recompute is fine.
+    private func isPRSession(_ session: WorkoutSession) -> Bool {
+        let prior = store.history.filter { $0.startedAt < session.startedAt }
+        return !Records.newPRs(session: session, priorHistory: prior).isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -10,7 +17,11 @@ struct HistoryView: View {
                     NavigationLink {
                         SessionDetailView(session: session)
                     } label: {
-                        HistoryRow(session: session, units: store.settings.units)
+                        HistoryRow(
+                            session: session,
+                            units: store.settings.units,
+                            isPR: isPRSession(session)
+                        )
                     }
                 }
                 .onDelete(perform: store.deleteHistory)
@@ -33,6 +44,7 @@ struct HistoryView: View {
 struct HistoryRow: View {
     let session: WorkoutSession
     let units: AppSettings.Units
+    var isPR: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -41,7 +53,14 @@ struct HistoryRow: View {
                 Image(systemName: session.category.symbol).foregroundStyle(session.category.color)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.name).font(.headline)
+                HStack(spacing: 4) {
+                    Text(session.name).font(.headline)
+                    if isPR {
+                        Image(systemName: "trophy.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                    }
+                }
                 Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption).foregroundStyle(.secondary)
             }
