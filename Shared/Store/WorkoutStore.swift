@@ -76,8 +76,84 @@ final class WorkoutStore: ObservableObject {
     private let settingsFile = "settings.json"
     private let bodyWeightFile = "bodyweight.json"
 
+    /// True once files live in the iCloud Drive container (iOS only).
+    @Published private(set) var iCloudEnabled = false
+    /// Where the JSON files live. Starts local; switches to the iCloud
+    /// container after `resolveICloud()` migrates.
+    private var storageDir: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+
+    private var allFiles: [String] {
+        [templatesFile, historyFile, exercisesFile, settingsFile, bodyWeightFile]
+    }
+
     init() {
         load()
+        #if os(iOS)
+        resolveICloud()
+        #endif
+    }
+
+    // MARK: - iCloud (iOS; watchOS has no iCloud Documents and stays local)
+
+    #if os(iOS)
+    /// The ubiquity check can be slow on first call, so it runs off-main.
+    /// When the container exists: migrate local files that aren't there yet,
+    /// switch storage, and reload (last writer wins across devices).
+    private func resolveICloud() {
+        Task { @MainActor [weak self] in
+            guard let docs = await Self.ubiquityDocumentsDirectory() else { return }
+            self?.adoptICloudDirectory(docs)
+        }
+    }
+
+    /// Runs the slow ubiquity lookup off-main; returns nil when iCloud is unavailable.
+    private static func ubiquityDocumentsDirectory() async -> URL? {
+        await Task.detached(priority: .utility) {
+            guard let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
+            let docs = container.appendingPathComponent("Documents")
+            try? FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+            return docs
+        }.value
+    }
+
+    private func adoptICloudDirectory(_ dir: URL) {
+        let fm = FileManager.default
+        for file in allFiles {
+            let src = storageDir.appendingPathComponent(file)
+            let dst = dir.appendingPathComponent(file)
+            if fm.fileExists(atPath: src.path), !fm.fileExists(atPath: dst.path) {
+                try? fm.copyItem(at: src, to: dst)
+            }
+        }
+        storageDir = dir
+        iCloudEnabled = true
+        load()
+    }
+    #endif
+
+    // MARK: - Manual backup / restore
+
+    /// Single-file JSON snapshot of everything, for the Settings export.
+    func backupData() -> Data? {
+        try? Backup.encode(BackupPayload(
+            templates: templates,
+            history: history,
+            customExercises: customExercises,
+            bodyWeights: bodyWeights,
+            settings: settings
+        ))
+    }
+
+    /// Replaces all data with the backup's contents (last writer wins).
+    func restore(from data: Data) throws {
+        let payload = try Backup.decode(data)
+        templates = payload.templates
+        history = payload.history
+        customExercises = payload.customExercises
+        bodyWeights = payload.bodyWeights
+        settings = payload.settings
+        saveTemplates(); saveHistory(); saveExercises(); saveBodyWeights()
+        // settings saves via didSet
     }
 
     // MARK: - Combined exercise catalogue
@@ -204,8 +280,7 @@ final class WorkoutStore: ObservableObject {
     // MARK: - Persistence
 
     private func url(for file: String) -> URL {
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return dir.appendingPathComponent(file)
+        storageDir.appendingPathComponent(file)
     }
 
     private func load() {

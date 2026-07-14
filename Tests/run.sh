@@ -10,6 +10,7 @@ swiftc -o "$OUT" \
   Shared/Models/ExerciseLibrary.swift \
   Shared/Models/ProgressSeries.swift \
   Shared/Store/WorkoutStore.swift \
+  Shared/Store/Backup.swift \
   Shared/ActiveWorkout/Progression.swift \
   Shared/ActiveWorkout/Warmup.swift \
   Shared/ActiveWorkout/PlateCalculator.swift \

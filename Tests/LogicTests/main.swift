@@ -345,5 +345,30 @@ if let data = try? JSONEncoder().encode(noted),
     expect(back.notes == "felt heavy", "notes survive encode/decode")
 } else { failures += 1; print("FAIL notes round-trip") }
 
+// --- Backup (issue #13) ---
+
+// 43. Full payload round-trips.
+var bset = AppSettings(); bset.units = .lb; bset.deloadPercent = 15
+let payload = BackupPayload(
+    templates: [template],
+    history: [datedSession(daysAgo: 1, weight: 100)],
+    customExercises: [],
+    bodyWeights: [BodyWeightEntry(weightKg: 80)],
+    settings: bset
+)
+if let data = try? Backup.encode(payload), let back = try? Backup.decode(data) {
+    expect(back.templates.count == 1 && back.templates[0].id == template.id, "backup templates round-trip")
+    expect(back.history.count == 1, "backup history round-trip")
+    expect(back.bodyWeights.first?.weightKg == 80, "backup body weights round-trip")
+    expect(back.settings.units == .lb && back.settings.deloadPercent == 15, "backup settings round-trip")
+    expect(back.version == 1, "backup version present")
+} else { failures += 1; print("FAIL backup round-trip") }
+
+// 44. Partial/older backup decodes with defaults.
+let partial = #"{"templates":[],"history":[]}"#.data(using: .utf8)!
+if let p = try? Backup.decode(partial) {
+    expect(p.bodyWeights.isEmpty && p.settings.units == .kg, "partial backup fills defaults")
+} else { failures += 1; print("FAIL partial backup did not decode") }
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

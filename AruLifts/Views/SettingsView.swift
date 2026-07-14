@@ -1,8 +1,26 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// Wraps the backup JSON for the SwiftUI file exporter.
+struct BackupFileDocument: FileDocument {
+    static let readableContentTypes: [UTType] = [.json]
+    var data: Data
+
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
 
 struct SettingsView: View {
     @EnvironmentObject private var store: WorkoutStore
     @ObservedObject private var connectivity = ConnectivityManager.shared
+    @State private var exportingBackup = false
+    @State private var importingBackup = false
+    @State private var restoreMessage: String?
 
     private let restOptions = [60, 90, 120, 150, 180, 240, 300]
 
@@ -90,13 +108,44 @@ struct SettingsView: View {
                 Section {
                     LabeledContent("Workouts saved", value: "\(store.templates.count)")
                     LabeledContent("History entries", value: "\(store.history.count)")
+                    LabeledContent("iCloud sync", value: store.iCloudEnabled ? "On" : "Off")
+                    Button("Back Up…") { exportingBackup = true }
+                    Button("Restore from Backup…") { importingBackup = true }
                 } header: {
                     Text("Data")
                 } footer: {
-                    Text("AruLifts · v1.0")
+                    Text(store.iCloudEnabled
+                         ? "Data syncs via iCloud Drive. Backups are an extra safety net.\nAruLifts · v1.0"
+                         : "Sign in to iCloud to sync across devices. Backups work either way.\nAruLifts · v1.0")
                 }
             }
             .navigationTitle("Settings")
+            .fileExporter(
+                isPresented: $exportingBackup,
+                document: BackupFileDocument(data: store.backupData() ?? Data()),
+                contentType: .json,
+                defaultFilename: "AruLifts-backup-\(Date().formatted(.iso8601.year().month().day()))"
+            ) { _ in }
+            .fileImporter(isPresented: $importingBackup, allowedContentTypes: [.json]) { result in
+                do {
+                    let url = try result.get()
+                    guard url.startAccessingSecurityScopedResource() else {
+                        restoreMessage = "Couldn't access the file."
+                        return
+                    }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    try store.restore(from: Data(contentsOf: url))
+                    restoreMessage = "Backup restored."
+                } catch {
+                    restoreMessage = "Restore failed: \(error.localizedDescription)"
+                }
+            }
+            .alert(restoreMessage ?? "", isPresented: Binding(
+                get: { restoreMessage != nil },
+                set: { if !$0 { restoreMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            }
         }
     }
 
