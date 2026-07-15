@@ -7,19 +7,40 @@ import WatchConnectivity
 
 /// Signals the counterpart ended a session. `finished` distinguishes a
 /// completed workout (save to history) from a cancelled one (discard).
-struct EndEvent: Equatable {
+struct EndEvent {
     let id: UUID
     let finished: Bool
     /// The sender already saved this workout to Apple Health (watch live
     /// session), so the receiver must not write a duplicate HKWorkout.
     let healthSaved: Bool
+    /// The sender's final session snapshot at the moment it ended, if it could
+    /// be encoded. Carried alongside "end" so the receiver saves/discards the
+    /// state the sender actually saw, not whatever local copy it happens to
+    /// have — the last "sync" application-context push and this "end" message
+    /// travel on different transports with no ordering guarantee between them,
+    /// so a final edit (e.g. a last-second rep count) could otherwise race
+    /// past its own "end" event and never make it into the receiver's copy.
+    let session: WorkoutSession?
     /// Makes each delivery distinct so `@Published` always emits.
     let nonce = UUID()
 }
 
+extension EndEvent: Equatable {
+    /// Equality here is really identity, not value equality: two `EndEvent`s
+    /// are only ever "the same" if they are literally the same delivery. The
+    /// `nonce` (fresh `UUID` per init) is sufficient and avoids requiring
+    /// `WorkoutSession` equality semantics to carry meaning they don't have here.
+    static func == (lhs: EndEvent, rhs: EndEvent) -> Bool {
+        lhs.nonce == rhs.nonce
+    }
+}
+
 /// Bridges the iPhone and Apple Watch using `WCSession`. The phone starts a
-/// session and pushes it to the watch; both sides then send full-session syncs
-/// as the user logs sets, so either device stays current.
+/// session and pushes it to the watch; both sides then push full-session state
+/// (start/sync) via `updateApplicationContext` as the user logs sets, so either
+/// device converges on the latest state regardless of message ordering. Discrete
+/// lifecycle events ("end") use the reliable `sendMessage`/`transferUserInfo`
+/// path instead, since they must never be coalesced away or lost.
 final class ConnectivityManager: NSObject, ObservableObject {
     static let shared = ConnectivityManager()
 
@@ -51,33 +72,118 @@ final class ConnectivityManager: NSObject, ObservableObject {
         #endif
     }
 
-    /// Phone -> Watch: begin mirroring this session.
+    /// Phone -> Watch: begin mirroring this session. Routed through application
+    /// context (see `sendSync`) so the session is waiting for the watch app as
+    /// soon as it activates, even if it wasn't running when the phone started it.
     func sendStart(_ session: WorkoutSession) {
-        send(type: "start", session: session)
+        sendContext(type: "start", session: session)
     }
 
     /// Either direction: push the current full state.
+    ///
+    /// Full-session snapshots ("start"/"sync") go through
+    /// `WCSession.updateApplicationContext`, not `sendMessage`/`transferUserInfo`.
+    /// Application context holds at most one pending dictionary per direction and
+    /// always reflects the most recent call, so it coalesces rapid-fire edits (e.g.
+    /// two quick "+1 rep" taps on the watch) into "deliver the latest state" rather
+    /// than racing two independent transports. The previous implementation mixed an
+    /// immediate `sendMessage` with a queued `transferUserInfo` fallback per edit;
+    /// because those two paths have no ordering guarantee relative to each other, a
+    /// stale snapshot could arrive after a newer one and silently overwrite it
+    /// (lost-update bug). A single coalescing channel makes that reordering
+    /// impossible by construction.
     func sendSync(_ session: WorkoutSession) {
-        send(type: "sync", session: session)
+        sendContext(type: "sync", session: session)
     }
 
     /// Either direction: the session has finished (save) or been cancelled.
-    func sendEnd(_ id: UUID, finished: Bool, healthSaved: Bool = false) {
-        let payload: [String: Any] = [
+    ///
+    /// Carries the full final `WorkoutSession` snapshot, not just its id: "end"
+    /// travels on the reliable message/userInfo transport while "sync" travels on
+    /// application context, and those two transports have no ordering guarantee
+    /// relative to each other. If the sender made one last edit right before
+    /// ending (e.g. a final rep-count tap before tapping Finish), the "end"
+    /// message can beat the last "sync" context across the wire, and a receiver
+    /// that only trusted its own locally-applied session would save/discard a
+    /// copy missing that edit. Embedding the snapshot in "end" makes it
+    /// self-contained: the receiver always finalizes exactly what the sender saw.
+    func sendEnd(_ session: WorkoutSession, finished: Bool, healthSaved: Bool = false) {
+        var payload: [String: Any] = [
             "type": "end",
-            "id": id.uuidString,
+            "id": session.id.uuidString,
             "finished": finished,
             "healthSaved": healthSaved,
         ]
+        // Best-effort: if encoding fails (shouldn't happen for a value we just
+        // held in memory), fall back to id-only and let the receiver use its
+        // own local copy, same as before this fix.
+        if let data = try? encoder.encode(session) {
+            payload["session"] = data
+        }
         transmit(payload)
+        // Also clear the sticky application context (see clearActiveContext).
+        // The context is the "latest full-session state" channel and it persists
+        // across launches; if it still held the just-ended session, a counterpart
+        // that cold-launches later would read that stale snapshot out of
+        // `receivedApplicationContext` and resurrect a finished workout.
+        clearActiveContext(session.id)
+    }
+
+    /// Overwrites the application context with an inert marker so no active-session
+    /// snapshot is left lingering in it. Call whenever this device's session goes
+    /// away (locally finished/cancelled, sent an end, OR received a remote end)
+    /// so a cold-launching counterpart never resurrects it from a stale context.
+    /// Both sides of a session must tombstone their own outgoing context:
+    /// the sender does it in `sendEnd`, and the receiver must do it too (see
+    /// `ActiveWorkoutManager.handleRemoteEnd`), because each direction of
+    /// `WCSession.applicationContext` is independent — clearing the context you
+    /// send does nothing to the context your counterpart is sending back to you.
+    func clearActiveContext(_ id: UUID) {
+        // Deliberately NOT type "end". `didReceiveApplicationContext` fires for
+        // this write exactly as it would for a real push, and this write races
+        // the actual "end" (sent separately via `transmit`, a different
+        // transport with no ordering guarantee against this one). If this used
+        // type "end" with no "finished"/"session" data, an out-of-order arrival
+        // here would decode as `finished: false` (see `handle`'s defaults) and
+        // could be misread as a cancel, discarding a session that was actually
+        // finished. An unrecognized type is a safe no-op in `handle` (falls to
+        // `default: break`) whether read live or via the cold-launch bootstrap
+        // in `activationDidCompleteWith` — in both cases "do nothing" is exactly
+        // right, since this write's only job is to keep a stale session
+        // snapshot out of the sticky, persisted application context.
+        writeContext(["type": "contextCleared", "id": id.uuidString])
     }
 
     // MARK: - Sending helpers
 
-    private func send(type: String, session: WorkoutSession) {
+    /// Sends a full-session snapshot ("start"/"sync") via application context.
+    /// `updateApplicationContext` only ever keeps the latest call pending, so
+    /// this is the "keep the counterpart's view current" channel; it is not used
+    /// for discrete events like "end" which must not be coalesced or dropped.
+    private func sendContext(type: String, session: WorkoutSession) {
         guard let data = try? encoder.encode(session) else { return }
-        let payload: [String: Any] = ["type": type, "session": data]
-        transmit(payload)
+        writeContext(["type": type, "session": data])
+    }
+
+    /// Shared low-level call into `updateApplicationContext`. Used both for
+    /// full-session snapshots (`sendContext`) and for the "end" tombstone
+    /// (`clearActiveContext`) so there is exactly one place that talks to the
+    /// sticky application-context channel.
+    private func writeContext(_ payload: [String: Any]) {
+        #if canImport(WatchConnectivity)
+        let wcSession = WCSession.default
+        guard wcSession.activationState == .activated else { return }
+        do {
+            try wcSession.updateApplicationContext(payload)
+        } catch {
+            // Throws if WatchConnectivity is unavailable/not activated on this
+            // device. No fallback transport here on purpose: mixing in
+            // sendMessage/transferUserInfo would reintroduce the same
+            // cross-transport reordering this path exists to avoid. The next
+            // edit (or the periodic context updates from further set changes)
+            // will retry naturally.
+        }
+        #endif
     }
 
     private func transmit(_ payload: [String: Any]) {
@@ -116,8 +222,16 @@ final class ConnectivityManager: NSObject, ObservableObject {
             if let idString = payload["id"] as? String, let id = UUID(uuidString: idString) {
                 let finished = (payload["finished"] as? Bool) ?? false
                 let healthSaved = (payload["healthSaved"] as? Bool) ?? false
+                // Defensive: the snapshot is best-effort (see sendEnd) — encoding
+                // could fail, or a legacy/foreign payload might omit it — so a
+                // missing/undecodable snapshot is an expected, not exceptional,
+                // path. Fall back to nil and let the receiver use its own local
+                // session (see ActiveWorkoutManager.handleRemoteEnd).
+                let snapshot = (payload["session"] as? Data).flatMap {
+                    try? self.decoder.decode(WorkoutSession.self, from: $0)
+                }
                 DispatchQueue.main.async {
-                    self.endEvent = EndEvent(id: id, finished: finished, healthSaved: healthSaved)
+                    self.endEvent = EndEvent(id: id, finished: finished, healthSaved: healthSaved, session: snapshot)
                 }
             }
         default:
@@ -130,6 +244,13 @@ final class ConnectivityManager: NSObject, ObservableObject {
 extension ConnectivityManager: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         DispatchQueue.main.async { self.refreshAvailability(session) }
+        // The counterpart may have pushed a session via updateApplicationContext
+        // while this side was not running. That context does NOT arrive through
+        // didReceiveApplicationContext on launch — the system only stashes it in
+        // receivedApplicationContext — so pick it up here so a phone-started
+        // workout is waiting when the watch app activates (and vice versa).
+        let pending = session.receivedApplicationContext
+        if !pending.isEmpty { handle(pending) }
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
@@ -142,6 +263,12 @@ extension ConnectivityManager: WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         handle(userInfo)
+    }
+
+    /// Delivered for `updateApplicationContext` pushes ("start"/"sync"). Same
+    /// `["type", "session"]` shape as messages/userInfo, so it reuses `handle`.
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        handle(applicationContext)
     }
 
     private func refreshAvailability(_ session: WCSession) {

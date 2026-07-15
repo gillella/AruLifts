@@ -50,9 +50,35 @@ final class ActiveWorkoutManager: ObservableObject {
     }
 
     private func handleRemoteEnd(_ event: EndEvent) {
+        // Tombstone our own outgoing application context for this session id,
+        // unconditionally and before the match check below. Application context
+        // is per-direction (see ConnectivityManager.clearActiveContext): the
+        // sender ending ITS context does nothing to the context THIS device is
+        // broadcasting outward. Our last "sync"/"start" push may still be
+        // sitting in our own outgoing context; if left there, a cold launch of
+        // THIS device (its `activationDidCompleteWith` bootstrap read) would
+        // replay it and resurrect the very session we just ended. Run this even
+        // when `event.id` doesn't match our local session (the early-return
+        // path below) — an end for a session we never applied locally (arrived
+        // out of order, or this side was never active) must still clear our
+        // own context, so a late/offline end can never leave a stale snapshot
+        // that resurrects the session on a future relaunch.
+        connectivity.clearActiveContext(event.id)
+
         guard session?.id == event.id else { return }
-        if event.finished, var finished = session {
-            finished.finishedAt = Date()
+        if event.finished, let current = session {
+            // Prefer the sender's embedded final snapshot (see EndEvent.session)
+            // over our own local copy: "end" (message/userInfo transport) and the
+            // last "sync" (application-context transport) have no ordering
+            // guarantee relative to each other, so our local copy may be missing
+            // an edit the sender made right before finishing (e.g. a last-second
+            // rep-count tap before tapping Finish). Only fall back to the local
+            // copy if the sender's snapshot failed to encode/decode.
+            var finished = event.session ?? current
+            // The sender already stamped `finishedAt` on its snapshot before
+            // sending; only stamp it ourselves in the fallback case where we're
+            // using our own (never-finished) local copy.
+            if finished.finishedAt == nil { finished.finishedAt = Date() }
             onFinish?(finished, event.healthSaved)   // only the phone sets onFinish, so it records.
         }
         #if os(watchOS)
@@ -79,8 +105,8 @@ final class ActiveWorkoutManager: ObservableObject {
     }
 
     func cancel() {
-        guard let id = session?.id else { return }
-        connectivity.sendEnd(id, finished: false)
+        guard let current = session else { return }
+        connectivity.sendEnd(current, finished: false)
         #if os(watchOS)
         WatchWorkoutSession.shared.discard()
         #endif
@@ -96,9 +122,11 @@ final class ActiveWorkoutManager: ObservableObject {
         // Save via the live session; tell the phone so it skips its own save.
         let healthSaved = WatchWorkoutSession.shared.isRunning
         Task { await WatchWorkoutSession.shared.finish() }
-        connectivity.sendEnd(finished.id, finished: true, healthSaved: healthSaved)
+        // Embed the final (finishedAt-stamped) snapshot so the receiver saves
+        // exactly what we saved, even if our last "sync" hasn't landed yet.
+        connectivity.sendEnd(finished, finished: true, healthSaved: healthSaved)
         #else
-        connectivity.sendEnd(finished.id, finished: true)
+        connectivity.sendEnd(finished, finished: true)
         #endif
         restTimer.stop()
         session = nil
@@ -182,10 +210,20 @@ final class ActiveWorkoutManager: ObservableObject {
     private func applyRemote(_ incoming: WorkoutSession) {
         applyingRemote = true
         if session?.id == incoming.id || session == nil {
+            #if os(watchOS)
+            let wasNil = (session == nil)
+            #endif
             session = incoming
             if currentExerciseIndex >= incoming.exercises.count {
                 currentExerciseIndex = max(0, incoming.exercises.count - 1)
             }
+            #if os(watchOS)
+            if wasNil {
+                // Phone-initiated workout mirrored on watch: run HKWorkoutSession
+                // so watch app stays alive, reads heart rate, and plays haptics.
+                Task { await WatchWorkoutSession.shared.start() }
+            }
+            #endif
         }
         applyingRemote = false
     }
