@@ -16,9 +16,10 @@ final class RestTimerManager: ObservableObject {
     @Published private(set) var totalSeconds: Int = 0
     @Published private(set) var secondsRemaining: Int = 0
 
-    private var endDate: Date?
+    private(set) var endDate: Date?
     private var ticker: Timer?
     private let notificationID = "aru.rest.timer"
+    var onStateChange: (() -> Void)?
 
     var progress: Double {
         guard totalSeconds > 0 else { return 0 }
@@ -42,6 +43,7 @@ final class RestTimerManager: ObservableObject {
         isRunning = true
         startTicker()
         if alertsEnabled { scheduleNotification(after: seconds) }
+        onStateChange?()
     }
 
     func add(seconds: Int) {
@@ -52,6 +54,7 @@ final class RestTimerManager: ObservableObject {
         cancelNotification()
         scheduleNotification(after: Int(newEnd.timeIntervalSinceNow))
         tick()
+        onStateChange?()
     }
 
     func skip() {
@@ -65,6 +68,15 @@ final class RestTimerManager: ObservableObject {
         ticker?.invalidate()
         ticker = nil
         cancelNotification()
+        onStateChange?()
+    }
+
+    func sync(endDate: Date, totalSeconds: Int) {
+        self.totalSeconds = totalSeconds
+        self.endDate = endDate
+        self.secondsRemaining = max(0, Int(ceil(endDate.timeIntervalSinceNow)))
+        self.isRunning = true
+        startTicker()
     }
 
     // MARK: - Ticking
@@ -95,6 +107,7 @@ final class RestTimerManager: ObservableObject {
         ticker = nil
         cancelNotification()
         if playHaptic { playCompletionHaptic() }
+        onStateChange?()
     }
 
     // MARK: - Notifications

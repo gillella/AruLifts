@@ -46,6 +46,9 @@ final class ConnectivityManager: NSObject, ObservableObject {
 
     /// Latest session received from the counterpart device.
     @Published var receivedSession: WorkoutSession?
+    @Published var receivedExerciseIndex: Int?
+    @Published var receivedRestTimerEndDate: Date?
+    @Published var receivedRestTimerTotalSeconds: Int?
     /// The counterpart asked to end the session (finish or cancel).
     @Published var endEvent: EndEvent?
     /// Whether the counterpart device is currently reachable.
@@ -75,8 +78,8 @@ final class ConnectivityManager: NSObject, ObservableObject {
     /// Phone -> Watch: begin mirroring this session. Routed through application
     /// context (see `sendSync`) so the session is waiting for the watch app as
     /// soon as it activates, even if it wasn't running when the phone started it.
-    func sendStart(_ session: WorkoutSession) {
-        sendContext(type: "start", session: session)
+    func sendStart(_ session: WorkoutSession, currentExerciseIndex: Int, restTimerEndDate: Date?, restTimerTotalSeconds: Int?) {
+        sendContext(type: "start", session: session, currentExerciseIndex: currentExerciseIndex, restTimerEndDate: restTimerEndDate, restTimerTotalSeconds: restTimerTotalSeconds)
     }
 
     /// Either direction: push the current full state.
@@ -92,8 +95,8 @@ final class ConnectivityManager: NSObject, ObservableObject {
     /// stale snapshot could arrive after a newer one and silently overwrite it
     /// (lost-update bug). A single coalescing channel makes that reordering
     /// impossible by construction.
-    func sendSync(_ session: WorkoutSession) {
-        sendContext(type: "sync", session: session)
+    func sendSync(_ session: WorkoutSession, currentExerciseIndex: Int, restTimerEndDate: Date?, restTimerTotalSeconds: Int?) {
+        sendContext(type: "sync", session: session, currentExerciseIndex: currentExerciseIndex, restTimerEndDate: restTimerEndDate, restTimerTotalSeconds: restTimerTotalSeconds)
     }
 
     /// Either direction: the session has finished (save) or been cancelled.
@@ -160,9 +163,20 @@ final class ConnectivityManager: NSObject, ObservableObject {
     /// `updateApplicationContext` only ever keeps the latest call pending, so
     /// this is the "keep the counterpart's view current" channel; it is not used
     /// for discrete events like "end" which must not be coalesced or dropped.
-    private func sendContext(type: String, session: WorkoutSession) {
+    private func sendContext(type: String, session: WorkoutSession, currentExerciseIndex: Int, restTimerEndDate: Date?, restTimerTotalSeconds: Int?) {
         guard let data = try? encoder.encode(session) else { return }
-        writeContext(["type": type, "session": data])
+        var payload: [String: Any] = [
+            "type": type,
+            "session": data,
+            "currentExerciseIndex": currentExerciseIndex
+        ]
+        if let restTimerEndDate {
+            payload["restTimerEndDate"] = restTimerEndDate
+        }
+        if let restTimerTotalSeconds {
+            payload["restTimerTotalSeconds"] = restTimerTotalSeconds
+        }
+        writeContext(payload)
     }
 
     /// Shared low-level call into `updateApplicationContext`. Used both for
@@ -216,7 +230,15 @@ final class ConnectivityManager: NSObject, ObservableObject {
         case "start", "sync":
             if let data = payload["session"] as? Data,
                let session = try? decoder.decode(WorkoutSession.self, from: data) {
-                DispatchQueue.main.async { self.receivedSession = session }
+                let index = payload["currentExerciseIndex"] as? Int
+                let endDate = payload["restTimerEndDate"] as? Date
+                let totalSeconds = payload["restTimerTotalSeconds"] as? Int
+                DispatchQueue.main.async {
+                    self.receivedRestTimerEndDate = endDate
+                    self.receivedRestTimerTotalSeconds = totalSeconds
+                    self.receivedExerciseIndex = index
+                    self.receivedSession = session
+                }
             }
         case "end":
             if let idString = payload["id"] as? String, let id = UUID(uuidString: idString) {

@@ -14,7 +14,11 @@ import WatchKit
 final class ActiveWorkoutManager: ObservableObject {
     @Published private(set) var session: WorkoutSession?
     /// Index of the exercise the user is currently working through.
-    @Published var currentExerciseIndex: Int = 0
+    @Published var currentExerciseIndex: Int = 0 {
+        didSet {
+            broadcast()
+        }
+    }
 
     let restTimer = RestTimerManager()
 
@@ -36,6 +40,11 @@ final class ActiveWorkoutManager: ObservableObject {
         restTimer.objectWillChange
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
+
+        restTimer.onStateChange = { [weak self] in
+            guard let self else { return }
+            self.broadcast()
+        }
 
         // Receive sessions/ends pushed from the counterpart device.
         connectivity.$receivedSession
@@ -96,7 +105,9 @@ final class ActiveWorkoutManager: ObservableObject {
         session = newSession
         currentExerciseIndex = 0
         restTimer.stop()
-        if broadcast { connectivity.sendStart(newSession) }
+        if broadcast {
+            connectivity.sendStart(newSession, currentExerciseIndex: 0, restTimerEndDate: nil, restTimerTotalSeconds: nil)
+        }
         #if os(watchOS)
         // Watch-initiated workout: run a real HKWorkoutSession so the app
         // stays alive through rest and the workout earns activity-ring credit.
@@ -110,6 +121,7 @@ final class ActiveWorkoutManager: ObservableObject {
         #if os(watchOS)
         WatchWorkoutSession.shared.discard()
         #endif
+        currentExerciseIndex = 0
         session = nil
         restTimer.stop()
     }
@@ -128,6 +140,7 @@ final class ActiveWorkoutManager: ObservableObject {
         #else
         connectivity.sendEnd(finished, finished: true)
         #endif
+        currentExerciseIndex = 0
         restTimer.stop()
         session = nil
     }
@@ -204,7 +217,12 @@ final class ActiveWorkoutManager: ObservableObject {
 
     private func broadcast() {
         guard !applyingRemote, let session else { return }
-        connectivity.sendSync(session)
+        connectivity.sendSync(
+            session,
+            currentExerciseIndex: currentExerciseIndex,
+            restTimerEndDate: restTimer.endDate,
+            restTimerTotalSeconds: restTimer.totalSeconds
+        )
     }
 
     private func applyRemote(_ incoming: WorkoutSession) {
@@ -213,6 +231,33 @@ final class ActiveWorkoutManager: ObservableObject {
             #if os(watchOS)
             let wasNil = (session == nil)
             #endif
+
+            // Reset currentExerciseIndex to 0 if starting a new session (was nil or different id)
+            if session?.id != incoming.id {
+                currentExerciseIndex = 0
+            }
+
+            // Sync exercise index if present in connectivity
+            if let remoteIndex = connectivity.receivedExerciseIndex,
+               incoming.exercises.indices.contains(remoteIndex) {
+                currentExerciseIndex = remoteIndex
+            }
+
+            // Sync rest timer state
+            if let newEndDate = connectivity.receivedRestTimerEndDate,
+               let total = connectivity.receivedRestTimerTotalSeconds {
+                let remaining = Int(ceil(newEndDate.timeIntervalSinceNow))
+                if remaining > 0 {
+                    if restTimer.endDate != newEndDate {
+                        restTimer.sync(endDate: newEndDate, totalSeconds: total)
+                    }
+                } else {
+                    restTimer.stop()
+                }
+            } else {
+                restTimer.stop()
+            }
+
             session = incoming
             if currentExerciseIndex >= incoming.exercises.count {
                 currentExerciseIndex = max(0, incoming.exercises.count - 1)
