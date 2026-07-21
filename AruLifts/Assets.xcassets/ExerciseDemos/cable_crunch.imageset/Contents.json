@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "cable_crunch.jpg",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

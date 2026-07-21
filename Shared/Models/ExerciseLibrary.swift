@@ -9,7 +9,7 @@ enum ExerciseLibrary {
         UUID(uuidString: String(format: "0000A000-0000-0000-0000-%012d", n))!
     }
 
-    static let all: [Exercise] = [
+    private static let rawAll: [Exercise] = [
         // MARK: - Chest
         Exercise(
             id: uid(1),
@@ -375,6 +375,49 @@ enum ExerciseLibrary {
             usesWeight: true
         )
     ]
+
+    private struct DemoMetadata {
+        let imageName: String
+        let videoURL: String
+    }
+
+    /// Original, offline illustrations are bundled with the app. The external
+    /// links open public coaching videos without downloading or redistributing
+    /// third-party content.
+    private static let demosByExercise: [String: DemoMetadata] = [
+        "Barbell Bench Press": .init(imageName: "barbell_bench_press", videoURL: "https://www.youtube.com/watch?v=rT7DgCr-3pg"),
+        "Incline Dumbbell Press": .init(imageName: "incline_dumbbell_press", videoURL: "https://www.youtube.com/watch?v=8iPEnn-ltC8"),
+        "Push-Up": .init(imageName: "push_up", videoURL: "https://www.youtube.com/watch?v=wxhNoKZlfY8"),
+        "Deadlift": .init(imageName: "deadlift", videoURL: "https://www.youtube.com/watch?v=n454SpMZRt8"),
+        "Barbell Row": .init(imageName: "barbell_row", videoURL: "https://www.youtube.com/watch?v=9efgcAjQe7E"),
+        "Pull-Up": .init(imageName: "pull_up", videoURL: "https://www.youtube.com/watch?v=ylVmNQlKdAI"),
+        "Lat Pulldown": .init(imageName: "lat_pulldown", videoURL: "https://www.youtube.com/watch?v=CAwf7n6Luuc"),
+        "Overhead Press": .init(imageName: "overhead_press", videoURL: "https://www.youtube.com/watch?v=2yjwXTZQDDI"),
+        "Dumbbell Lateral Raise": .init(imageName: "dumbbell_lateral_raise", videoURL: "https://www.youtube.com/watch?v=3VcKaXpzqRo"),
+        "Barbell Curl": .init(imageName: "barbell_curl", videoURL: "https://www.youtube.com/watch?v=QZEqB6wUPxQ"),
+        "Dumbbell Hammer Curl": .init(imageName: "dumbbell_hammer_curl", videoURL: "https://www.youtube.com/watch?v=8XLxfXROrTo"),
+        "Triceps Pushdown": .init(imageName: "triceps_pushdown", videoURL: "https://www.youtube.com/watch?v=_w-HpW70nSQ"),
+        "Close-Grip Bench Press": .init(imageName: "close_grip_bench_press", videoURL: "https://www.youtube.com/watch?v=UYJsFzqdgK4"),
+        "Triceps Dip": .init(imageName: "triceps_dip", videoURL: "https://www.youtube.com/watch?v=8UugSoVJLag"),
+        "Back Squat": .init(imageName: "back_squat", videoURL: "https://www.youtube.com/watch?v=1oed-UmAxFs"),
+        "Romanian Deadlift": .init(imageName: "romanian_deadlift", videoURL: "https://www.youtube.com/watch?v=JCXUYuzwNrM"),
+        "Leg Press": .init(imageName: "leg_press", videoURL: "https://www.youtube.com/watch?v=oujca3_Shgw"),
+        "Walking Lunge": .init(imageName: "walking_lunge", videoURL: "https://www.youtube.com/watch?v=D7KaRcUTQeE"),
+        "Standing Calf Raise": .init(imageName: "standing_calf_raise", videoURL: "https://www.youtube.com/watch?v=YMmgqO8Jo-k"),
+        "Hip Thrust": .init(imageName: "hip_thrust", videoURL: "https://www.youtube.com/watch?v=SEdqd1n0cvg"),
+        "Plank": .init(imageName: "plank", videoURL: "https://www.youtube.com/watch?v=pSHjTRCQxIw"),
+        "Hanging Leg Raise": .init(imageName: "hanging_leg_raise", videoURL: "https://www.youtube.com/watch?v=hdng3Nm1x_E"),
+        "Cable Crunch": .init(imageName: "cable_crunch", videoURL: "https://www.youtube.com/watch?v=2fbujeH3F0E"),
+        "Kettlebell Swing": .init(imageName: "kettlebell_swing", videoURL: "https://www.youtube.com/watch?v=YSxHifyI6s8")
+    ]
+
+    static let all: [Exercise] = rawAll.map { raw in
+        guard let demo = demosByExercise[raw.name] else { return raw }
+        var exercise = raw
+        exercise.demoImageName = demo.imageName
+        exercise.techniqueVideoURL = URL(string: demo.videoURL)
+        return exercise
+    }
 
     /// Quick lookup by id.
     static let byID: [UUID: Exercise] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })

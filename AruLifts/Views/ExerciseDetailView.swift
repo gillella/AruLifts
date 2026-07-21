@@ -14,6 +14,26 @@ struct ExerciseDetailView: View {
                     .background(Color(.secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
+                if exercise.demoImageName != nil {
+                    Text("AI-generated personalized form illustration")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .accessibilityLabel("AI generated personalized form illustration")
+                }
+
+                if let techniqueURL = exercise.techniqueVideoURL {
+                    Link(destination: techniqueURL) {
+                        Label("Watch technique video", systemImage: "play.rectangle.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .accessibilityHint("Opens a public video in YouTube or your web browser")
+                }
+
                 HStack(spacing: 8) {
                     CategoryTag(text: exercise.primaryMuscle.displayName, color: .orange)
                     ForEach(exercise.secondaryMuscles, id: \.self) { m in
@@ -97,6 +117,12 @@ struct ExerciseDemoView: View {
                     .disabled(true)
                     .onAppear { player.play() }
                     .onDisappear { player.pause() }
+            } else if let imageName = exercise.demoImageName {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(4)
+                    .accessibilityLabel("Start and finish positions for \(exercise.name)")
             } else {
                 placeholder
             }

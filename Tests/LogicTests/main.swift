@@ -370,5 +370,20 @@ if let p = try? Backup.decode(partial) {
     expect(p.bodyWeights.isEmpty && p.settings.units == .kg, "partial backup fills defaults")
 } else { failures += 1; print("FAIL partial backup did not decode") }
 
+// --- Exercise demonstrations (issue #12) ---
+
+// 45. Every built-in exercise has one offline illustration and one external
+// coaching-video link; asset existence is verified by the Xcode build.
+expect(ExerciseLibrary.all.count == 24, "24 built-in exercises")
+expect(ExerciseLibrary.all.allSatisfy { $0.demoImageName != nil }, "all built-ins have demo illustrations")
+expect(Set(ExerciseLibrary.all.compactMap(\.demoImageName)).count == 24, "demo illustration names are unique")
+expect(
+    ExerciseLibrary.all.allSatisfy {
+        $0.techniqueVideoURL?.host?.contains("youtube.com") == true &&
+        $0.techniqueVideoURL?.query?.contains("v=") == true
+    },
+    "all built-ins have direct YouTube watch links"
+)
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

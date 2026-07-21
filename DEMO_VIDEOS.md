@@ -1,9 +1,11 @@
 # Adding exercise demo videos
 
-Each exercise can show a short looping video of the correct posture on its
-detail screen. The playback code is already in place
-(`ExerciseDemoView` in `AruLifts/Views/ExerciseDetailView.swift`); you only need
-to supply clips and point exercises at them.
+Every built-in exercise ships with an original, personalized start/finish
+illustration plus a direct public YouTube technique link. The illustrations are
+offline app assets; the linked videos remain on YouTube and open externally.
+
+The app also retains support for optional short looping clips through
+`ExerciseDemoView` in `AruLifts/Views/ExerciseDetailView.swift`.
 
 ## How resolution works
 
@@ -12,10 +14,27 @@ to supply clips and point exercises at them.
 1. A file **bundled with the app** whose name matches the exercise's
    `videoName` (tries `.mp4`, `.mov`, `.m4v`).
 2. The exercise's `videoURL` (a remote URL), if set.
-3. Otherwise it shows an animated SF Symbol placeholder.
+3. The exercise's bundled `demoImageName` illustration.
+4. Otherwise it shows an animated SF Symbol placeholder.
 
 The video plays muted, on a loop, with controls disabled — ideal for a silent
 form reference.
+
+`techniqueVideoURL` is separate from `videoURL`: it may point to a YouTube watch
+page and is opened by the **Watch technique video** button. Do not put a YouTube
+page URL in `videoURL`, because `AVPlayer` requires a directly playable media
+file.
+
+## Bundled personalized illustrations
+
+The 24 app-owned JPEGs live under
+`AruLifts/Assets.xcassets/ExerciseDemos`. They are 1200 pixels wide and total
+about 2.8 MB. The source generations used owner-supplied identity reference
+photos; the personal source photos are not copied into the repository or app
+bundle.
+
+The illustrations are supporting references, not medical advice. The written
+form steps and linked coaching videos provide the detailed technique context.
 
 ## Option A — bundle local clips (recommended)
 
@@ -60,5 +79,6 @@ and set `videoName` to match.
 
 ## Licensing note
 
-Ship only footage you have the rights to use. The repository intentionally does
-not include video files.
+Ship only footage you have the rights to use. AruLifts does not download or
+redistribute the linked YouTube videos; it stores ordinary public watch-page
+URLs and opens them in YouTube or the browser.

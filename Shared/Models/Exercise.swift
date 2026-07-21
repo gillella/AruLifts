@@ -81,6 +81,14 @@ struct Exercise: Identifiable, Codable, Hashable {
     /// Optional remote demo URL used when no bundled clip is available.
     var videoURL: URL?
 
+    /// Name of a bundled still form illustration in the asset catalogue.
+    /// Used when no local/remote demo clip is available.
+    var demoImageName: String?
+    /// Public coaching video opened externally (for example, in YouTube).
+    /// This is intentionally separate from `videoURL`, which must be a directly
+    /// playable media file for AVPlayer.
+    var techniqueVideoURL: URL?
+
     /// SF Symbol used as an illustrative placeholder when no video exists.
     var symbol: String
 
@@ -97,6 +105,8 @@ struct Exercise: Identifiable, Codable, Hashable {
         tips: [String] = [],
         videoName: String? = nil,
         videoURL: URL? = nil,
+        demoImageName: String? = nil,
+        techniqueVideoURL: URL? = nil,
         symbol: String = "figure.strengthtraining.traditional",
         usesWeight: Bool = true
     ) {
@@ -109,6 +119,8 @@ struct Exercise: Identifiable, Codable, Hashable {
         self.tips = tips
         self.videoName = videoName
         self.videoURL = videoURL
+        self.demoImageName = demoImageName
+        self.techniqueVideoURL = techniqueVideoURL
         self.symbol = symbol
         self.usesWeight = usesWeight
     }

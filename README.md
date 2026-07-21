@@ -8,7 +8,7 @@ Start a workout on your phone and it instantly appears on your watch. Log each s
 
 - **Custom workouts by category** — create plans (Upper Body, Lower Body, Arms, Push/Pull/Legs, Full Body, Core, Cardio), add exercises, and set target sets × reps × weight and per-exercise rest.
 - **Exercise library** — 25+ built-in exercises with primary/secondary muscles, equipment, numbered form instructions, and coaching tips. Add your own exercises too.
-- **Form demos** — each exercise detail screen plays a looping video demonstration of the posture when a clip is available (see [Demo Videos](DEMO_VIDEOS.md)); otherwise it shows an illustrated placeholder.
+- **Personalized form demos** — every built-in exercise includes an offline start/finish illustration generated from the owner's reference photos, step-by-step cues, and a direct public YouTube technique link. Bundled looping clips remain supported when available (see [Demo Videos](DEMO_VIDEOS.md)).
 - **Live workout flow** — work through exercises, log each set with inline +/- steppers, tap to mark a set complete.
 - **Rest timer (default 3 min, configurable)** — auto-starts after each set, shows a countdown ring, supports +30s / skip, and fires a haptic + local notification when rest ends, even if the app is backgrounded.
 - **Apple Watch app** — mirrors the live session: current exercise, Digital-Crown-adjustable weight/reps, complete-set button, full-screen rest countdown with haptics, and exercise navigation. Finish from either device.

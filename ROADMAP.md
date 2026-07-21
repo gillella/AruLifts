@@ -49,8 +49,9 @@ Crown-adjustable weight/reps, history, settings, Codable persistence, WatchConne
 
 ## Epic D — Content & sync 🟡
 
-- [ ] **12. Bundle real exercise demo videos** 📱 — add licensed/looping form clips and wire
-  `videoName` for the built-in library (infrastructure already exists — see `DEMO_VIDEOS.md`).
+- [x] **12. Exercise form demonstrations** 📱 — original personalized start/finish illustrations
+  are bundled for all 24 built-in exercises, with written cues and direct public YouTube technique
+  links. Local looping clips remain supported but are no longer required (see `DEMO_VIDEOS.md`).
 - [ ] **13. iCloud sync / backup** 📱⌚️ — sync templates + history across devices (CloudKit or iCloud
   Documents) so data survives device changes and reinstalls.
 
