@@ -133,6 +133,22 @@ struct Exercise: Identifiable, Codable, Hashable {
         self.isTimed = isTimed
     }
 
+    /// Which form media, if any, can be opened in the full-screen viewer.
+    enum FormMediaKind: String, Equatable {
+        case video, image, none
+    }
+
+    /// Decides which form media the detail screen can expand full-screen.
+    /// Video wins over a still illustration. Whether a bundled clip actually
+    /// exists is resolved by the view (it needs the app bundle), so it is
+    /// passed in — keeping this decision pure and unit-testable. A remote
+    /// `videoURL` also counts as playable video.
+    func formMediaKind(hasBundledVideo: Bool) -> FormMediaKind {
+        if hasBundledVideo || videoURL != nil { return .video }
+        if demoImageName != nil { return .image }
+        return .none
+    }
+
     // Manual decode so custom exercises saved before `isTimed` existed still
     // load (a non-optional Bool would otherwise throw on the missing key; the
     // Optional fields above already decode as absent-is-nil automatically).
