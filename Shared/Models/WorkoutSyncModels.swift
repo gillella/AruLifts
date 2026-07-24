@@ -230,6 +230,42 @@ struct WorkoutFinalization: Codable, Hashable {
     var healthSaved: Bool
 }
 
+/// Process-local terminal-session barrier used at the WatchConnectivity boundary.
+///
+/// A reliable terminal event and a sticky application-context checkpoint travel
+/// over independent channels. The terminal event can be received first but wait
+/// behind an already-enqueued main-thread checkpoint. Recording the tombstone
+/// before either event is published prevents that checkpoint from resurrecting
+/// the just-discarded session during the queue handoff.
+final class TerminalSessionGate {
+    private let lock = NSLock()
+    private let capacity: Int
+    private var orderedSessionIDs: [UUID] = []
+    private var terminalSessionIDs: Set<UUID> = []
+
+    init(capacity: Int = 256) {
+        self.capacity = max(1, capacity)
+    }
+
+    func markTerminal(_ sessionID: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard terminalSessionIDs.insert(sessionID).inserted else { return }
+        orderedSessionIDs.append(sessionID)
+        if orderedSessionIDs.count > capacity {
+            let expiredID = orderedSessionIDs.removeFirst()
+            terminalSessionIDs.remove(expiredID)
+        }
+    }
+
+    func isTerminal(_ sessionID: UUID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return terminalSessionIDs.contains(sessionID)
+    }
+}
+
 enum WorkoutMessageTransport: String, Codable, Hashable {
     case context
     case reliable

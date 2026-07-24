@@ -268,6 +268,12 @@ final class ConnectivityManager: NSObject, ObservableObject {
 
     // MARK: - Receiving
 
+    /// Stops a tombstoned session from crossing an asynchronous delivery
+    /// boundary after its terminal event has been received. Durable ordering is
+    /// still owned by `WorkoutSyncCoordinator`; this only closes the in-process
+    /// WatchConnectivity dispatch race.
+    private let terminalSessionGate = TerminalSessionGate()
+
     private func handle(_ payload: [String: Any]) {
         guard let type = payload["type"] as? String else { return }
         switch type {
@@ -277,7 +283,18 @@ final class ConnectivityManager: NSObject, ObservableObject {
                     WorkoutMessageEnvelope.self,
                     from: data
                   ) else { return }
+
+            if envelope.kind == .tombstone,
+               let finalization = try? envelope.decodePayload(WorkoutFinalization.self),
+               finalization.tombstone.sessionID == envelope.sessionID {
+                terminalSessionGate.markTerminal(finalization.tombstone.sessionID)
+            }
             DispatchQueue.main.async {
+                if envelope.kind != .tombstone,
+                   let sessionID = envelope.sessionID,
+                   self.terminalSessionGate.isTerminal(sessionID) {
+                    return
+                }
                 self.receivedWorkoutEnvelope = envelope
             }
         case "start", "sync":
@@ -286,10 +303,12 @@ final class ConnectivityManager: NSObject, ObservableObject {
                 // Drop stale snapshots (see maxSessionAge): the sticky context
                 // can hand us a session from a long-dead run on cold launch.
                 guard Date().timeIntervalSince(session.startedAt) <= maxSessionAge else { return }
+                guard !terminalSessionGate.isTerminal(session.id) else { return }
                 let index = payload["currentExerciseIndex"] as? Int
                 let endDate = payload["restTimerEndDate"] as? Date
                 let totalSeconds = payload["restTimerTotalSeconds"] as? Int
                 DispatchQueue.main.async {
+                    guard !self.terminalSessionGate.isTerminal(session.id) else { return }
                     self.receivedRestTimerEndDate = endDate
                     self.receivedRestTimerTotalSeconds = totalSeconds
                     self.receivedExerciseIndex = index
@@ -298,6 +317,7 @@ final class ConnectivityManager: NSObject, ObservableObject {
             }
         case "end":
             if let idString = payload["id"] as? String, let id = UUID(uuidString: idString) {
+                terminalSessionGate.markTerminal(id)
                 let finished = (payload["finished"] as? Bool) ?? false
                 let healthSaved = (payload["healthSaved"] as? Bool) ?? false
                 // Defensive: the snapshot is best-effort (see sendEnd) — encoding
