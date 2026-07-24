@@ -107,13 +107,20 @@ struct ExercisePickerView: View {
     @EnvironmentObject private var store: WorkoutStore
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
+    @State private var muscleFilter: MuscleGroup?
     /// Exercise whose detail sheet is open for preview, if any.
     @State private var preview: Exercise?
     let category: WorkoutCategory
     let onSelect: (Exercise) -> Void
 
     private var matching: [Exercise] {
-        store.allExercises.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+        store.allExercises.filter { exercise in
+            let matchesSearch = search.isEmpty || exercise.name.localizedCaseInsensitiveContains(search)
+            let matchesMuscle = muscleFilter == nil ||
+                exercise.primaryMuscle == muscleFilter ||
+                exercise.secondaryMuscles.contains(muscleFilter!)
+            return matchesSearch && matchesMuscle
+        }
     }
 
     /// Exercises whose primary or secondary muscle fits the workout's category.
@@ -127,23 +134,35 @@ struct ExercisePickerView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                // Suggestions only make sense in the unsearched, categorized view.
-                if search.isEmpty, !suggested.isEmpty {
-                    let suggestedIDs = Set(suggested.map(\.id))
-                    Section("Suggested for \(category.displayName)") {
-                        ForEach(suggested) { row($0) }
+            VStack(spacing: 0) {
+                muscleFilterBar
+
+                List {
+                    // Suggestions are intentionally preserved only for the
+                    // unfiltered All view. A selected muscle is an explicit
+                    // request for a complete, narrowed list.
+                    if search.isEmpty, muscleFilter == nil, !suggested.isEmpty {
+                        let suggestedIDs = Set(suggested.map(\.id))
+                        Section("Suggested for \(category.displayName)") {
+                            ForEach(suggested) { row($0) }
+                        }
+                        Section("All Exercises") {
+                            ForEach(matching.filter { !suggestedIDs.contains($0.id) }) { row($0) }
+                        }
+                    } else {
+                        ForEach(matching) { row($0) }
                     }
-                    Section("All Exercises") {
-                        ForEach(matching.filter { !suggestedIDs.contains($0.id) }) { row($0) }
-                    }
-                } else {
-                    ForEach(matching) { row($0) }
                 }
-            }
-            .listStyle(.insetGrouped)
-            .overlay {
-                if matching.isEmpty { ContentUnavailableView.search(text: search) }
+                .listStyle(.insetGrouped)
+                .overlay {
+                    if matching.isEmpty {
+                        ContentUnavailableView(
+                            "No Exercises Found",
+                            systemImage: "magnifyingglass",
+                            description: Text(emptyStateDescription)
+                        )
+                    }
+                }
             }
             .searchable(text: $search, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
@@ -166,6 +185,42 @@ struct ExercisePickerView: View {
                         }
                 }
             }
+        }
+    }
+
+    private var muscleFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(title: "All", isOn: muscleFilter == nil) {
+                    muscleFilter = nil
+                }
+                ForEach(MuscleGroup.allCases) { muscle in
+                    FilterChip(
+                        title: muscle.displayName,
+                        isOn: muscleFilter == muscle
+                    ) {
+                        muscleFilter = muscleFilter == muscle ? nil : muscle
+                    }
+                    .accessibilityHint("Filters exercises by \(muscle.displayName)")
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Muscle group filter")
+    }
+
+    private var emptyStateDescription: String {
+        switch (search.isEmpty, muscleFilter) {
+        case (false, let muscle?):
+            return "No \(muscle.displayName.lowercased()) exercises match \(search)."
+        case (false, nil):
+            return "No exercises match \(search)."
+        case (true, let muscle?):
+            return "No \(muscle.displayName.lowercased()) exercises are available."
+        case (true, nil):
+            return "Try another filter."
         }
     }
 
