@@ -70,32 +70,10 @@ struct WorkoutBuilderView: View {
             }
             .sheet(isPresented: $showingPicker) {
                 ExercisePickerView(category: category) { selected in
-                    exercises.append(makeTemplateExercise(from: selected))
+                    exercises.append(store.templateExercise(for: selected))
                 }
             }
         }
-    }
-
-    /// Builds a template row for a picked exercise. Timed exercises (cardio,
-    /// stretches) start with a sensible default duration and no sets/weight.
-    private func makeTemplateExercise(from selected: Exercise) -> TemplateExercise {
-        if selected.isTimed {
-            let seconds = selected.primaryMuscle == .cardio ? 600 : 45
-            return TemplateExercise(
-                exerciseID: selected.id,
-                name: selected.name,
-                targetSets: 1,
-                targetReps: 0,
-                restSeconds: 0,
-                durationSeconds: seconds
-            )
-        }
-        return TemplateExercise(
-            exerciseID: selected.id,
-            name: selected.name,
-            weight: store.lastWeight(for: selected.id) ?? 0,
-            restSeconds: store.settings.defaultRestSeconds
-        )
     }
 
     private func save() {

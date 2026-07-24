@@ -4,11 +4,16 @@ struct ExerciseLibraryView: View {
     @EnvironmentObject private var store: WorkoutStore
     @State private var search = ""
     @State private var muscleFilter: MuscleGroup?
+    @State private var equipmentFilter: Equipment?
+    @State private var favoritesOnly = false
     @State private var showingNewExercise = false
+    @State private var exerciseToAdd: Exercise?
 
     private var filtered: [Exercise] {
         store.allExercises.filter { ex in
             (muscleFilter == nil || ex.primaryMuscle == muscleFilter || ex.secondaryMuscles.contains(muscleFilter!)) &&
+            (equipmentFilter == nil || ex.equipment == equipmentFilter) &&
+            (!favoritesOnly || store.isFavorite(ex)) &&
             (search.isEmpty || ex.name.localizedCaseInsensitiveContains(search))
         }
     }
@@ -19,11 +24,7 @@ struct ExerciseLibraryView: View {
                 muscleFilterBar
                 List {
                     ForEach(filtered) { ex in
-                        NavigationLink {
-                            ExerciseDetailView(exercise: ex)
-                        } label: {
-                            ExerciseRow(exercise: ex)
-                        }
+                        libraryRow(ex)
                     }
                 }
                 .listStyle(.plain)
@@ -36,12 +37,35 @@ struct ExerciseLibraryView: View {
             .searchable(text: $search, prompt: "Search exercises")
             .navigationTitle("Exercises")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button("All equipment") { equipmentFilter = nil }
+                        Divider()
+                        ForEach(Equipment.allCases) { equipment in
+                            Button {
+                                equipmentFilter = equipment
+                            } label: {
+                                if equipmentFilter == equipment {
+                                    Label(equipment.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(equipment.displayName)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(equipmentFilter?.displayName ?? "Equipment", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                    .accessibilityLabel("Equipment filter: \(equipmentFilter?.displayName ?? "All equipment")")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showingNewExercise = true } label: { Image(systemName: "plus") }
                 }
             }
             .sheet(isPresented: $showingNewExercise) {
                 NewExerciseView()
+            }
+            .sheet(item: $exerciseToAdd) { exercise in
+                AddExerciseToWorkoutSheet(exercise: exercise)
             }
         }
     }
@@ -50,6 +74,7 @@ struct ExerciseLibraryView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 FilterChip(title: "All", isOn: muscleFilter == nil) { muscleFilter = nil }
+                FilterChip(title: "Favorites", isOn: favoritesOnly) { favoritesOnly.toggle() }
                 ForEach(MuscleGroup.allCases) { m in
                     FilterChip(title: m.displayName, isOn: muscleFilter == m) {
                         muscleFilter = muscleFilter == m ? nil : m
@@ -58,6 +83,78 @@ struct ExerciseLibraryView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
+        }
+    }
+
+    private func libraryRow(_ exercise: Exercise) -> some View {
+        HStack(spacing: 6) {
+            NavigationLink {
+                ExerciseDetailView(exercise: exercise)
+            } label: {
+                ExerciseRow(exercise: exercise)
+            }
+
+            Button {
+                store.toggleFavorite(exercise)
+            } label: {
+                Image(systemName: store.isFavorite(exercise) ? "star.fill" : "star")
+                    .foregroundStyle(store.isFavorite(exercise) ? .yellow : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(store.isFavorite(exercise) ? "Remove \(exercise.name) from favorites" : "Add \(exercise.name) to favorites")
+
+            Button {
+                exerciseToAdd = exercise
+            } label: {
+                Image(systemName: "plus.circle")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Add \(exercise.name) to a workout")
+        }
+    }
+}
+
+/// Choose an existing workout when adding an exercise directly from the
+/// library. The builder remains available for changing its defaults later.
+struct AddExerciseToWorkoutSheet: View {
+    @EnvironmentObject private var store: WorkoutStore
+    @Environment(\.dismiss) private var dismiss
+    let exercise: Exercise
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if store.templates.isEmpty {
+                    ContentUnavailableView(
+                        "No Workouts Yet",
+                        systemImage: "list.bullet.rectangle",
+                        description: Text("Create a workout first, then add \(exercise.name) from the library.")
+                    )
+                } else {
+                    List(store.templates) { template in
+                        Button {
+                            store.addExercise(exercise, to: template.id)
+                            dismiss()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(template.name).font(.body.weight(.semibold))
+                                Text("Add \(exercise.name)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityLabel("Add \(exercise.name) to \(template.name)")
+                    }
+                }
+            }
+            .navigationTitle("Add to Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
     }
 }

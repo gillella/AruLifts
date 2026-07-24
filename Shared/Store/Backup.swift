@@ -5,6 +5,7 @@ struct BackupPayload: Codable {
     var templates: [WorkoutTemplate]
     var history: [WorkoutSession]
     var customExercises: [Exercise]
+    var favoriteExerciseIDs: Set<UUID>
     var bodyWeights: [BodyWeightEntry]
     var settings: AppSettings
     /// Format version for future migrations.
@@ -14,12 +15,14 @@ struct BackupPayload: Codable {
         templates: [WorkoutTemplate],
         history: [WorkoutSession],
         customExercises: [Exercise],
+        favoriteExerciseIDs: Set<UUID> = [],
         bodyWeights: [BodyWeightEntry],
         settings: AppSettings
     ) {
         self.templates = templates
         self.history = history
         self.customExercises = customExercises
+        self.favoriteExerciseIDs = favoriteExerciseIDs
         self.bodyWeights = bodyWeights
         self.settings = settings
     }
@@ -29,6 +32,7 @@ struct BackupPayload: Codable {
         templates = try c.decodeIfPresent([WorkoutTemplate].self, forKey: .templates) ?? []
         history = try c.decodeIfPresent([WorkoutSession].self, forKey: .history) ?? []
         customExercises = try c.decodeIfPresent([Exercise].self, forKey: .customExercises) ?? []
+        favoriteExerciseIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .favoriteExerciseIDs) ?? []
         bodyWeights = try c.decodeIfPresent([BodyWeightEntry].self, forKey: .bodyWeights) ?? []
         settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1

@@ -3,7 +3,9 @@ import AVKit
 import AVFoundation
 
 struct ExerciseDetailView: View {
+    @EnvironmentObject private var store: WorkoutStore
     let exercise: Exercise
+    @State private var showingAddToWorkout = false
 
     var body: some View {
         ScrollView {
@@ -85,6 +87,27 @@ struct ExerciseDetailView: View {
         }
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    store.toggleFavorite(exercise)
+                } label: {
+                    Image(systemName: store.isFavorite(exercise) ? "star.fill" : "star")
+                        .foregroundStyle(store.isFavorite(exercise) ? .yellow : .primary)
+                }
+                .accessibilityLabel(store.isFavorite(exercise) ? "Remove from favorites" : "Add to favorites")
+
+                Button {
+                    showingAddToWorkout = true
+                } label: {
+                    Image(systemName: "plus.circle")
+                }
+                .accessibilityLabel("Add to workout")
+            }
+        }
+        .sheet(isPresented: $showingAddToWorkout) {
+            AddExerciseToWorkoutSheet(exercise: exercise)
+        }
     }
 }
 
