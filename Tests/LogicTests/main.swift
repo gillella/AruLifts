@@ -43,6 +43,16 @@ let reorderIDs = reorderSession.exercises.map(\.id)
 reorderSession.moveExercises(from: IndexSet(integer: 0), to: 3)
 expect(reorderSession.exercises.map(\.id) == [reorderIDs[1], reorderIDs[2], reorderIDs[0]], "session reorder retains stable exercise identities")
 
+// A terminal event is recorded before WatchConnectivity publishes queued
+// snapshots to the main thread, so a late checkpoint cannot revive the session.
+let discardedSessionID = UUID()
+let terminalGate = TerminalSessionGate(capacity: 2)
+expect(!terminalGate.isTerminal(discardedSessionID), "new session is not terminal")
+terminalGate.markTerminal(discardedSessionID)
+expect(terminalGate.isTerminal(discardedSessionID), "discarded session is terminal before dispatch")
+terminalGate.markTerminal(discardedSessionID)
+expect(terminalGate.isTerminal(discardedSessionID), "duplicate terminal event remains idempotent")
+
 // Template: squat 5x5@100 (default inc), deadlift 1x5@140 (default), press 3x5@40 (custom inc 1.0, ), pullups bodyweight
 var template = WorkoutTemplate(
     name: "A",
