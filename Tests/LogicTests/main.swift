@@ -712,5 +712,21 @@ expect(
     "paused rest remaining duration survives replication"
 )
 
+// 57. Form media kind drives the full-screen viewer's expand affordance (#27).
+var mediaProbe = ExerciseLibrary.all[0]
+mediaProbe.videoName = nil
+mediaProbe.videoURL = nil
+mediaProbe.demoImageName = nil
+expect(mediaProbe.formMediaKind(hasBundledVideo: false) == .none,
+       "no media resolves to none (nothing to expand)")
+expect(mediaProbe.formMediaKind(hasBundledVideo: true) == .video,
+       "a bundled clip resolves to video")
+mediaProbe.demoImageName = "probe_illustration"
+expect(mediaProbe.formMediaKind(hasBundledVideo: false) == .image,
+       "an illustration alone resolves to image")
+mediaProbe.videoURL = URL(string: "https://example.com/demo.mp4")
+expect(mediaProbe.formMediaKind(hasBundledVideo: false) == .video,
+       "a remote videoURL wins over the still image")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
