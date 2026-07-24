@@ -180,11 +180,15 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
             let usesWeight = loadingMode == .bodyweight
                 ? templateExercise.tracksAddedBodyweight
                 : (library[templateExercise.exerciseID]?.usesWeight ?? true)
+            let configuredBar = settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units)
+            let workingWeight = loadingMode == .barbell
+                ? max(templateExercise.weight, configuredBar)
+                : templateExercise.weight
             var sets: [WatchStartableSet] = []
 
-            if settings.warmupsEnabled, usesWeight {
+            if settings.warmupsEnabled, loadingMode == .barbell {
                 sets = Warmup.sets(
-                    workingWeight: templateExercise.weight,
+                    workingWeight: workingWeight,
                     units: settings.units,
                     barWeight: settings.barWeight,
                     roundTo: settings.weightIncrement
@@ -201,7 +205,7 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
             sets += (0..<max(1, templateExercise.targetSets)).map { _ in
                 WatchStartableSet(
                     reps: templateExercise.targetReps,
-                    weight: loadingMode == .bodyweight && !templateExercise.tracksAddedBodyweight ? 0 : templateExercise.weight
+                    weight: loadingMode == .bodyweight && !templateExercise.tracksAddedBodyweight ? 0 : workingWeight
                 )
             }
 

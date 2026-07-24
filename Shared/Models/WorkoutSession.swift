@@ -183,10 +183,16 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
             let usesWeight = loadingMode == .bodyweight
                 ? te.tracksAddedBodyweight
                 : (library[te.exerciseID]?.usesWeight ?? true)
+            let configuredBar = settings.map {
+                $0.barWeight ?? Warmup.defaultBarWeight(units: $0.units)
+            } ?? 0
+            let workingWeight = loadingMode == .barbell
+                ? max(te.weight, configuredBar)
+                : te.weight
             var sets: [SetEntry] = []
-            if let settings, settings.warmupsEnabled, usesWeight {
+            if let settings, settings.warmupsEnabled, loadingMode == .barbell {
                 sets = Warmup.sets(
-                    workingWeight: te.weight,
+                    workingWeight: workingWeight,
                     units: settings.units,
                     barWeight: settings.barWeight,
                     roundTo: settings.weightIncrement
@@ -195,7 +201,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
             sets += (0..<max(1, te.targetSets)).map { _ in
                 SetEntry(
                     reps: te.targetReps,
-                    weight: loadingMode == .bodyweight && !te.tracksAddedBodyweight ? 0 : te.weight
+                    weight: loadingMode == .bodyweight && !te.tracksAddedBodyweight ? 0 : workingWeight
                 )
             }
             return SessionExercise(

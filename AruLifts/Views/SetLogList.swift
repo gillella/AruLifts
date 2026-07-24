@@ -55,7 +55,14 @@ struct SetLogList: View {
                             active.updateSet(exerciseIndex: exerciseIndex, setIndex: setIndex, reps: set.reps + delta)
                         },
                         onWeight: { delta in
-                            active.updateSet(exerciseIndex: exerciseIndex, setIndex: setIndex, weight: set.weight + delta)
+                            let minimumWeight = exercise.loadingMode == .barbell
+                                ? (store.settings.barWeight ?? Warmup.defaultBarWeight(units: store.settings.units))
+                                : 0
+                            active.updateSet(
+                                exerciseIndex: exerciseIndex,
+                                setIndex: setIndex,
+                                weight: max(minimumWeight, set.weight + delta)
+                            )
                         }
                     )
                 }

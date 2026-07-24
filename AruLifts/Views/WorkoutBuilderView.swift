@@ -85,7 +85,20 @@ struct WorkoutBuilderView: View {
         template.name = name.trimmingCharacters(in: .whitespaces)
         template.category = category
         template.notes = notes
-        template.exercises = exercises
+        // A total-barbell target can never be lighter than the selected bar.
+        // This also repairs templates made before equipment-aware loading was
+        // introduced, when a barbell exercise could have been saved at zero.
+        template.exercises = exercises.map { exercise in
+            guard store.exercise(for: exercise.exerciseID)?.loadingMode == .barbell else {
+                return exercise
+            }
+            var normalized = exercise
+            normalized.weight = max(
+                normalized.weight,
+                store.settings.barWeight ?? Warmup.defaultBarWeight(units: store.settings.units)
+            )
+            return normalized
+        }
         store.updateTemplate(template)
         dismiss()
     }
@@ -150,10 +163,10 @@ struct ExerciseConfigRow: View {
     private var loadEditor: some View {
         switch loadingMode {
         case .barbell:
-            weightStepper(label: "Total barbell weight")
             let bar = settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units)
+            weightStepper(label: "Total barbell weight", minimum: bar)
             let result = PlateCalculator.plates(
-                target: exercise.weight,
+                target: max(exercise.weight, bar),
                 bar: bar,
                 available: settings.plateSet ?? PlateCalculator.defaultPlates(units: settings.units)
             )
@@ -176,14 +189,14 @@ struct ExerciseConfigRow: View {
         }
     }
 
-    private func weightStepper(label: String) -> some View {
+    private func weightStepper(label: String, minimum: Double = 0) -> some View {
         HStack {
             Text(label).font(.caption).foregroundStyle(.secondary)
             Spacer()
-            Button { exercise.weight = max(0, exercise.weight - settings.weightIncrement) } label: {
+            Button { exercise.weight = max(minimum, exercise.weight - settings.weightIncrement) } label: {
                 Image(systemName: "minus.circle")
             }
-            Text(formatWeight(exercise.weight, units: settings.units))
+            Text(formatWeight(max(minimum, exercise.weight), units: settings.units))
                 .font(.subheadline.monospacedDigit())
                 .frame(minWidth: 70)
             Button { exercise.weight += settings.weightIncrement } label: {

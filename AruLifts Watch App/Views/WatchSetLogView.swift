@@ -42,7 +42,7 @@ struct WatchSetLogView: View {
                     Stepper(value: Binding(
                         get: { set.weight },
                         set: { active.updateSet(exerciseIndex: exerciseIndex, setIndex: setIndex, weight: $0) }
-                    ), in: 0...999, step: active.watchExecutionSettings.weightIncrement) {
+                    ), in: minimumWeight...999, step: active.watchExecutionSettings.weightIncrement) {
                         VStack(spacing: 0) {
                             Text("\(weightString(set.weight))")
                                 .font(.title3.monospacedDigit().bold())
@@ -78,6 +78,10 @@ struct WatchSetLogView: View {
 
     private func weightString(_ w: Double) -> String {
         w == w.rounded() ? String(Int(w)) : String(format: "%.1f", w)
+    }
+
+    private var minimumWeight: Double {
+        loadingMode == .barbell ? active.watchExecutionSettings.barWeight : 0
     }
 
     /// Compact per-side plate list using the phone's cached gym inventory.
