@@ -6,6 +6,7 @@ struct WatchExecutionSettings: Codable, Hashable {
     var units: AppSettings.Units
     var barWeight: Double
     var availablePlates: [Double]
+    var weightIncrement: Double
     var autoStartRest: Bool
     var restAlertsEnabled: Bool
     var adaptiveRestEnabled: Bool
@@ -15,10 +16,27 @@ struct WatchExecutionSettings: Codable, Hashable {
         units = settings.units
         barWeight = settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units)
         availablePlates = settings.plateSet ?? PlateCalculator.defaultPlates(units: settings.units)
+        weightIncrement = settings.weightIncrement
         autoStartRest = settings.autoStartRest
         restAlertsEnabled = settings.restAlertsEnabled
         adaptiveRestEnabled = settings.adaptiveRestEnabled
         failedSetRestMultiplier = settings.failedSetRestMultiplier
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case units, barWeight, availablePlates, weightIncrement, autoStartRest, restAlertsEnabled, adaptiveRestEnabled, failedSetRestMultiplier
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        units = try c.decodeIfPresent(AppSettings.Units.self, forKey: .units) ?? .kg
+        barWeight = try c.decodeIfPresent(Double.self, forKey: .barWeight) ?? Warmup.defaultBarWeight(units: units)
+        availablePlates = try c.decodeIfPresent([Double].self, forKey: .availablePlates) ?? PlateCalculator.defaultPlates(units: units)
+        weightIncrement = try c.decodeIfPresent(Double.self, forKey: .weightIncrement) ?? 2.5
+        autoStartRest = try c.decodeIfPresent(Bool.self, forKey: .autoStartRest) ?? true
+        restAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .restAlertsEnabled) ?? true
+        adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
+        failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5
     }
 }
 
@@ -53,6 +71,7 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
     var sets: [WatchStartableSet]
     var restSeconds: Int
     var usesWeight: Bool
+    var loadingMode: LoadingMode
     /// Target duration for cardio and mobility entries. Zero means set/rep
     /// tracking; a positive value represents one checkable timed block.
     var durationSeconds: Int
@@ -64,6 +83,7 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
         sets: [WatchStartableSet],
         restSeconds: Int,
         usesWeight: Bool,
+        loadingMode: LoadingMode = .direct,
         durationSeconds: Int = 0
     ) {
         self.id = id
@@ -72,10 +92,27 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
         self.sets = sets
         self.restSeconds = restSeconds
         self.usesWeight = usesWeight
+        self.loadingMode = loadingMode
         self.durationSeconds = durationSeconds
     }
 
     var isTimed: Bool { durationSeconds > 0 }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, exerciseID, name, sets, restSeconds, usesWeight, loadingMode, durationSeconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        exerciseID = try c.decode(UUID.self, forKey: .exerciseID)
+        name = try c.decode(String.self, forKey: .name)
+        sets = try c.decode([WatchStartableSet].self, forKey: .sets)
+        restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds) ?? 180
+        usesWeight = try c.decodeIfPresent(Bool.self, forKey: .usesWeight) ?? true
+        loadingMode = try c.decodeIfPresent(LoadingMode.self, forKey: .loadingMode) ?? .direct
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
+    }
 }
 
 /// A complete workout that the Watch can start without consulting the phone.
@@ -123,11 +160,15 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                     sets: [WatchStartableSet(reps: 0, weight: 0)],
                     restSeconds: 0,
                     usesWeight: false,
+                    loadingMode: .direct,
                     durationSeconds: templateExercise.durationSeconds
                 )
             }
 
-            let usesWeight = library[templateExercise.exerciseID]?.usesWeight ?? true
+            let loadingMode = library[templateExercise.exerciseID]?.loadingMode ?? .direct
+            let usesWeight = loadingMode == .bodyweight
+                ? templateExercise.tracksAddedBodyweight
+                : (library[templateExercise.exerciseID]?.usesWeight ?? true)
             var sets: [WatchStartableSet] = []
 
             if settings.warmupsEnabled, usesWeight {
@@ -149,7 +190,7 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
             sets += (0..<max(1, templateExercise.targetSets)).map { _ in
                 WatchStartableSet(
                     reps: templateExercise.targetReps,
-                    weight: templateExercise.weight
+                    weight: loadingMode == .bodyweight && !templateExercise.tracksAddedBodyweight ? 0 : templateExercise.weight
                 )
             }
 
@@ -158,7 +199,8 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                 name: templateExercise.name,
                 sets: sets,
                 restSeconds: templateExercise.restSeconds,
-                usesWeight: usesWeight
+                usesWeight: usesWeight,
+                loadingMode: loadingMode
             )
         }
     }
@@ -200,7 +242,8 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                         )
                     },
                     restSeconds: cachedExercise.restSeconds,
-                    usesWeight: cachedExercise.usesWeight
+                    usesWeight: cachedExercise.usesWeight,
+                    loadingMode: cachedExercise.loadingMode
                 )
             },
             startedAt: startedAt,

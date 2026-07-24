@@ -78,7 +78,8 @@ struct WatchRestView: View {
             let weight = set.weight == set.weight.rounded()
                 ? String(Int(set.weight))
                 : String(format: "%.1f", set.weight)
-            return "\(exercise.name) · Set \(number) · \(weight) × \(set.reps)"
+            let load = exercise.loadingMode == .bodyweight ? " +\(weight)" : " \(weight)"
+            return "\(exercise.name) · Set \(number) ·\(load) × \(set.reps)"
         }
         return "\(exercise.name) · Set \(number) · \(set.reps) reps"
     }

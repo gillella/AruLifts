@@ -61,6 +61,21 @@ enum Equipment: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// The way a lifter selects load for an exercise. This is intentionally
+/// separate from display equipment: a cable and a dumbbell are both entered
+/// directly, while a barbell's number is the total loaded bar.
+enum LoadingMode: String, Codable, Hashable {
+    case barbell, direct, bodyweight
+
+    var accessibilityLabel: String {
+        switch self {
+        case .barbell: return "total barbell weight"
+        case .direct: return "direct equipment weight"
+        case .bodyweight: return "added bodyweight load"
+        }
+    }
+}
+
 /// A single exercise definition. Stored in the exercise library and referenced
 /// by workout templates and sessions.
 struct Exercise: Identifiable, Codable, Hashable {
@@ -100,6 +115,17 @@ struct Exercise: Identifiable, Codable, Hashable {
     /// (treadmill, bike…) and stretches. Timed exercises carry a target
     /// duration on the template (`TemplateExercise.durationSeconds`).
     var isTimed: Bool
+
+    /// Loading behavior is derived from stable exercise metadata, keeping
+    /// existing exercise JSON compatible while making the distinction explicit
+    /// to every editor.
+    var loadingMode: LoadingMode {
+        switch equipment {
+        case .barbell: return .barbell
+        case .bodyweight: return .bodyweight
+        default: return .direct
+        }
+    }
 
     init(
         id: UUID = UUID(),

@@ -121,7 +121,7 @@ struct WatchActiveView: View {
                     .monospacedDigit()
             }
 
-            if exercise.usesWeight, set.weight > 0 {
+            if exercise.loadingMode == .barbell, exercise.usesWeight, set.weight > 0 {
                 Text(plateString(for: set.weight))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
