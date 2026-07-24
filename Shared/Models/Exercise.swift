@@ -89,6 +89,8 @@ struct Exercise: Identifiable, Codable, Hashable {
     /// This is intentionally separate from `videoURL`, which must be a directly
     /// playable media file for AVPlayer.
     var techniqueVideoURL: URL?
+    /// Name of a full-fledged technique video bundled locally (e.g., in ResourceVideos).
+    var localTechniqueVideoName: String?
 
     /// SF Symbol used as an illustrative placeholder when no video exists.
     var symbol: String
@@ -113,6 +115,7 @@ struct Exercise: Identifiable, Codable, Hashable {
         videoURL: URL? = nil,
         demoImageName: String? = nil,
         techniqueVideoURL: URL? = nil,
+        localTechniqueVideoName: String? = nil,
         symbol: String = "figure.strengthtraining.traditional",
         usesWeight: Bool = true,
         isTimed: Bool = false
@@ -128,6 +131,7 @@ struct Exercise: Identifiable, Codable, Hashable {
         self.videoURL = videoURL
         self.demoImageName = demoImageName
         self.techniqueVideoURL = techniqueVideoURL
+        self.localTechniqueVideoName = localTechniqueVideoName
         self.symbol = symbol
         self.usesWeight = usesWeight
         self.isTimed = isTimed
@@ -149,6 +153,7 @@ struct Exercise: Identifiable, Codable, Hashable {
         videoURL = try c.decodeIfPresent(URL.self, forKey: .videoURL)
         demoImageName = try c.decodeIfPresent(String.self, forKey: .demoImageName)
         techniqueVideoURL = try c.decodeIfPresent(URL.self, forKey: .techniqueVideoURL)
+        localTechniqueVideoName = try c.decodeIfPresent(String.self, forKey: .localTechniqueVideoName)
         symbol = try c.decode(String.self, forKey: .symbol)
         usesWeight = try c.decode(Bool.self, forKey: .usesWeight)
         isTimed = try c.decodeIfPresent(Bool.self, forKey: .isTimed) ?? false
