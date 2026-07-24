@@ -20,6 +20,10 @@ struct WatchSetLogView: View {
         active.session?.exercises[safe: exerciseIndex]?.usesWeight ?? true
     }
 
+    private var loadingMode: LoadingMode {
+        active.session?.exercises[safe: exerciseIndex]?.loadingMode ?? .direct
+    }
+
     var body: some View {
         if let set {
             VStack(spacing: 8) {
@@ -27,7 +31,7 @@ struct WatchSetLogView: View {
                     .font(.caption2)
                     .foregroundStyle(set.isWarmup ? .orange : .secondary)
 
-                if usesWeight, set.weight > 0 {
+                if loadingMode == .barbell, usesWeight, set.weight > 0 {
                     Text(plateString(for: set.weight))
                         .font(.system(size: 9).monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -38,11 +42,11 @@ struct WatchSetLogView: View {
                     Stepper(value: Binding(
                         get: { set.weight },
                         set: { active.updateSet(exerciseIndex: exerciseIndex, setIndex: setIndex, weight: $0) }
-                    ), in: 0...999, step: 2.5) {
+                    ), in: 0...999, step: active.watchExecutionSettings.weightIncrement) {
                         VStack(spacing: 0) {
                             Text("\(weightString(set.weight))")
                                 .font(.title3.monospacedDigit().bold())
-                            Text("weight").font(.system(size: 9)).foregroundStyle(.secondary)
+                            Text(loadingMode.accessibilityLabel).font(.system(size: 9)).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -76,13 +80,12 @@ struct WatchSetLogView: View {
         w == w.rounded() ? String(Int(w)) : String(format: "%.1f", w)
     }
 
-    /// Compact per-side plate list, e.g. "25·10·2.5 /side". Watch uses
-    /// default bar/plates (settings live on the phone).
+    /// Compact per-side plate list using the phone's cached gym inventory.
     private func plateString(for weight: Double) -> String {
         let result = PlateCalculator.plates(
             target: weight,
-            bar: Warmup.defaultBarWeight(units: .kg),
-            available: PlateCalculator.defaultPlates(units: .kg)
+            bar: active.watchExecutionSettings.barWeight,
+            available: active.watchExecutionSettings.availablePlates
         )
         guard !result.platesPerSide.isEmpty else { return "empty bar" }
         let list = result.platesPerSide

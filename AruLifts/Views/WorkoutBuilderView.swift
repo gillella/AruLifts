@@ -42,7 +42,11 @@ struct WorkoutBuilderView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach($exercises) { $ex in
-                        ExerciseConfigRow(exercise: $ex, units: store.settings.units)
+                        ExerciseConfigRow(
+                            exercise: $ex,
+                            loadingMode: store.exercise(for: ex.exerciseID)?.loadingMode ?? .direct,
+                            settings: store.settings
+                        )
                     }
                     .onDelete { exercises.remove(atOffsets: $0) }
                     .onMove { exercises.move(fromOffsets: $0, toOffset: $1) }
@@ -90,7 +94,8 @@ struct WorkoutBuilderView: View {
 /// Inline stepper controls for one exercise inside the builder.
 struct ExerciseConfigRow: View {
     @Binding var exercise: TemplateExercise
-    let units: AppSettings.Units
+    let loadingMode: LoadingMode
+    let settings: AppSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -127,20 +132,7 @@ struct ExerciseConfigRow: View {
             stepper(label: "Reps", value: $exercise.targetReps, range: 1...50)
         }
 
-        HStack {
-            Text("Weight").font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            Button { exercise.weight = max(0, exercise.weight - 2.5) } label: {
-                Image(systemName: "minus.circle")
-            }
-            Text(formatWeight(exercise.weight, units: units))
-                .font(.subheadline.monospacedDigit())
-                .frame(minWidth: 70)
-            Button { exercise.weight += 2.5 } label: {
-                Image(systemName: "plus.circle")
-            }
-        }
-        .buttonStyle(.borderless)
+        loadEditor
 
         HStack {
             Text("Rest").font(.caption).foregroundStyle(.secondary)
@@ -152,6 +144,55 @@ struct ExerciseConfigRow: View {
             }
             .pickerStyle(.menu)
         }
+    }
+
+    @ViewBuilder
+    private var loadEditor: some View {
+        switch loadingMode {
+        case .barbell:
+            weightStepper(label: "Total barbell weight")
+            let bar = settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units)
+            let result = PlateCalculator.plates(
+                target: exercise.weight,
+                bar: bar,
+                available: settings.plateSet ?? PlateCalculator.defaultPlates(units: settings.units)
+            )
+            BarbellView(result: result, units: settings.units)
+                .accessibilityLabel("Barbell load: \(result.platesPerSide.isEmpty ? "empty bar" : result.platesPerSide.map { String($0) }.joined(separator: ", ")) per side")
+        case .direct:
+            weightStepper(label: "Equipment weight")
+        case .bodyweight:
+            Toggle("Add external load", isOn: $exercise.tracksAddedBodyweight)
+                .onChange(of: exercise.tracksAddedBodyweight) { _, enabled in
+                    if !enabled { exercise.weight = 0 }
+                }
+            if exercise.tracksAddedBodyweight {
+                weightStepper(label: "Added bodyweight load")
+            } else {
+                Text("Bodyweight")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func weightStepper(label: String) -> some View {
+        HStack {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Button { exercise.weight = max(0, exercise.weight - settings.weightIncrement) } label: {
+                Image(systemName: "minus.circle")
+            }
+            Text(formatWeight(exercise.weight, units: settings.units))
+                .font(.subheadline.monospacedDigit())
+                .frame(minWidth: 70)
+            Button { exercise.weight += settings.weightIncrement } label: {
+                Image(systemName: "plus.circle")
+            }
+        }
+        .buttonStyle(.borderless)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
     }
 
     private func stepper(label: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {

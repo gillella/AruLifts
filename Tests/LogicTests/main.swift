@@ -21,6 +21,15 @@ expect(
 
 let squatID = UUID(), dlID = UUID(), pressID = UUID(), bwID = UUID()
 
+// Equipment metadata drives a clear loading mode rather than making every
+// exercise look like a barbell.
+let modeBarbell = Exercise(name: "Squat", primaryMuscle: .quads, equipment: .barbell)
+let modeMachine = Exercise(name: "Press", primaryMuscle: .chest, equipment: .machine)
+let modeBodyweight = Exercise(name: "Pull Up", primaryMuscle: .back, equipment: .bodyweight, usesWeight: false)
+expect(modeBarbell.loadingMode == .barbell, "barbell metadata maps to total-bar loading")
+expect(modeMachine.loadingMode == .direct, "machine metadata maps to direct loading")
+expect(modeBodyweight.loadingMode == .bodyweight, "bodyweight metadata maps to added-load mode")
+
 // Template: squat 5x5@100 (default inc), deadlift 1x5@140 (default), press 3x5@40 (custom inc 1.0, ), pullups bodyweight
 var template = WorkoutTemplate(
     name: "A",

@@ -50,6 +50,9 @@ struct SessionExercise: Identifiable, Codable, Hashable {
     var sets: [SetEntry]
     var restSeconds: Int
     var usesWeight: Bool
+    /// Captured at workout start so editors on both devices use the same
+    /// wording and behavior without needing to look up the exercise library.
+    var loadingMode: LoadingMode
 
     init(
         id: UUID = UUID(),
@@ -57,7 +60,8 @@ struct SessionExercise: Identifiable, Codable, Hashable {
         name: String,
         sets: [SetEntry],
         restSeconds: Int = 180,
-        usesWeight: Bool = true
+        usesWeight: Bool = true,
+        loadingMode: LoadingMode = .direct
     ) {
         self.id = id
         self.exerciseID = exerciseID
@@ -65,6 +69,22 @@ struct SessionExercise: Identifiable, Codable, Hashable {
         self.sets = sets
         self.restSeconds = restSeconds
         self.usesWeight = usesWeight
+        self.loadingMode = loadingMode
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, exerciseID, name, sets, restSeconds, usesWeight, loadingMode
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        exerciseID = try c.decode(UUID.self, forKey: .exerciseID)
+        name = try c.decode(String.self, forKey: .name)
+        sets = try c.decode([SetEntry].self, forKey: .sets)
+        restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds) ?? 180
+        usesWeight = try c.decodeIfPresent(Bool.self, forKey: .usesWeight) ?? true
+        loadingMode = try c.decodeIfPresent(LoadingMode.self, forKey: .loadingMode) ?? .direct
     }
 
     var completedSets: Int { sets.filter { $0.isCompleted }.count }
@@ -155,10 +175,14 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
                     name: te.name,
                     sets: [SetEntry(reps: 0, weight: 0)],
                     restSeconds: 0,
-                    usesWeight: false
+                    usesWeight: false,
+                    loadingMode: .direct
                 )
             }
-            let usesWeight = library[te.exerciseID]?.usesWeight ?? true
+            let loadingMode = library[te.exerciseID]?.loadingMode ?? .direct
+            let usesWeight = loadingMode == .bodyweight
+                ? te.tracksAddedBodyweight
+                : (library[te.exerciseID]?.usesWeight ?? true)
             var sets: [SetEntry] = []
             if let settings, settings.warmupsEnabled, usesWeight {
                 sets = Warmup.sets(
@@ -169,14 +193,18 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
                 )
             }
             sets += (0..<max(1, te.targetSets)).map { _ in
-                SetEntry(reps: te.targetReps, weight: te.weight)
+                SetEntry(
+                    reps: te.targetReps,
+                    weight: loadingMode == .bodyweight && !te.tracksAddedBodyweight ? 0 : te.weight
+                )
             }
             return SessionExercise(
                 exerciseID: te.exerciseID,
                 name: te.name,
                 sets: sets,
                 restSeconds: te.restSeconds,
-                usesWeight: usesWeight
+                usesWeight: usesWeight,
+                loadingMode: loadingMode
             )
         }
         return WorkoutSession(
