@@ -49,6 +49,9 @@ final class ConnectivityManager: NSObject, ObservableObject {
     @Published var receivedExerciseIndex: Int?
     @Published var receivedRestTimerEndDate: Date?
     @Published var receivedRestTimerTotalSeconds: Int?
+    /// Atomic v2 protocol delivery. The envelope payload remains opaque until
+    /// the coordinator validates ownership and ordering.
+    @Published var receivedWorkoutEnvelope: WorkoutMessageEnvelope?
     /// The counterpart asked to end the session (finish or cancel).
     @Published var endEvent: EndEvent?
     /// Whether the counterpart device is currently reachable.
@@ -58,6 +61,19 @@ final class ConnectivityManager: NSObject, ObservableObject {
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+
+    /// Incoming session snapshots older than this are ignored. Application
+    /// context is sticky and survives app termination, so an app killed
+    /// mid-workout leaves its last "sync" in the context; without this guard a
+    /// cold launch days later would replay that snapshot and resurrect the
+    /// finished-in-spirit workout (observed: a 6-day-old session reappearing
+    /// on launch). No real gym session runs longer than this, so a snapshot
+    /// older than the window is always stale, never a live workout to resume.
+    private let maxSessionAge: TimeInterval = 6 * 60 * 60
+    /// Changes after WCSession activation, even when the counterpart is not
+    /// foreground-reachable. Durable outbox items must then be flushed via
+    /// `transferUserInfo`, not wait for a reachability transition.
+    @Published private(set) var activationGeneration = 0
 
     private override init() {
         super.init()
@@ -73,6 +89,34 @@ final class ConnectivityManager: NSObject, ObservableObject {
         session.delegate = self
         session.activate()
         #endif
+    }
+
+    /// Sends one v2 envelope. Reliable items use the queued-delta path (with an
+    /// immediate reachable attempt); context is reserved for explicitly
+    /// coalescible latest-state bootstrap messages.
+    func send(
+        _ envelope: WorkoutMessageEnvelope,
+        transport: WorkoutMessageTransport
+    ) {
+        guard let data = try? encoder.encode(envelope) else { return }
+        let payload: [String: Any] = [
+            "type": "workoutSyncV2",
+            "envelope": data
+        ]
+        switch transport {
+        case .context:
+            writeContext(payload)
+        case .reliable:
+            // Checkpoints/offers are also the atomically published latest
+            // application context for cold-start convergence. The same stable
+            // message ID then travels as a queued delta, so cross-transport
+            // duplicates are harmless and revision gaps can still be repaired.
+            if envelope.kind == .checkpoint ||
+                envelope.kind == .ownershipOffer {
+                writeContext(payload)
+            }
+            transmit(payload)
+        }
     }
 
     /// Phone -> Watch: begin mirroring this session. Routed through application
@@ -227,9 +271,21 @@ final class ConnectivityManager: NSObject, ObservableObject {
     private func handle(_ payload: [String: Any]) {
         guard let type = payload["type"] as? String else { return }
         switch type {
+        case "workoutSyncV2":
+            guard let data = payload["envelope"] as? Data,
+                  let envelope = try? decoder.decode(
+                    WorkoutMessageEnvelope.self,
+                    from: data
+                  ) else { return }
+            DispatchQueue.main.async {
+                self.receivedWorkoutEnvelope = envelope
+            }
         case "start", "sync":
             if let data = payload["session"] as? Data,
                let session = try? decoder.decode(WorkoutSession.self, from: data) {
+                // Drop stale snapshots (see maxSessionAge): the sticky context
+                // can hand us a session from a long-dead run on cold launch.
+                guard Date().timeIntervalSince(session.startedAt) <= maxSessionAge else { return }
                 let index = payload["currentExerciseIndex"] as? Int
                 let endDate = payload["restTimerEndDate"] as? Date
                 let totalSeconds = payload["restTimerTotalSeconds"] as? Int
@@ -265,7 +321,10 @@ final class ConnectivityManager: NSObject, ObservableObject {
 #if canImport(WatchConnectivity)
 extension ConnectivityManager: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        DispatchQueue.main.async { self.refreshAvailability(session) }
+        DispatchQueue.main.async {
+            self.refreshAvailability(session)
+            self.activationGeneration &+= 1
+        }
         // The counterpart may have pushed a session via updateApplicationContext
         // while this side was not running. That context does NOT arrive through
         // didReceiveApplicationContext on launch — the system only stashes it in

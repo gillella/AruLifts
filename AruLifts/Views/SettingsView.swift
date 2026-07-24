@@ -91,6 +91,14 @@ struct SettingsView: View {
                     }
                     Toggle("Auto-start after a set", isOn: $store.settings.autoStartRest)
                     Toggle("Alert when rest ends", isOn: $store.settings.restAlertsEnabled)
+                    Toggle("Adaptive recovery after a partial set", isOn: $store.settings.adaptiveRestEnabled)
+                    if store.settings.adaptiveRestEnabled {
+                        Picker("Partial-set rest", selection: $store.settings.failedSetRestMultiplier) {
+                            Text("1.25× longer").tag(1.25)
+                            Text("1.5× longer").tag(1.5)
+                            Text("2× longer").tag(2.0)
+                        }
+                    }
                 }
 
                 Section("Apple Watch") {
@@ -100,7 +108,7 @@ struct SettingsView: View {
                         Text(watchStatusText)
                             .foregroundStyle(connectivity.isReachable ? .green : .secondary)
                     }
-                    Text("Start a workout on your iPhone and it appears on your Apple Watch automatically. Log sets and the rest timer from either device — they stay in sync.")
+                    Text("After the Watch accepts an iPhone workout, the Watch owns set logging and rest controls. The phone becomes a live read-only mirror; use Take Over on the phone if you need to switch back.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

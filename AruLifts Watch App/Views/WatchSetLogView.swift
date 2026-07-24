@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Card for the current working set: adjust weight/reps (Digital Crown via
-/// Stepper) and complete the set, which starts the rest timer.
+/// Secondary adjustment screen for the current working set. The primary
+/// workout screen stays focused on one-tap completion; weight and reps live
+/// here so they do not compete with that action.
 struct WatchSetLogView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
+    @Environment(\.dismiss) private var dismiss
     let exerciseIndex: Int
     let setIndex: Int
 
@@ -57,16 +59,16 @@ struct WatchSetLogView: View {
                 }
 
                 Button {
-                    active.completeSet(exerciseIndex: exerciseIndex, setIndex: setIndex, autoStartRest: true, restAlerts: true)
+                    dismiss()
                 } label: {
-                    Label("Complete Set", systemImage: "checkmark")
+                    Label("Done", systemImage: "checkmark")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
             }
             .padding(10)
-            .background(Color.gray.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+            .navigationTitle("Adjust Set")
         }
     }
 

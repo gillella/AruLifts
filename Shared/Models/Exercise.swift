@@ -4,7 +4,7 @@ import Foundation
 enum MuscleGroup: String, Codable, CaseIterable, Identifiable {
     case chest, back, shoulders, biceps, triceps, forearms
     case quads, hamstrings, glutes, calves
-    case core, fullBody, cardio
+    case core, fullBody, cardio, mobility
 
     var id: String { rawValue }
 
@@ -23,6 +23,7 @@ enum MuscleGroup: String, Codable, CaseIterable, Identifiable {
         case .core: return "Core"
         case .fullBody: return "Full Body"
         case .cardio: return "Cardio"
+        case .mobility: return "Mobility"
         }
     }
 }
@@ -95,6 +96,11 @@ struct Exercise: Identifiable, Codable, Hashable {
     /// Whether this exercise is tracked with weight (true) or reps/time only.
     var usesWeight: Bool
 
+    /// Tracked by elapsed time rather than reps/sets — cardio machines
+    /// (treadmill, bike…) and stretches. Timed exercises carry a target
+    /// duration on the template (`TemplateExercise.durationSeconds`).
+    var isTimed: Bool
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -108,7 +114,8 @@ struct Exercise: Identifiable, Codable, Hashable {
         demoImageName: String? = nil,
         techniqueVideoURL: URL? = nil,
         symbol: String = "figure.strengthtraining.traditional",
-        usesWeight: Bool = true
+        usesWeight: Bool = true,
+        isTimed: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -123,5 +130,27 @@ struct Exercise: Identifiable, Codable, Hashable {
         self.techniqueVideoURL = techniqueVideoURL
         self.symbol = symbol
         self.usesWeight = usesWeight
+        self.isTimed = isTimed
+    }
+
+    // Manual decode so custom exercises saved before `isTimed` existed still
+    // load (a non-optional Bool would otherwise throw on the missing key; the
+    // Optional fields above already decode as absent-is-nil automatically).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        primaryMuscle = try c.decode(MuscleGroup.self, forKey: .primaryMuscle)
+        secondaryMuscles = try c.decode([MuscleGroup].self, forKey: .secondaryMuscles)
+        equipment = try c.decode(Equipment.self, forKey: .equipment)
+        instructions = try c.decode([String].self, forKey: .instructions)
+        tips = try c.decode([String].self, forKey: .tips)
+        videoName = try c.decodeIfPresent(String.self, forKey: .videoName)
+        videoURL = try c.decodeIfPresent(URL.self, forKey: .videoURL)
+        demoImageName = try c.decodeIfPresent(String.self, forKey: .demoImageName)
+        techniqueVideoURL = try c.decodeIfPresent(URL.self, forKey: .techniqueVideoURL)
+        symbol = try c.decode(String.self, forKey: .symbol)
+        usesWeight = try c.decode(Bool.self, forKey: .usesWeight)
+        isTimed = try c.decodeIfPresent(Bool.self, forKey: .isTimed) ?? false
     }
 }

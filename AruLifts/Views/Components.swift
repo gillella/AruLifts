@@ -12,6 +12,19 @@ func formatWeight(_ value: Double, units: AppSettings.Units) -> String {
     return "\(number) \(units.label)"
 }
 
+/// Formats a target duration for time-based exercises (cardio, stretches).
+func formatDuration(_ seconds: Int) -> String {
+    if seconds < 60 { return "\(seconds)s" }
+    let minutes = seconds / 60
+    let rem = seconds % 60
+    return rem == 0 ? "\(minutes) min" : "\(minutes)m \(rem)s"
+}
+
+/// "1 exercise" / "3 exercises" — pluralizes a count noun by simple -s rule.
+func countLabel(_ n: Int, _ singular: String) -> String {
+    "\(n) \(singular)\(n == 1 ? "" : "s")"
+}
+
 /// A rounded card container.
 struct Card<Content: View>: View {
     @ViewBuilder var content: Content

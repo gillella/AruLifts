@@ -373,6 +373,169 @@ enum ExerciseLibrary {
             tips: ["Power comes from the hips, not the arms."],
             symbol: "figure.strengthtraining.functional",
             usesWeight: true
+        ),
+
+        // MARK: - Cardio machines (timed)
+        Exercise(
+            id: uid(90),
+            name: "Treadmill",
+            primaryMuscle: .cardio,
+            secondaryMuscles: [.fullBody],
+            equipment: .machine,
+            instructions: [
+                "Start at an easy walk to warm up for the first minute.",
+                "Build to your target pace or incline and hold it.",
+                "Ease back to a walk to cool down before stopping."
+            ],
+            tips: ["Aim for a pace you can sustain and still breathe.", "Great as a 10–15 min opener."],
+            symbol: "figure.run",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(91),
+            name: "Stationary Bike",
+            primaryMuscle: .cardio,
+            secondaryMuscles: [.quads, .hamstrings],
+            equipment: .machine,
+            instructions: [
+                "Set the seat so your knee is slightly bent at the bottom.",
+                "Spin at a steady cadence against a moderate resistance.",
+                "Drop the resistance for the last minute to cool down."
+            ],
+            tips: ["Keep your core engaged and shoulders relaxed."],
+            symbol: "figure.indoor.cycle",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(92),
+            name: "Elliptical",
+            primaryMuscle: .cardio,
+            secondaryMuscles: [.fullBody],
+            equipment: .machine,
+            instructions: [
+                "Stand tall, drive through the heels, and use the handles lightly.",
+                "Hold a smooth, continuous stride at your target effort."
+            ],
+            tips: ["Low impact — good on days your joints need a break."],
+            symbol: "figure.elliptical",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(93),
+            name: "Rowing Machine",
+            primaryMuscle: .cardio,
+            secondaryMuscles: [.back, .fullBody],
+            equipment: .machine,
+            instructions: [
+                "Drive with the legs first, then swing back and pull to the ribs.",
+                "Reverse the order to return: arms, body, then legs.",
+                "Keep a steady stroke rate for the duration."
+            ],
+            tips: ["Power is legs → hips → arms, in that order."],
+            symbol: "figure.rower",
+            usesWeight: false,
+            isTimed: true
+        ),
+
+        // MARK: - Stretching / Mobility (timed)
+        Exercise(
+            id: uid(100),
+            name: "Hamstring Stretch",
+            primaryMuscle: .mobility,
+            secondaryMuscles: [.hamstrings],
+            equipment: .bodyweight,
+            instructions: [
+                "Sit or stand and hinge forward with a flat back.",
+                "Reach toward your toes until you feel a gentle stretch.",
+                "Hold and breathe; don't bounce."
+            ],
+            tips: ["Ease deeper on each exhale.", "Stretch both legs evenly."],
+            symbol: "figure.flexibility",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(101),
+            name: "Quad Stretch",
+            primaryMuscle: .mobility,
+            secondaryMuscles: [.quads],
+            equipment: .bodyweight,
+            instructions: [
+                "Stand tall, pull one heel toward your glute.",
+                "Keep the knees together and hips pushed slightly forward.",
+                "Hold, then switch sides."
+            ],
+            tips: ["Hold a wall for balance if needed."],
+            symbol: "figure.flexibility",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(102),
+            name: "Chest Doorway Stretch",
+            primaryMuscle: .mobility,
+            secondaryMuscles: [.chest, .shoulders],
+            equipment: .bodyweight,
+            instructions: [
+                "Place your forearms on a doorframe, elbows at shoulder height.",
+                "Step through gently until you feel a stretch across the chest.",
+                "Hold and breathe."
+            ],
+            tips: ["Great after pushing sessions."],
+            symbol: "figure.flexibility",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(103),
+            name: "Shoulder Cross-Body Stretch",
+            primaryMuscle: .mobility,
+            secondaryMuscles: [.shoulders],
+            equipment: .bodyweight,
+            instructions: [
+                "Bring one arm across your body at chest height.",
+                "Use the other arm to gently draw it closer.",
+                "Hold, then switch sides."
+            ],
+            tips: ["Keep the shoulder down, away from your ear."],
+            symbol: "figure.cooldown",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(104),
+            name: "Hip Flexor Stretch",
+            primaryMuscle: .mobility,
+            secondaryMuscles: [.glutes, .quads],
+            equipment: .bodyweight,
+            instructions: [
+                "Kneel in a half-lunge, back knee on the floor.",
+                "Tuck the pelvis and push the hips forward.",
+                "Hold, then switch sides."
+            ],
+            tips: ["Squeeze the back glute to deepen the stretch."],
+            symbol: "figure.flexibility",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(105),
+            name: "Child's Pose",
+            primaryMuscle: .mobility,
+            secondaryMuscles: [.back],
+            equipment: .bodyweight,
+            instructions: [
+                "Kneel and sit back onto your heels.",
+                "Reach your arms forward and lower your chest toward the floor.",
+                "Relax and breathe into your lower back."
+            ],
+            tips: ["A calm finisher for the whole session."],
+            symbol: "figure.cooldown",
+            usesWeight: false,
+            isTimed: true
         )
     ]
 
@@ -428,6 +591,9 @@ enum ExerciseLibrary {
         func te(_ id: Int, _ name: String, sets: Int, reps: Int, weight: Double = 0, rest: Int = 180) -> TemplateExercise {
             TemplateExercise(exerciseID: uid(id), name: name, targetSets: sets, targetReps: reps, weight: weight, restSeconds: rest)
         }
+        func timed(_ id: Int, _ name: String, seconds: Int) -> TemplateExercise {
+            TemplateExercise(exerciseID: uid(id), name: name, targetSets: 1, targetReps: 0, restSeconds: 0, durationSeconds: seconds)
+        }
 
         return [
             WorkoutTemplate(
@@ -459,6 +625,17 @@ enum ExerciseLibrary {
                     te(40, "Triceps Pushdown", sets: 4, reps: 12, weight: 25, rest: 120),
                     te(31, "Dumbbell Hammer Curl", sets: 3, reps: 12, weight: 12, rest: 90),
                     te(42, "Triceps Dip", sets: 3, reps: 10, rest: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Cool-Down Stretch",
+                category: .stretching,
+                exercises: [
+                    timed(100, "Hamstring Stretch", seconds: 45),
+                    timed(101, "Quad Stretch", seconds: 45),
+                    timed(104, "Hip Flexor Stretch", seconds: 45),
+                    timed(102, "Chest Doorway Stretch", seconds: 45),
+                    timed(105, "Child's Pose", seconds: 60)
                 ]
             )
         ]

@@ -77,9 +77,90 @@ visible/usable on Watch.
 - Cardio is a category and a muscle group, but `TemplateExercise` is
   sets/reps/weight-shaped — no duration field for "15 min cardio" (req 1.5 partial).
 
-## Goal 2 — Workout tracking (TBD)
+## Goal 2 — Watch-first workout tracking (CURRENT)
 
-To be described by Aravind next session.
+**Goal:** Start a planned workout on either device, put the iPhone down, and
+run the complete workout from Apple Watch with one-tap set logging, automatic
+rest coaching, durable offline state, unambiguous ownership, and exactly one
+history/Health result.
+
+### Requirements checklist
+
+| # | Requirement | Evidence required | Current status |
+|---|-------------|-------------------|----------------|
+| 2.1 | A phone-started workout is not called synced until the Watch has persisted and acknowledged that exact session | Protocol/state test plus paired-simulator handoff | 🚧 IN PROGRESS |
+| 2.2 | After acknowledgment, phone says the Watch is ready and can be put away | iPhone UI inspection and paired-simulator run | 🚧 IN PROGRESS |
+| 2.3 | Watch owns edits after handoff; phone is a read-only mirror unless takeover is acknowledged | Ownership epoch/revision tests and two-device edit attempt | 🚧 IN PROGRESS |
+| 2.4 | Watch current-set screen prominently shows exercise, set, weight, reps and plates with one large completion action | Watch UI inspection, VoiceOver labels, physical glance test | ✅ IMPLEMENTED; runtime validation pending |
+| 2.5 | Completing a set starts rest, advances to the next incomplete set, provides haptic feedback, and offers a five-second Undo | Logic/UI test and Watch simulator run | ✅ IMPLEMENTED; runtime validation pending |
+| 2.6 | Weight/reps are adjustable without crowding the normal completion screen | Watch UI inspection and Digital Crown test | ✅ IMPLEMENTED; physical Crown validation pending |
+| 2.7 | Rest screen shows countdown and next-set context, supports +30/Skip, closes at zero, and speaks/haptics at 10/3/2/1/Go | Timer tests, simulator UI, physical audio/haptic test | ✅ IMPLEMENTED; physical cues pending |
+| 2.8 | Workout can pause/resume safely, and finish warns when sets remain incomplete | Logic/UI tests and simulator interaction | ✅ IMPLEMENTED; runtime validation pending |
+| 2.9 | Watch edits survive disconnection, app termination and relaunch, then synchronize without reverting newer work | Persistence/state tests and paired-simulator offline run | 🚧 IN PROGRESS |
+| 2.10 | Duplicate, stale, reordered and former-owner updates cannot overwrite newer state | Pure protocol injection tests | 🚧 IN PROGRESS |
+| 2.11 | Finish/cancel is durable and a stale application context cannot resurrect the workout | Tombstone tests and relaunch scenario | 🚧 IN PROGRESS |
+| 2.12 | A finished session is inserted into app history and progression exactly once | Pure duplicate-finalization test plus simulator history | ✅ IMPLEMENTED; simulator history pending |
+| 2.13 | Apple Health receives exactly one workout, tagged by app session ID, even when Watch result delivery is retried/lost | Health query/save code test plus physical Health inspection | ✅ IMPLEMENTED; physical confirmation pending |
+| 2.14 | Latest/today workout plans are cached and startable from Watch without the phone | Cache tests and offline Watch start | ⏳ PENDING |
+| 2.15 | Phone can explicitly take over only through an acknowledged ownership transfer | Protocol tests and paired-simulator takeover | 🚧 IN PROGRESS |
+| 2.16 | Sync UI distinguishes Saved locally, Waiting, Ready on Watch, and Synced rather than equating reachability with receipt | UI state tests and disconnected screenshots | 🚧 IN PROGRESS |
+| 2.17 | Adaptive rest and previous-performance guidance are configurable and understandable | Logic tests and Watch UI inspection | ⏳ PENDING |
+| 2.18 | Speech, haptics, coaching level, contrast, large targets and VoiceOver are configurable/accessible | Settings inspection, Accessibility Inspector, physical Watch | ⏳ PENDING |
+| 2.19 | Live Activity/Smart Stack is included only if lifecycle tests do not produce stale/lingering workout state | Platform feasibility check and lifecycle tests | ⏳ PENDING |
+| 2.20 | User-facing guidance explains phone-start, Watch-start, offline, takeover and finish/sync flows | In-app guide inspection | ⏳ PENDING |
+
+### Automated protocol and persistence tests
+
+1. Phone offer remains phone-owned and non-editable while transfer is pending.
+2. Watch persists the offered checkpoint before returning acceptance.
+3. Repeating the same offer/acceptance is idempotent.
+4. New ownership epoch outranks any revision from the prior owner.
+5. Duplicate revision is ignored and acknowledged.
+6. Reordered checkpoints converge to the newest complete snapshot; older
+   checkpoints cannot overwrite it.
+7. Durable outbox survives encode/decode and drains only after app acknowledgment.
+8. A terminal tombstone rejects every later checkpoint/mutation for its session.
+9. Duplicate finalization produces one history entry and one progression update.
+10. Cached workout construction generates fresh session, exercise and set IDs.
+
+### Paired-simulator E2E procedure
+
+1. Launch clean paired iPhone and Watch simulators.
+2. Start a workout on iPhone; verify the phone displays a waiting state.
+3. Verify Watch receives/persists it, becomes owner, and the phone changes to
+   **Ready on Apple Watch — you can put your phone down**.
+4. Complete a Watch set; verify phone mirrors it and rest begins with next-set
+   context. Undo within five seconds and confirm both devices revert.
+5. Adjust weight/reps, complete again, use +30 and Skip, and navigate exercises.
+6. Attempt to edit on the mirrored phone; verify it is blocked.
+7. Request phone takeover; verify neither side edits during transfer and only
+   the phone can edit after acceptance.
+8. Pause/resume. Attempt early finish and verify incomplete-set confirmation.
+9. Disconnect the paired devices, log multiple Watch sets, terminate/relaunch
+   the Watch app, and confirm the workout resumes from persisted Watch state.
+10. Reconnect and verify the phone converges without set reversion.
+11. Inject duplicate, reordered and old-epoch events; verify convergence and
+    checkpoint recovery.
+12. Finish from Watch, relaunch both apps, and verify one history entry and no
+    active-session resurrection. Repeat with Cancel.
+13. Repeat the full workout starting from a cached plan on Watch while phone is
+    unavailable, then reconnect and verify receipt status.
+
+### Physical iPhone + Apple Watch procedure
+
+1. Verify both counterpart apps are installed before treating a failure as a
+   synchronization defect.
+2. Start on iPhone and wait for the exact-session Watch-ready acknowledgment.
+3. Lock/put down the phone and complete at least three sets from Watch.
+4. Confirm Digital Crown adjustment, target sizes, screen readability during
+   exertion, VoiceOver labels, haptics, Watch speaker and Bluetooth-earphone
+   speech at 10/3/2/1/Go.
+5. Background the Watch through a full rest interval and confirm the live
+   `HKWorkoutSession` keeps timer/heart-rate collection alive.
+6. Complete an offline Watch-started workout, reconnect, and verify explicit
+   phone receipt.
+7. Inspect Fitness/Health and confirm exactly one workout with duration,
+   heart-rate/energy data and the matching external session UUID.
 
 ## Goal 3 — Food / nutrition capture (TBD)
 

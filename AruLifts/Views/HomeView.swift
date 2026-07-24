@@ -137,6 +137,13 @@ struct TemplateRowButton: View {
     let template: WorkoutTemplate
     let action: () -> Void
 
+    private var subtitle: String {
+        var parts = [countLabel(template.exerciseCount, "exercise")]
+        if template.totalSets > 0 { parts.append(countLabel(template.totalSets, "set")) }
+        parts.append("~\(template.estimatedMinutes) min")
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 14) {
@@ -151,7 +158,7 @@ struct TemplateRowButton: View {
                     Text(template.name)
                         .font(.headline)
                         .foregroundStyle(.primary)
-                    Text("\(template.exerciseCount) exercises · \(template.totalSets) sets · ~\(template.estimatedMinutes) min")
+                    Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -100,29 +100,70 @@ struct ExerciseRow: View {
     }
 }
 
-/// Reusable picker presented as a sheet to choose an exercise.
+/// Reusable picker presented as a sheet to choose an exercise. Surfaces a
+/// "Suggested" section matching the workout's category, and lets you preview
+/// an exercise's full details before adding it.
 struct ExercisePickerView: View {
     @EnvironmentObject private var store: WorkoutStore
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
+    @State private var muscleFilter: MuscleGroup?
+    /// Exercise whose detail sheet is open for preview, if any.
+    @State private var preview: Exercise?
+    let category: WorkoutCategory
     let onSelect: (Exercise) -> Void
 
-    private var filtered: [Exercise] {
-        store.allExercises.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+    private var matching: [Exercise] {
+        store.allExercises.filter { exercise in
+            let matchesSearch = search.isEmpty || exercise.name.localizedCaseInsensitiveContains(search)
+            let matchesMuscle = muscleFilter == nil ||
+                exercise.primaryMuscle == muscleFilter ||
+                exercise.secondaryMuscles.contains(muscleFilter!)
+            return matchesSearch && matchesMuscle
+        }
+    }
+
+    /// Exercises whose primary or secondary muscle fits the workout's category.
+    private var suggested: [Exercise] {
+        let muscles = Set(category.suggestedMuscles)
+        guard !muscles.isEmpty else { return [] }
+        return matching.filter { ex in
+            muscles.contains(ex.primaryMuscle) || ex.secondaryMuscles.contains(where: muscles.contains)
+        }
     }
 
     var body: some View {
         NavigationStack {
-            List(filtered) { ex in
-                Button {
-                    onSelect(ex)
-                    dismiss()
-                } label: {
-                    ExerciseRow(exercise: ex)
+            VStack(spacing: 0) {
+                muscleFilterBar
+
+                List {
+                    // Suggestions are intentionally preserved only for the
+                    // unfiltered All view. A selected muscle is an explicit
+                    // request for a complete, narrowed list.
+                    if search.isEmpty, muscleFilter == nil, !suggested.isEmpty {
+                        let suggestedIDs = Set(suggested.map(\.id))
+                        Section("Suggested for \(category.displayName)") {
+                            ForEach(suggested) { row($0) }
+                        }
+                        Section("All Exercises") {
+                            ForEach(matching.filter { !suggestedIDs.contains($0.id) }) { row($0) }
+                        }
+                    } else {
+                        ForEach(matching) { row($0) }
+                    }
                 }
-                .buttonStyle(.plain)
+                .listStyle(.insetGrouped)
+                .overlay {
+                    if matching.isEmpty {
+                        ContentUnavailableView(
+                            "No Exercises Found",
+                            systemImage: "magnifyingglass",
+                            description: Text(emptyStateDescription)
+                        )
+                    }
+                }
             }
-            .listStyle(.plain)
             .searchable(text: $search, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
@@ -131,7 +172,83 @@ struct ExercisePickerView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .sheet(item: $preview) { ex in
+                NavigationStack {
+                    ExerciseDetailView(exercise: ex)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Add") { add(ex) }
+                            }
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { preview = nil }
+                            }
+                        }
+                }
+            }
         }
+    }
+
+    private var muscleFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(title: "All", isOn: muscleFilter == nil) {
+                    muscleFilter = nil
+                }
+                ForEach(MuscleGroup.allCases) { muscle in
+                    FilterChip(
+                        title: muscle.displayName,
+                        isOn: muscleFilter == muscle
+                    ) {
+                        muscleFilter = muscleFilter == muscle ? nil : muscle
+                    }
+                    .accessibilityHint("Filters exercises by \(muscle.displayName)")
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Muscle group filter")
+    }
+
+    private var emptyStateDescription: String {
+        switch (search.isEmpty, muscleFilter) {
+        case (false, let muscle?):
+            return "No \(muscle.displayName.lowercased()) exercises match \(search)."
+        case (false, nil):
+            return "No exercises match \(search)."
+        case (true, let muscle?):
+            return "No \(muscle.displayName.lowercased()) exercises are available."
+        case (true, nil):
+            return "Try another filter."
+        }
+    }
+
+    /// One picker row: tap the body to add, tap ⓘ to preview details first.
+    private func row(_ ex: Exercise) -> some View {
+        HStack(spacing: 8) {
+            Button { add(ex) } label: {
+                HStack {
+                    ExerciseRow(exercise: ex)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button { preview = ex } label: {
+                Image(systemName: "info.circle")
+                    .imageScale(.large)
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private func add(_ ex: Exercise) {
+        onSelect(ex)
+        preview = nil
+        dismiss()
     }
 }
 

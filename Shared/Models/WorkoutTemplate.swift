@@ -6,7 +6,8 @@ import SwiftUI
 
 /// High level grouping for a custom workout, e.g. "Upper Body".
 enum WorkoutCategory: String, Codable, CaseIterable, Identifiable {
-    case upperBody, lowerBody, arms, push, pull, legs, fullBody, core, cardio, custom
+    case upperBody, lowerBody, arms, push, pull, legs, fullBody, core, cardio
+    case stretching, recovery, custom
 
     var id: String { rawValue }
 
@@ -21,6 +22,8 @@ enum WorkoutCategory: String, Codable, CaseIterable, Identifiable {
         case .fullBody: return "Full Body"
         case .core: return "Core"
         case .cardio: return "Cardio"
+        case .stretching: return "Stretching"
+        case .recovery: return "Recovery"
         case .custom: return "Custom"
         }
     }
@@ -36,6 +39,8 @@ enum WorkoutCategory: String, Codable, CaseIterable, Identifiable {
         case .fullBody: return "figure.mixed.cardio"
         case .core: return "figure.core.training"
         case .cardio: return "heart.fill"
+        case .stretching: return "figure.flexibility"
+        case .recovery: return "sparkles"
         case .custom: return "square.grid.2x2.fill"
         }
     }
@@ -53,7 +58,29 @@ enum WorkoutCategory: String, Codable, CaseIterable, Identifiable {
         case .fullBody: return "#06D6A0"
         case .core: return "#FFBE0B"
         case .cardio: return "#EF476F"
+        case .stretching: return "#00B4D8"
+        case .recovery: return "#9D4EDD"
         case .custom: return "#7B8794"
+        }
+    }
+
+    /// Muscle groups a workout of this category typically trains. Drives the
+    /// "Suggested" section in the exercise picker. Empty = no suggestions.
+    var suggestedMuscles: [MuscleGroup] {
+        switch self {
+        case .upperBody: return [.chest, .back, .shoulders, .biceps, .triceps, .forearms]
+        case .lowerBody, .legs: return [.quads, .hamstrings, .glutes, .calves]
+        case .push: return [.chest, .shoulders, .triceps]
+        case .pull: return [.back, .biceps, .forearms]
+        case .arms: return [.biceps, .triceps, .forearms]
+        case .fullBody: return [.chest, .back, .shoulders, .quads, .hamstrings, .glutes, .core]
+        case .core: return [.core]
+        case .cardio: return [.cardio, .fullBody]
+        case .stretching: return [.mobility]
+        // Recovery (sauna/steam/bath) is captured as a separate recovery log in
+        // the tracking flow, so it has no suggested exercises yet.
+        case .recovery: return []
+        case .custom: return []
         }
     }
 }
@@ -68,6 +95,9 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
     var weight: Double
     /// Rest after each set, in seconds. Defaults to the app-wide rest if 0.
     var restSeconds: Int
+    /// Target duration in seconds for time-based exercises (cardio, stretches).
+    /// 0 for standard set/rep exercises. `> 0` marks this entry as timed.
+    var durationSeconds: Int
     /// Auto-increase the weight after a fully successful session.
     var progressionEnabled: Bool
     /// Weight added on success. nil = unit-aware default (see `Progression`).
@@ -83,6 +113,7 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         targetReps: Int = 10,
         weight: Double = 0,
         restSeconds: Int = 180,
+        durationSeconds: Int = 0,
         progressionEnabled: Bool = true,
         progressionIncrement: Double? = nil,
         failureCount: Int = 0
@@ -94,10 +125,14 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         self.targetReps = targetReps
         self.weight = weight
         self.restSeconds = restSeconds
+        self.durationSeconds = durationSeconds
         self.progressionEnabled = progressionEnabled
         self.progressionIncrement = progressionIncrement
         self.failureCount = failureCount
     }
+
+    /// Time-based entry (cardio/stretch) rather than sets × reps.
+    var isTimed: Bool { durationSeconds > 0 }
 
     // Manual decode so templates saved before progression existed still load.
     init(from decoder: Decoder) throws {
@@ -109,6 +144,7 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         targetReps = try c.decode(Int.self, forKey: .targetReps)
         weight = try c.decode(Double.self, forKey: .weight)
         restSeconds = try c.decode(Int.self, forKey: .restSeconds)
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
         progressionEnabled = try c.decodeIfPresent(Bool.self, forKey: .progressionEnabled) ?? true
         progressionIncrement = try c.decodeIfPresent(Double.self, forKey: .progressionIncrement)
         failureCount = try c.decodeIfPresent(Int.self, forKey: .failureCount) ?? 0
@@ -140,14 +176,16 @@ struct WorkoutTemplate: Identifiable, Codable, Hashable {
         self.createdAt = createdAt
     }
 
-    var totalSets: Int { exercises.reduce(0) { $0 + $1.targetSets } }
+    /// Working sets across all set/rep exercises (timed entries don't count).
+    var totalSets: Int { exercises.filter { !$0.isTimed }.reduce(0) { $0 + $1.targetSets } }
     var exerciseCount: Int { exercises.count }
 
-    /// Estimated duration in minutes (work + rest, rough heuristic).
+    /// Estimated duration in minutes (work + rest + timed blocks, rough heuristic).
     var estimatedMinutes: Int {
-        let restTotal = exercises.reduce(0) { $0 + $1.targetSets * $1.restSeconds }
+        let restTotal = exercises.filter { !$0.isTimed }.reduce(0) { $0 + $1.targetSets * $1.restSeconds }
         let workTotal = totalSets * 40 // ~40s per working set
-        return max(1, (restTotal + workTotal) / 60)
+        let timedTotal = exercises.reduce(0) { $0 + $1.durationSeconds }
+        return max(1, (restTotal + workTotal + timedTotal) / 60)
     }
 }
 

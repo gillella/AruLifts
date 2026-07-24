@@ -69,18 +69,33 @@ struct WorkoutBuilderView: View {
                 }
             }
             .sheet(isPresented: $showingPicker) {
-                ExercisePickerView { selected in
-                    let rest = store.settings.defaultRestSeconds
-                    let prefill = store.lastWeight(for: selected.id) ?? 0
-                    exercises.append(TemplateExercise(
-                        exerciseID: selected.id,
-                        name: selected.name,
-                        weight: prefill,
-                        restSeconds: rest
-                    ))
+                ExercisePickerView(category: category) { selected in
+                    exercises.append(makeTemplateExercise(from: selected))
                 }
             }
         }
+    }
+
+    /// Builds a template row for a picked exercise. Timed exercises (cardio,
+    /// stretches) start with a sensible default duration and no sets/weight.
+    private func makeTemplateExercise(from selected: Exercise) -> TemplateExercise {
+        if selected.isTimed {
+            let seconds = selected.primaryMuscle == .cardio ? 600 : 45
+            return TemplateExercise(
+                exerciseID: selected.id,
+                name: selected.name,
+                targetSets: 1,
+                targetReps: 0,
+                restSeconds: 0,
+                durationSeconds: seconds
+            )
+        }
+        return TemplateExercise(
+            exerciseID: selected.id,
+            name: selected.name,
+            weight: store.lastWeight(for: selected.id) ?? 0,
+            restSeconds: store.settings.defaultRestSeconds
+        )
     }
 
     private func save() {
@@ -103,39 +118,62 @@ struct ExerciseConfigRow: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(exercise.name).font(.headline)
 
-            HStack {
-                stepper(label: "Sets", value: $exercise.targetSets, range: 1...10)
-                Divider().frame(height: 28)
-                stepper(label: "Reps", value: $exercise.targetReps, range: 1...50)
-            }
-
-            HStack {
-                Text("Weight").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button { exercise.weight = max(0, exercise.weight - 2.5) } label: {
-                    Image(systemName: "minus.circle")
-                }
-                Text(formatWeight(exercise.weight, units: units))
-                    .font(.subheadline.monospacedDigit())
-                    .frame(minWidth: 70)
-                Button { exercise.weight += 2.5 } label: {
-                    Image(systemName: "plus.circle")
-                }
-            }
-            .buttonStyle(.borderless)
-
-            HStack {
-                Text("Rest").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Picker("Rest", selection: $exercise.restSeconds) {
-                    ForEach([60, 90, 120, 150, 180, 240, 300], id: \.self) { s in
-                        Text("\(s / 60):\(String(format: "%02d", s % 60))").tag(s)
-                    }
-                }
-                .pickerStyle(.menu)
+            if exercise.isTimed {
+                durationRow
+            } else {
+                setsRepsWeightRest
             }
         }
         .padding(.vertical, 6)
+    }
+
+    /// Time-based cardio / stretch: a single duration control.
+    private var durationRow: some View {
+        HStack {
+            Text("Duration").font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Picker("Duration", selection: $exercise.durationSeconds) {
+                ForEach([15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200], id: \.self) { s in
+                    Text(formatDuration(s)).tag(s)
+                }
+            }
+            .pickerStyle(.menu)
+        }
+    }
+
+    @ViewBuilder
+    private var setsRepsWeightRest: some View {
+        HStack {
+            stepper(label: "Sets", value: $exercise.targetSets, range: 1...10)
+            Divider().frame(height: 28)
+            stepper(label: "Reps", value: $exercise.targetReps, range: 1...50)
+        }
+
+        HStack {
+            Text("Weight").font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Button { exercise.weight = max(0, exercise.weight - 2.5) } label: {
+                Image(systemName: "minus.circle")
+            }
+            Text(formatWeight(exercise.weight, units: units))
+                .font(.subheadline.monospacedDigit())
+                .frame(minWidth: 70)
+            Button { exercise.weight += 2.5 } label: {
+                Image(systemName: "plus.circle")
+            }
+        }
+        .buttonStyle(.borderless)
+
+        HStack {
+            Text("Rest").font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Picker("Rest", selection: $exercise.restSeconds) {
+                ForEach([60, 90, 120, 150, 180, 240, 300], id: \.self) { s in
+                    Text("\(s / 60):\(String(format: "%02d", s % 60))").tag(s)
+                }
+            }
+            .pickerStyle(.menu)
+        }
     }
 
     private func stepper(label: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {

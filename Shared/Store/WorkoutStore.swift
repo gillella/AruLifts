@@ -18,6 +18,11 @@ struct AppSettings: Codable, Equatable {
     var restAlertsEnabled: Bool = true
     /// Auto-start the rest timer when a set is completed.
     var autoStartRest: Bool = true
+    /// Give an incomplete set longer recovery without making successful sets
+    /// slower. Target reps are retained in the session for this comparison.
+    var adaptiveRestEnabled: Bool = true
+    /// Multiplier used after a set logged below its planned repetitions.
+    var failedSetRestMultiplier: Double = 1.5
     /// Increment used by the +/- weight steppers.
     var weightIncrement: Double = 2.5
     /// Consecutive failed sessions before an exercise deloads.
@@ -42,6 +47,8 @@ struct AppSettings: Codable, Equatable {
         defaultRestSeconds = try c.decodeIfPresent(Int.self, forKey: .defaultRestSeconds) ?? 180
         restAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .restAlertsEnabled) ?? true
         autoStartRest = try c.decodeIfPresent(Bool.self, forKey: .autoStartRest) ?? true
+        adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
+        failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5
         weightIncrement = try c.decodeIfPresent(Double.self, forKey: .weightIncrement) ?? 2.5
         deloadFailureThreshold = try c.decodeIfPresent(Int.self, forKey: .deloadFailureThreshold) ?? 3
         deloadPercent = try c.decodeIfPresent(Double.self, forKey: .deloadPercent) ?? 10
@@ -206,6 +213,7 @@ final class WorkoutStore: ObservableObject {
     // MARK: - History
 
     func recordSession(_ session: WorkoutSession) {
+        guard Self.shouldRecordSession(id: session.id, in: history) else { return }
         var finished = session
         if finished.finishedAt == nil { finished.finishedAt = Date() }
         // PRs compare against history BEFORE this session joins it.
@@ -213,6 +221,12 @@ final class WorkoutStore: ObservableObject {
         history.insert(finished, at: 0)
         saveHistory()
         applyProgression(from: finished)
+    }
+
+    /// Pure duplicate guard kept separate so the history identity rule can be
+    /// exercised without persistence or UI state.
+    nonisolated static func shouldRecordSession(id: UUID, in history: [WorkoutSession]) -> Bool {
+        !history.contains { $0.id == id }
     }
 
     /// StrongLifts-style auto progression: exercises where every target rep

@@ -6,11 +6,15 @@ OUT=$(mktemp -d)/logic_tests
 swiftc -o "$OUT" \
   Shared/Models/WorkoutTemplate.swift \
   Shared/Models/WorkoutSession.swift \
+  Shared/Models/WorkoutSyncModels.swift \
+  Shared/Models/WatchStartableWorkout.swift \
   Shared/Models/Exercise.swift \
   Shared/Models/ExerciseLibrary.swift \
   Shared/Models/ProgressSeries.swift \
   Shared/Store/WorkoutStore.swift \
   Shared/Store/Backup.swift \
+  Shared/Store/ActiveWorkoutRepository.swift \
+  Shared/Connectivity/WorkoutSyncCoordinator.swift \
   Shared/ActiveWorkout/Progression.swift \
   Shared/ActiveWorkout/Warmup.swift \
   Shared/ActiveWorkout/PlateCalculator.swift \
