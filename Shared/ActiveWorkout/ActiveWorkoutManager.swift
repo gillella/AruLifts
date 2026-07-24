@@ -364,6 +364,29 @@ final class ActiveWorkoutManager: ObservableObject {
         broadcast()
     }
 
+    /// Reorders exercise instances for this workout only. The template is never
+    /// consulted or mutated here, so a one-off gym-floor adjustment cannot
+    /// change the user's saved plan. Keep the selected instance stable by id:
+    /// its array position may change, but the exercise on screen must not.
+    func moveExercises(from source: IndexSet, to destination: Int) {
+        guard canEdit, var session, session.exercises.count > 1 else { return }
+        let selectedID = session.exercises.indices.contains(currentExerciseIndex)
+            ? session.exercises[currentExerciseIndex].id
+            : nil
+        session.moveExercises(from: source, to: destination)
+
+        applyingRemote = true
+        self.session = session
+        if let selectedID,
+           let newIndex = session.exercises.firstIndex(where: { $0.id == selectedID }) {
+            currentExerciseIndex = newIndex
+        } else {
+            currentExerciseIndex = min(currentExerciseIndex, session.exercises.count - 1)
+        }
+        applyingRemote = false
+        broadcast()
+    }
+
     func toggleWorkoutPause() {
         guard canEdit, session != nil else { return }
         isWorkoutPaused.toggle()

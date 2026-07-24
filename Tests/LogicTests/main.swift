@@ -30,6 +30,19 @@ expect(modeBarbell.loadingMode == .barbell, "barbell metadata maps to total-bar 
 expect(modeMachine.loadingMode == .direct, "machine metadata maps to direct loading")
 expect(modeBodyweight.loadingMode == .bodyweight, "bodyweight metadata maps to added-load mode")
 
+// Session ordering is a one-day customization: moving an exercise preserves
+// its completed sets and has no relationship to the saved template order.
+let reorderA = SessionExercise(exerciseID: UUID(), name: "A", sets: [SetEntry(reps: 5, weight: 50, isCompleted: true)])
+let reorderB = SessionExercise(exerciseID: UUID(), name: "B", sets: [SetEntry(reps: 8, weight: 20)])
+let reorderC = SessionExercise(exerciseID: UUID(), name: "C", sets: [SetEntry(reps: 10, weight: 0)])
+var reorderSession = WorkoutSession(name: "Reorder", exercises: [reorderA, reorderB, reorderC])
+reorderSession.moveExercises(from: IndexSet(integer: 2), to: 0)
+expect(reorderSession.exercises.map(\.name) == ["C", "A", "B"], "session exercise order can move for today")
+expect(reorderSession.exercises[1].sets[0].isCompleted, "reordering retains completed set data")
+let reorderIDs = reorderSession.exercises.map(\.id)
+reorderSession.moveExercises(from: IndexSet(integer: 0), to: 3)
+expect(reorderSession.exercises.map(\.id) == [reorderIDs[1], reorderIDs[2], reorderIDs[0]], "session reorder retains stable exercise identities")
+
 // Template: squat 5x5@100 (default inc), deadlift 1x5@140 (default), press 3x5@40 (custom inc 1.0, ), pullups bodyweight
 var template = WorkoutTemplate(
     name: "A",

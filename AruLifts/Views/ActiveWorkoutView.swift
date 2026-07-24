@@ -7,6 +7,7 @@ struct ActiveWorkoutView: View {
     @State private var showingCancelConfirm = false
     @State private var showingExercisePicker = false
     @State private var showingNotes = false
+    @State private var showingReorder = false
 
     var body: some View {
         NavigationStack {
@@ -45,6 +46,16 @@ struct ActiveWorkoutView: View {
                     .disabled(!active.canEdit)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingReorder = true
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                    .disabled(!active.canEdit || (active.session?.exercises.count ?? 0) < 2)
+                    .accessibilityLabel("Reorder today's exercises")
+                    .accessibilityHint("Changes this workout only, not the saved template")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Finish") { active.finish() }
                         .fontWeight(.semibold)
                         .disabled(!active.canEdit || active.isFinalizing)
@@ -56,6 +67,10 @@ struct ActiveWorkoutView: View {
                     onSave: { active.updateNotes($0) }
                 )
                 .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showingReorder) {
+                ActiveSessionReorderSheet()
+                    .environmentObject(active)
             }
             .confirmationDialog("Discard this workout?", isPresented: $showingCancelConfirm, titleVisibility: .visible) {
                 Button("Discard workout", role: .destructive) { active.cancel() }
@@ -150,6 +165,50 @@ struct ActiveWorkoutView: View {
     private func currentIndex(in session: WorkoutSession) -> Int? {
         guard session.exercises.indices.contains(active.currentExerciseIndex) else { return nil }
         return active.currentExerciseIndex
+    }
+}
+
+/// Session-only ordering controls. The active manager owns the mutation so it
+/// remains synchronized to the Watch and does not alter a workout template.
+struct ActiveSessionReorderSheet: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let session = active.session {
+                    ForEach(session.exercises) { exercise in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(exercise.name)
+                                Text("\(exercise.completedSets) of \(exercise.sets.count) sets complete")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if exercise.isComplete {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                        .accessibilityLabel("\(exercise.name), \(exercise.completedSets) of \(exercise.sets.count) sets complete")
+                        .accessibilityHint("Drag to change the order for today's workout")
+                    }
+                    .onMove(perform: active.moveExercises)
+                } else {
+                    ContentUnavailableView("No active workout", systemImage: "figure.strengthtraining.traditional")
+                }
+            }
+            .navigationTitle("Today's Order")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { EditButton() }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 
