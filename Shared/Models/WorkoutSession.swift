@@ -4,6 +4,9 @@ import Foundation
 struct SetEntry: Identifiable, Codable, Hashable {
     var id: UUID
     var reps: Int
+    /// The planned repetitions. `reps` may be adjusted to record an actual
+    /// partial set while this remains the reference for adaptive recovery.
+    var targetReps: Int
     var weight: Double
     var isCompleted: Bool
     var isWarmup: Bool
@@ -11,15 +14,31 @@ struct SetEntry: Identifiable, Codable, Hashable {
     init(
         id: UUID = UUID(),
         reps: Int,
+        targetReps: Int? = nil,
         weight: Double,
         isCompleted: Bool = false,
         isWarmup: Bool = false
     ) {
         self.id = id
         self.reps = reps
+        self.targetReps = targetReps ?? reps
         self.weight = weight
         self.isCompleted = isCompleted
         self.isWarmup = isWarmup
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, reps, targetReps, weight, isCompleted, isWarmup
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        reps = try c.decode(Int.self, forKey: .reps)
+        targetReps = try c.decodeIfPresent(Int.self, forKey: .targetReps) ?? reps
+        weight = try c.decode(Double.self, forKey: .weight)
+        isCompleted = try c.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
+        isWarmup = try c.decodeIfPresent(Bool.self, forKey: .isWarmup) ?? false
     }
 }
 
@@ -127,6 +146,18 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         settings: AppSettings? = nil
     ) -> WorkoutSession {
         let exercises = template.exercises.map { te -> SessionExercise in
+            // Timed entries (cardio/stretch) are a single checkable block, no
+            // weight and no warmup ramp. Rich duration tracking is handled in
+            // the tracking flow; here they just need to start without breaking.
+            if te.isTimed {
+                return SessionExercise(
+                    exerciseID: te.exerciseID,
+                    name: te.name,
+                    sets: [SetEntry(reps: 0, weight: 0)],
+                    restSeconds: 0,
+                    usesWeight: false
+                )
+            }
             let usesWeight = library[te.exerciseID]?.usesWeight ?? true
             var sets: [SetEntry] = []
             if let settings, settings.warmupsEnabled, usesWeight {

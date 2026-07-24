@@ -53,11 +53,18 @@ struct MyWorkoutsView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(template.name).font(.headline)
-                Text("\(template.exerciseCount) exercises · \(template.totalSets) sets")
+                Text(subtitle(template))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
+    }
+
+    /// "5 exercises · 17 sets" — drops the set count for timed-only plans.
+    private func subtitle(_ t: WorkoutTemplate) -> String {
+        var parts = [countLabel(t.exerciseCount, "exercise")]
+        if t.totalSets > 0 { parts.append(countLabel(t.totalSets, "set")) }
+        return parts.joined(separator: " · ")
     }
 
     private func startWorkout(_ template: WorkoutTemplate) {
@@ -92,12 +99,16 @@ struct TemplateDetailView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(ex.name).font(.body.weight(.medium))
-                            Text("\(ex.targetSets) × \(ex.targetReps)" + (ex.weight > 0 ? " · \(formatWeight(ex.weight, units: store.settings.units))" : ""))
+                            Text(exerciseDetail(ex))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text("\(ex.restSeconds)s rest")
-                            .font(.caption2).foregroundStyle(.tertiary)
+                        if ex.isTimed {
+                            Image(systemName: "timer").font(.caption2).foregroundStyle(.tertiary)
+                        } else {
+                            Text("\(ex.restSeconds)s rest")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
                     }
                 }
             }
@@ -124,6 +135,13 @@ struct TemplateDetailView: View {
         .sheet(isPresented: $showingEdit) {
             WorkoutBuilderView(existing: template)
         }
+    }
+
+    /// "4 × 8 · 60 KG" for lifts, or "10 min" for timed cardio/stretches.
+    private func exerciseDetail(_ ex: TemplateExercise) -> String {
+        if ex.isTimed { return formatDuration(ex.durationSeconds) }
+        let base = "\(ex.targetSets) × \(ex.targetReps)"
+        return ex.weight > 0 ? base + " · \(formatWeight(ex.weight, units: store.settings.units))" : base
     }
 }
 

@@ -14,6 +14,10 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
     private let store = HKHealthStore()
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
+    private var workoutSessionID: UUID?
+    /// Set before authorization starts, so cancel/finish can invalidate an
+    /// in-flight start that has not yet created an HKWorkoutSession.
+    private var startingSessionID: UUID?
 
     /// Latest heart-rate reading from the live session, in beats per minute.
     /// nil when there's no running session, no data yet, or permission was
@@ -24,8 +28,12 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
 
     /// Starts the live session. Failures are logged, never fatal — the
     /// workout itself proceeds regardless of Health availability.
-    func start() async {
-        guard session == nil, HKHealthStore.isHealthDataAvailable() else { return }
+    func start(sessionID: UUID = UUID()) async {
+        guard session == nil, startingSessionID == nil,
+              HKHealthStore.isHealthDataAvailable() else { return }
+        startingSessionID = sessionID
+        var pendingSession: HKWorkoutSession?
+        var pendingBuilder: HKLiveWorkoutBuilder?
         do {
             try await HealthKitManager.shared.requestAuthorization()
 
@@ -35,43 +43,83 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
 
             let newSession = try HKWorkoutSession(healthStore: store, configuration: config)
             let newBuilder = newSession.associatedWorkoutBuilder()
+            pendingSession = newSession
+            pendingBuilder = newBuilder
             newBuilder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
             newBuilder.delegate = self
 
-            newSession.startActivity(with: Date())
-            try await newBuilder.beginCollection(at: Date())
+            let startDate = Date()
+            newSession.startActivity(with: startDate)
+            try await newBuilder.beginCollection(at: startDate)
+            try await newBuilder.addMetadata([
+                HKMetadataKeyExternalUUID: sessionID.uuidString
+            ])
+            // Cancellation may have happened while Health authorization or
+            // collection setup was awaiting. Do not leak a live session.
+            guard startingSessionID == sessionID else {
+                newSession.end()
+                newBuilder.discardWorkout()
+                return
+            }
             session = newSession
             builder = newBuilder
+            workoutSessionID = sessionID
+            startingSessionID = nil
+            pendingSession = nil
+            pendingBuilder = nil
         } catch {
+            pendingSession?.end()
+            pendingBuilder?.discardWorkout()
             print("WatchWorkoutSession: start failed: \(error.localizedDescription)")
-            session = nil
-            builder = nil
+            if startingSessionID == sessionID {
+                startingSessionID = nil
+            }
         }
     }
 
     /// Ends the live session and saves the workout to Health. Collected
     /// samples (heart rate, active energy) are persisted with the HKWorkout,
     /// so average HR and calories appear in the Fitness app automatically.
-    func finish() async {
-        guard let liveSession = session, let liveBuilder = builder else { return }
+    func finish() async -> HealthSaveResult {
+        // If authorization/collection is still pending, invalidate that start
+        // before reporting there is no live workout to finish.
+        startingSessionID = nil
+        guard let liveSession = session,
+              let liveBuilder = builder,
+              let appSessionID = workoutSessionID else {
+            return .failed(
+                sessionID: workoutSessionID ?? UUID(),
+                description: "No live HealthKit workout session to finish"
+            )
+        }
         session = nil
         builder = nil
+        workoutSessionID = nil
         heartRateBPM = nil
         liveSession.end()
         do {
             try await liveBuilder.endCollection(at: Date())
-            try await liveBuilder.finishWorkout()
+            guard let workout = try await liveBuilder.finishWorkout() else {
+                return .failed(
+                    sessionID: appSessionID,
+                    description: "HealthKit finished without returning a saved workout"
+                )
+            }
+            return .saved(sessionID: appSessionID, healthWorkoutID: workout.uuid)
         } catch {
             print("WatchWorkoutSession: finish failed: \(error.localizedDescription)")
+            return .failed(sessionID: appSessionID, error: error)
         }
     }
 
     /// Ends the live session without saving — the workout was cancelled, or
     /// the phone finished it and owns the Health entry.
     func discard() {
+        startingSessionID = nil
         guard let liveSession = session, let liveBuilder = builder else { return }
         session = nil
         builder = nil
+        workoutSessionID = nil
         heartRateBPM = nil
         liveSession.end()
         liveBuilder.discardWorkout()

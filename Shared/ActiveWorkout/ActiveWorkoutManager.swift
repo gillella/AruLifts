@@ -12,6 +12,13 @@ import WatchKit
 /// both the phone and the watch.
 @MainActor
 final class ActiveWorkoutManager: ObservableObject {
+    private struct LastSetCompletion {
+        let sessionID: UUID
+        let exerciseIndex: Int
+        let setIndex: Int
+        let expiresAt: Date
+    }
+
     @Published private(set) var session: WorkoutSession?
     /// Index of the exercise the user is currently working through.
     @Published var currentExerciseIndex: Int = 0 {
@@ -19,13 +26,31 @@ final class ActiveWorkoutManager: ObservableObject {
             broadcast()
         }
     }
+    /// Five-second safety window after a one-tap Watch completion.
+    @Published private(set) var undoAvailableUntil: Date?
+    @Published private(set) var isWorkoutPaused = false
+    @Published private(set) var isFinalizing = false
+    @Published private(set) var owner: WorkoutDevice?
+    @Published private(set) var canEdit = false
+    @Published private(set) var syncStatus: WorkoutSyncStatus = .localOnly
+    /// Plans persisted on the Watch for an offline workout start.
+    @Published private(set) var watchPlans: [WatchStartableWorkout] = []
+    /// Phone configuration cached alongside plans for Watch-owned execution.
+    @Published private(set) var watchExecutionSettings = WatchExecutionSettings()
 
     let restTimer = RestTimerManager()
 
     private let connectivity = ConnectivityManager.shared
+    private let syncCoordinator: WorkoutSyncCoordinator
     private var cancellables = Set<AnyCancellable>()
     /// Suppresses re-broadcasting while we apply a sync from the other device.
     private var applyingRemote = false
+    /// Ids of sessions this device has ended (finished/cancelled or received a
+    /// remote end for). A late "sync" for one of these — one that raced past
+    /// its own "end" across the two transports — must not resurrect it. Session
+    /// ids are fresh UUIDs, so a tombstoned id never legitimately returns.
+    private var endedSessionIDs: Set<UUID> = []
+    private var lastSetCompletion: LastSetCompletion?
 
     /// Called on the phone when a session finishes, so it can be stored.
     /// The Bool is true when the watch already saved the workout to Apple
@@ -35,6 +60,19 @@ final class ActiveWorkoutManager: ObservableObject {
     var isActive: Bool { session != nil }
 
     init() {
+        #if os(watchOS)
+        syncCoordinator = WorkoutSyncCoordinator(localDevice: .watch)
+        #else
+        syncCoordinator = WorkoutSyncCoordinator(localDevice: .phone)
+        #endif
+
+        syncCoordinator.transmit = { [weak self] envelope, transport in
+            self?.connectivity.send(envelope, transport: transport)
+        }
+        syncCoordinator.onStateChange = { [weak self] state in
+            self?.applyV2State(state)
+        }
+
         // Re-publish rest-timer changes so views observing this manager update
         // when the timer starts/ticks/stops (e.g. to show/hide the rest UI).
         restTimer.objectWillChange
@@ -52,13 +90,35 @@ final class ActiveWorkoutManager: ObservableObject {
             .sink { [weak self] incoming in self?.applyRemote(incoming) }
             .store(in: &cancellables)
 
+        connectivity.$receivedWorkoutEnvelope
+            .compactMap { $0 }
+            .sink { [weak self] envelope in self?.handleV2(envelope) }
+            .store(in: &cancellables)
+
         connectivity.$endEvent
             .compactMap { $0 }
             .sink { [weak self] event in self?.handleRemoteEnd(event) }
             .store(in: &cancellables)
+
+        connectivity.$isReachable
+            .dropFirst()
+            .filter { $0 }
+            .sink { [weak self] _ in self?.syncCoordinator.flushOutbox() }
+            .store(in: &cancellables)
+
+        connectivity.$activationGeneration
+            .dropFirst()
+            .sink { [weak self] _ in self?.syncCoordinator.flushOutbox() }
+            .store(in: &cancellables)
+
+        applyV2State(syncCoordinator.state)
+        syncCoordinator.flushOutbox()
     }
 
     private func handleRemoteEnd(_ event: EndEvent) {
+        // Legacy decoding remains available for an old counterpart, but once a
+        // v2 runtime exists it cannot bypass ownership/epoch/tombstone checks.
+        guard syncCoordinator.replica == nil else { return }
         // Tombstone our own outgoing application context for this session id,
         // unconditionally and before the match check below. Application context
         // is per-direction (see ConnectivityManager.clearActiveContext): the
@@ -73,6 +133,7 @@ final class ActiveWorkoutManager: ObservableObject {
         // own context, so a late/offline end can never leave a stale snapshot
         // that resurrects the session on a future relaunch.
         connectivity.clearActiveContext(event.id)
+        endedSessionIDs.insert(event.id)
 
         guard session?.id == event.id else { return }
         if event.finished, let current = session {
@@ -102,47 +163,92 @@ final class ActiveWorkoutManager: ObservableObject {
     // MARK: - Lifecycle
 
     func start(_ newSession: WorkoutSession, broadcast: Bool = true) {
+        applyingRemote = true
         session = newSession
+        clearUndo()
+        isWorkoutPaused = false
+        isFinalizing = false
         currentExerciseIndex = 0
         restTimer.stop()
+        applyingRemote = false
         if broadcast {
-            connectivity.sendStart(newSession, currentExerciseIndex: 0, restTimerEndDate: nil, restTimerTotalSeconds: nil)
+            _ = syncCoordinator.start(newSession)
+        } else {
+            // Used by previews/tests and legacy callers that explicitly opt out
+            // of counterpart sync.
+            owner = nil
+            canEdit = true
+            syncStatus = .localOnly
         }
         #if os(watchOS)
         // Watch-initiated workout: run a real HKWorkoutSession so the app
         // stays alive through rest and the workout earns activity-ring credit.
-        Task { await WatchWorkoutSession.shared.start() }
+        Task { await WatchWorkoutSession.shared.start(sessionID: newSession.id) }
         #endif
     }
 
     func cancel() {
-        guard let current = session else { return }
-        connectivity.sendEnd(current, finished: false)
+        guard canEdit, let current = session else { return }
+        endedSessionIDs.insert(current.id)
+        guard syncCoordinator.finalize(
+            session: current,
+            finished: false,
+            healthSaved: false
+        ) else { return }
+        connectivity.clearActiveContext(current.id)
         #if os(watchOS)
         WatchWorkoutSession.shared.discard()
         #endif
         currentExerciseIndex = 0
+        clearUndo()
         session = nil
+        isWorkoutPaused = false
         restTimer.stop()
     }
 
     func finish() {
-        guard var finished = session else { return }
+        guard canEdit, !isFinalizing, var finished = session else { return }
         finished.finishedAt = Date()
-        onFinish?(finished, false)                // records on the phone
+        endedSessionIDs.insert(finished.id)
         #if os(watchOS)
-        // Save via the live session; tell the phone so it skips its own save.
-        let healthSaved = WatchWorkoutSession.shared.isRunning
-        Task { await WatchWorkoutSession.shared.finish() }
-        // Embed the final (finishedAt-stamped) snapshot so the receiver saves
-        // exactly what we saved, even if our last "sync" hasn't landed yet.
-        connectivity.sendEnd(finished, finished: true, healthSaved: healthSaved)
+        // Do not optimistically claim Health was saved just because a live
+        // session exists. Wait for HealthKit to return the persisted workout,
+        // then let the phone fall back to its de-duplicating save when needed.
+        session = finished
+        isFinalizing = true
+        Task {
+            let result = await WatchWorkoutSession.shared.finish()
+            guard syncCoordinator.finalize(
+                session: finished,
+                finished: true,
+                healthSaved: result.isVerifiedSaved
+            ) else {
+                isFinalizing = false
+                return
+            }
+            connectivity.clearActiveContext(finished.id)
+            currentExerciseIndex = 0
+            clearUndo()
+            isWorkoutPaused = false
+            restTimer.stop()
+            session = nil
+            isFinalizing = false
+        }
         #else
-        connectivity.sendEnd(finished, finished: true)
-        #endif
+        guard syncCoordinator.finalize(
+            session: finished,
+            finished: true,
+            healthSaved: false
+        ) else { return }
+        onFinish?(finished, false)
+        connectivity.clearActiveContext(finished.id)
         currentExerciseIndex = 0
+        clearUndo()
         restTimer.stop()
         session = nil
+        isFinalizing = false
+        isWorkoutPaused = false
+        #endif
     }
 
     // MARK: - Editing sets
@@ -152,24 +258,77 @@ final class ActiveWorkoutManager: ObservableObject {
         return session.exercises[currentExerciseIndex]
     }
 
-    func completeSet(exerciseIndex: Int, setIndex: Int, autoStartRest: Bool, restAlerts: Bool) {
-        guard var session else { return }
+    func completeSet(
+        exerciseIndex: Int,
+        setIndex: Int,
+        autoStartRest: Bool,
+        restAlerts: Bool,
+        adaptiveRest: Bool = true,
+        failedSetRestMultiplier: Double = 1.5
+    ) {
+        guard canEdit, !isWorkoutPaused, var session else { return }
         guard session.exercises.indices.contains(exerciseIndex),
               session.exercises[exerciseIndex].sets.indices.contains(setIndex) else { return }
         session.exercises[exerciseIndex].sets[setIndex].isCompleted.toggle()
         let nowComplete = session.exercises[exerciseIndex].sets[setIndex].isCompleted
+        if nowComplete {
+            let expiresAt = Date().addingTimeInterval(5)
+            lastSetCompletion = LastSetCompletion(
+                sessionID: session.id,
+                exerciseIndex: exerciseIndex,
+                setIndex: setIndex,
+                expiresAt: expiresAt
+            )
+            undoAvailableUntil = expiresAt
+        } else {
+            clearUndo()
+        }
         self.session = session
         playSelectionHaptic()
 
         if nowComplete && autoStartRest {
-            let rest = session.exercises[exerciseIndex].restSeconds
+            let completedSet = session.exercises[exerciseIndex].sets[setIndex]
+            let baseRest = session.exercises[exerciseIndex].restSeconds
+            let rest = adaptiveRest && completedSet.reps < completedSet.targetReps
+                ? Int((Double(baseRest) * max(1, failedSetRestMultiplier)).rounded())
+                : baseRest
             restTimer.start(seconds: rest, alertsEnabled: restAlerts)
         }
         broadcast()
     }
 
+    /// Reverts the most recent one-tap completion during its five-second
+    /// safety window. The just-started rest is stopped so the user returns to
+    /// the corrected working set immediately.
+    @discardableResult
+    func undoLastSetCompletion(now: Date = Date()) -> Bool {
+        guard canEdit,
+              let last = lastSetCompletion,
+              now <= last.expiresAt,
+              var session,
+              session.id == last.sessionID,
+              session.exercises.indices.contains(last.exerciseIndex),
+              session.exercises[last.exerciseIndex].sets.indices.contains(last.setIndex),
+              session.exercises[last.exerciseIndex].sets[last.setIndex].isCompleted else {
+            clearUndo()
+            return false
+        }
+        session.exercises[last.exerciseIndex].sets[last.setIndex].isCompleted = false
+        self.session = session
+        restTimer.stop()
+        clearUndo()
+        playSelectionHaptic()
+        broadcast()
+        return true
+    }
+
+    var canUndoLastSetCompletion: Bool {
+        guard let expiry = undoAvailableUntil else { return false }
+        return Date() <= expiry
+    }
+
     func updateSet(exerciseIndex: Int, setIndex: Int, reps: Int? = nil, weight: Double? = nil) {
-        guard var session else { return }
+        guard canEdit, !isWorkoutPaused, var session else { return }
         guard session.exercises.indices.contains(exerciseIndex),
               session.exercises[exerciseIndex].sets.indices.contains(setIndex) else { return }
         if let reps { session.exercises[exerciseIndex].sets[setIndex].reps = max(0, reps) }
@@ -179,7 +338,7 @@ final class ActiveWorkoutManager: ObservableObject {
     }
 
     func addSet(exerciseIndex: Int) {
-        guard var session, session.exercises.indices.contains(exerciseIndex) else { return }
+        guard canEdit, var session, session.exercises.indices.contains(exerciseIndex) else { return }
         let template = session.exercises[exerciseIndex].sets.last
         let new = SetEntry(reps: template?.reps ?? 10, weight: template?.weight ?? 0)
         session.exercises[exerciseIndex].sets.append(new)
@@ -188,7 +347,7 @@ final class ActiveWorkoutManager: ObservableObject {
     }
 
     func removeSet(exerciseIndex: Int, setIndex: Int) {
-        guard var session, session.exercises.indices.contains(exerciseIndex),
+        guard canEdit, var session, session.exercises.indices.contains(exerciseIndex),
               session.exercises[exerciseIndex].sets.indices.contains(setIndex) else { return }
         session.exercises[exerciseIndex].sets.remove(at: setIndex)
         self.session = session
@@ -196,38 +355,124 @@ final class ActiveWorkoutManager: ObservableObject {
     }
 
     func updateNotes(_ text: String) {
-        guard var session else { return }
+        guard canEdit, var session else { return }
         session.notes = text
         self.session = session
         broadcast()
     }
 
+    func toggleWorkoutPause() {
+        guard canEdit, session != nil else { return }
+        isWorkoutPaused.toggle()
+        if isWorkoutPaused {
+            restTimer.pause()
+        } else {
+            restTimer.resume()
+        }
+        playSelectionHaptic()
+        broadcast()
+    }
+
+    func addRest(seconds: Int) {
+        guard canEdit, !isWorkoutPaused else { return }
+        restTimer.add(seconds: seconds)
+    }
+
+    func skipRest() {
+        guard canEdit, !isWorkoutPaused else { return }
+        restTimer.skip()
+    }
+
     func goToNextExercise() {
-        guard let session else { return }
+        guard canEdit, let session else { return }
         if currentExerciseIndex < session.exercises.count - 1 {
             currentExerciseIndex += 1
         }
     }
 
     func goToPreviousExercise() {
-        if currentExerciseIndex > 0 { currentExerciseIndex -= 1 }
+        if canEdit && currentExerciseIndex > 0 { currentExerciseIndex -= 1 }
     }
+
+    /// The phone remains a read-only mirror until the Watch durably accepts
+    /// this explicit ownership transfer.
+    func requestPhoneTakeover() {
+        #if os(iOS)
+        _ = syncCoordinator.requestTakeover()
+        #endif
+    }
+
+    #if os(iOS)
+    /// Rebuilds the Watch's offline-start cache from the phone's authoritative
+    /// templates. Revisions make a delayed old cache harmless.
+    func updateWatchPlanCache(
+        templates: [WorkoutTemplate],
+        library: [UUID: Exercise],
+        settings: AppSettings
+    ) {
+        let workouts = templates.map {
+            WatchStartableWorkout(template: $0, library: library, settings: settings)
+        }
+        let cache = (syncCoordinator.watchPlanCache ?? WatchPlanCache()).advanced(
+            workouts: workouts,
+            executionSettings: WatchExecutionSettings(settings: settings)
+        )
+        _ = syncCoordinator.updateWatchPlanCache(cache)
+    }
+    #endif
+
+    #if os(watchOS)
+    func startCachedPlan(_ plan: WatchStartableWorkout) {
+        guard !isActive else { return }
+        watchExecutionSettings = syncCoordinator.watchPlanCache?.executionSettings
+            ?? WatchExecutionSettings()
+        start(plan.makeFreshSession())
+    }
+    #endif
 
     // MARK: - Sync
 
     private func broadcast() {
         guard !applyingRemote, let session else { return }
-        connectivity.sendSync(
-            session,
+        let rest: RestTimerSnapshot?
+        if let endDate = restTimer.endDate {
+            rest = RestTimerSnapshot(endDate: endDate, totalSeconds: restTimer.totalSeconds)
+        } else if restTimer.isPaused, restTimer.secondsRemaining > 0 {
+            // `endDate` is retained for wire compatibility only while paused;
+            // receivers use pausedRemainingSeconds rather than this value.
+            rest = RestTimerSnapshot(
+                endDate: Date(), totalSeconds: restTimer.totalSeconds,
+                pausedRemainingSeconds: restTimer.secondsRemaining
+            )
+        } else {
+            rest = nil
+        }
+        _ = syncCoordinator.mutate(
+            session: session,
             currentExerciseIndex: currentExerciseIndex,
-            restTimerEndDate: restTimer.endDate,
-            restTimerTotalSeconds: restTimer.totalSeconds
+            restTimer: rest,
+            isWorkoutPaused: isWorkoutPaused
         )
     }
 
     private func applyRemote(_ incoming: WorkoutSession) {
+        // Once v2 has durable state, legacy snapshots remain decodable but
+        // cannot bypass v2 ownership and revision checks.
+        guard syncCoordinator.replica == nil else { return }
+        // A "sync" for a session we already ended must never bring it back
+        // (see endedSessionIDs) — this is the watch "revert to a discarded
+        // workout" bug: an in-flight sync landing just after the end.
+        guard !endedSessionIDs.contains(incoming.id) else { return }
         applyingRemote = true
-        if session?.id == incoming.id || session == nil {
+        // Adopt the incoming session when it's an update to the one we're
+        // showing, the first session we've seen, OR a *newer* session than our
+        // current one. The newer-wins rule lets a freshly started workout take
+        // over a device still displaying an older session (e.g. the phone
+        // starts a new workout while the watch lingers on a previous one),
+        // while an out-of-order sync for an older session can't stomp a newer
+        // active one.
+        let supersedes = incoming.startedAt > (session?.startedAt ?? .distantPast)
+        if session?.id == incoming.id || session == nil || supersedes {
             #if os(watchOS)
             let wasNil = (session == nil)
             #endif
@@ -235,6 +480,7 @@ final class ActiveWorkoutManager: ObservableObject {
             // Reset currentExerciseIndex to 0 if starting a new session (was nil or different id)
             if session?.id != incoming.id {
                 currentExerciseIndex = 0
+                isWorkoutPaused = false
             }
 
             // Sync exercise index if present in connectivity
@@ -259,6 +505,7 @@ final class ActiveWorkoutManager: ObservableObject {
             }
 
             session = incoming
+            clearUndo()
             if currentExerciseIndex >= incoming.exercises.count {
                 currentExerciseIndex = max(0, incoming.exercises.count - 1)
             }
@@ -266,11 +513,79 @@ final class ActiveWorkoutManager: ObservableObject {
             if wasNil {
                 // Phone-initiated workout mirrored on watch: run HKWorkoutSession
                 // so watch app stays alive, reads heart rate, and plays haptics.
-                Task { await WatchWorkoutSession.shared.start() }
+                Task { await WatchWorkoutSession.shared.start(sessionID: incoming.id) }
             }
             #endif
         }
         applyingRemote = false
+    }
+
+    private func handleV2(_ envelope: WorkoutMessageEnvelope) {
+        let finalization = envelope.kind == .tombstone
+            ? try? envelope.decodePayload(WorkoutFinalization.self)
+            : nil
+        let result = syncCoordinator.receive(envelope)
+        guard result == .applied, let finalization else { return }
+
+        endedSessionIDs.insert(finalization.tombstone.sessionID)
+        connectivity.clearActiveContext(finalization.tombstone.sessionID)
+        if finalization.tombstone.finished {
+            onFinish?(finalization.finalSession, finalization.healthSaved)
+        }
+        #if os(watchOS)
+        if envelope.sender == .phone {
+            WatchWorkoutSession.shared.discard()
+        }
+        #endif
+        clearUndo()
+        isWorkoutPaused = false
+        isFinalizing = false
+        restTimer.stop()
+        session = nil
+    }
+
+    /// Publishes a single accepted/persisted replica to the UI. This is the
+    /// only v2 path that changes session/index/timer state.
+    private func applyV2State(_ state: WorkoutRuntimeState) {
+        owner = state.activeReplica?.owner
+        canEdit = syncCoordinator.canEdit
+        syncStatus = state.syncStatus
+        watchPlans = state.watchPlanCache?.workouts ?? []
+        if let cachedSettings = state.watchPlanCache?.executionSettings {
+            watchExecutionSettings = cachedSettings
+        }
+        guard let replica = state.activeReplica else { return }
+
+        let wasNil = session == nil
+        applyingRemote = true
+        session = replica.session
+        currentExerciseIndex = replica.session.exercises.indices.contains(
+            replica.currentExerciseIndex
+        ) ? replica.currentExerciseIndex : max(0, replica.session.exercises.count - 1)
+        isWorkoutPaused = replica.isWorkoutPaused
+        if replica.isWorkoutPaused, let timer = replica.restTimer {
+            restTimer.syncPaused(
+                remainingSeconds: timer.pausedRemainingSeconds ?? timer.totalSeconds,
+                totalSeconds: timer.totalSeconds
+            )
+        } else if let timer = replica.restTimer, timer.endDate > Date() {
+            restTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds)
+        } else {
+            restTimer.stop()
+        }
+        clearUndo()
+        applyingRemote = false
+
+        #if os(watchOS)
+        if wasNil {
+            Task { await WatchWorkoutSession.shared.start(sessionID: replica.session.id) }
+        }
+        #endif
+    }
+
+    private func clearUndo() {
+        lastSetCompletion = nil
+        undoAvailableUntil = nil
     }
 
     private func playSelectionHaptic() {

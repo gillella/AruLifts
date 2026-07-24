@@ -100,29 +100,51 @@ struct ExerciseRow: View {
     }
 }
 
-/// Reusable picker presented as a sheet to choose an exercise.
+/// Reusable picker presented as a sheet to choose an exercise. Surfaces a
+/// "Suggested" section matching the workout's category, and lets you preview
+/// an exercise's full details before adding it.
 struct ExercisePickerView: View {
     @EnvironmentObject private var store: WorkoutStore
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
+    /// Exercise whose detail sheet is open for preview, if any.
+    @State private var preview: Exercise?
+    let category: WorkoutCategory
     let onSelect: (Exercise) -> Void
 
-    private var filtered: [Exercise] {
+    private var matching: [Exercise] {
         store.allExercises.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+    }
+
+    /// Exercises whose primary or secondary muscle fits the workout's category.
+    private var suggested: [Exercise] {
+        let muscles = Set(category.suggestedMuscles)
+        guard !muscles.isEmpty else { return [] }
+        return matching.filter { ex in
+            muscles.contains(ex.primaryMuscle) || ex.secondaryMuscles.contains(where: muscles.contains)
+        }
     }
 
     var body: some View {
         NavigationStack {
-            List(filtered) { ex in
-                Button {
-                    onSelect(ex)
-                    dismiss()
-                } label: {
-                    ExerciseRow(exercise: ex)
+            List {
+                // Suggestions only make sense in the unsearched, categorized view.
+                if search.isEmpty, !suggested.isEmpty {
+                    let suggestedIDs = Set(suggested.map(\.id))
+                    Section("Suggested for \(category.displayName)") {
+                        ForEach(suggested) { row($0) }
+                    }
+                    Section("All Exercises") {
+                        ForEach(matching.filter { !suggestedIDs.contains($0.id) }) { row($0) }
+                    }
+                } else {
+                    ForEach(matching) { row($0) }
                 }
-                .buttonStyle(.plain)
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            .overlay {
+                if matching.isEmpty { ContentUnavailableView.search(text: search) }
+            }
             .searchable(text: $search, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
@@ -131,7 +153,47 @@ struct ExercisePickerView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .sheet(item: $preview) { ex in
+                NavigationStack {
+                    ExerciseDetailView(exercise: ex)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Add") { add(ex) }
+                            }
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { preview = nil }
+                            }
+                        }
+                }
+            }
         }
+    }
+
+    /// One picker row: tap the body to add, tap ⓘ to preview details first.
+    private func row(_ ex: Exercise) -> some View {
+        HStack(spacing: 8) {
+            Button { add(ex) } label: {
+                HStack {
+                    ExerciseRow(exercise: ex)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button { preview = ex } label: {
+                Image(systemName: "info.circle")
+                    .imageScale(.large)
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private func add(_ ex: Exercise) {
+        onSelect(ex)
+        preview = nil
+        dismiss()
     }
 }
 

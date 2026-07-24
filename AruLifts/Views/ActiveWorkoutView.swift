@@ -31,6 +31,7 @@ struct ActiveWorkoutView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { showingCancelConfirm = true }
                         .tint(.red)
+                        .disabled(!active.canEdit)
                 }
                 ToolbarItem(placement: .principal) {
                     ElapsedLabel(start: active.session?.startedAt ?? Date())
@@ -41,10 +42,12 @@ struct ActiveWorkoutView: View {
                     } label: {
                         Image(systemName: "note.text")
                     }
+                    .disabled(!active.canEdit)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Finish") { active.finish() }
                         .fontWeight(.semibold)
+                        .disabled(!active.canEdit || active.isFinalizing)
                 }
             }
             .sheet(isPresented: $showingNotes) {
@@ -64,14 +67,7 @@ struct ActiveWorkoutView: View {
     @ViewBuilder
     private func content(for session: WorkoutSession) -> some View {
         VStack(spacing: 0) {
-            if connectivity.isReachable {
-                HStack(spacing: 6) {
-                    Image(systemName: "applewatch.radiowaves.left.and.right")
-                    Text("Synced with Apple Watch").font(.caption)
-                }
-                .foregroundStyle(.green)
-                .padding(.top, 6)
-            }
+            syncBanner
 
             ExercisePager(session: session)
 
@@ -80,8 +76,74 @@ struct ActiveWorkoutView: View {
                     SetLogList(exerciseIndex: idx)
                         .padding()
                         .padding(.bottom, active.restTimer.isRunning ? 90 : 16)
+                        .disabled(!active.canEdit)
+                        .opacity(active.canEdit ? 1 : 0.72)
                 }
             }
+        }
+    }
+
+    private var syncBanner: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: syncSymbol)
+                Text(syncMessage).font(.caption.weight(.medium))
+            }
+            .foregroundStyle(syncColor)
+
+            if active.owner == .watch {
+                if active.canEdit {
+                    Text("This iPhone controls the workout.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Take Over on iPhone") {
+                        active.requestPhoneTakeover()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
+                    .disabled(active.syncStatus == .waitingForWatch)
+                }
+            }
+        }
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var syncMessage: String {
+        switch active.syncStatus {
+        case .waitingForWatch:
+            return "Sending workout to Apple Watch…"
+        case .savedOnWatch:
+            return "Saved on Watch — waiting for iPhone"
+        case .waitingForPhone:
+            return "Watch handoff in progress…"
+        case .synced where active.owner == .watch:
+            return "Ready on Apple Watch — you can put your phone down"
+        case .synced:
+            return "Workout synchronized"
+        case .needsResync:
+            return "Syncing latest workout state…"
+        case .localOnly:
+            return connectivity.isCounterpartAvailable
+                ? "Preparing Apple Watch connection…"
+                : "Saved on this iPhone"
+        }
+    }
+
+    private var syncSymbol: String {
+        active.owner == .watch
+            ? "applewatch.radiowaves.left.and.right"
+            : "iphone.radiowaves.left.and.right"
+    }
+
+    private var syncColor: Color {
+        switch active.syncStatus {
+        case .synced: return .green
+        case .needsResync: return .orange
+        default: return .secondary
         }
     }
 
@@ -158,6 +220,7 @@ struct ExercisePager: View {
                                 .foregroundStyle(idx == active.currentExerciseIndex ? .white : .primary)
                             }
                             .buttonStyle(.plain)
+                            .disabled(!active.canEdit)
                             .id(idx)
                         }
                     }

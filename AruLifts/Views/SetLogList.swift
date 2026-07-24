@@ -139,7 +139,9 @@ struct SetLogList: View {
             exerciseIndex: exerciseIndex,
             setIndex: setIndex,
             autoStartRest: store.settings.autoStartRest,
-            restAlerts: store.settings.restAlertsEnabled
+            restAlerts: store.settings.restAlertsEnabled,
+            adaptiveRest: store.settings.adaptiveRestEnabled,
+            failedSetRestMultiplier: store.settings.failedSetRestMultiplier
         )
     }
 }

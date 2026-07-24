@@ -6,6 +6,19 @@ func expect(_ cond: Bool, _ label: String) {
     if cond { print("PASS \(label)") } else { failures += 1; print("FAIL \(label)") }
 }
 
+// History finalization is keyed by the stable app session ID. A repeated end
+// event must not re-run PR detection or progression.
+let historySessionID = UUID()
+let recordedHistorySession = WorkoutSession(id: historySessionID, name: "Recorded", finishedAt: Date())
+expect(
+    !WorkoutStore.shouldRecordSession(id: historySessionID, in: [recordedHistorySession]),
+    "duplicate session ID is rejected from history"
+)
+expect(
+    WorkoutStore.shouldRecordSession(id: UUID(), in: [recordedHistorySession]),
+    "new session ID is accepted into history"
+)
+
 let squatID = UUID(), dlID = UUID(), pressID = UUID(), bwID = UUID()
 
 // Template: squat 5x5@100 (default inc), deadlift 1x5@140 (default), press 3x5@40 (custom inc 1.0, ), pullups bodyweight
@@ -372,17 +385,327 @@ if let p = try? Backup.decode(partial) {
 
 // --- Exercise demonstrations (issue #12) ---
 
-// 45. Every built-in exercise has one offline illustration and one external
-// coaching-video link; asset existence is verified by the Xcode build.
-expect(ExerciseLibrary.all.count == 24, "24 built-in exercises")
-expect(ExerciseLibrary.all.allSatisfy { $0.demoImageName != nil }, "all built-ins have demo illustrations")
-expect(Set(ExerciseLibrary.all.compactMap(\.demoImageName)).count == 24, "demo illustration names are unique")
+// 45. Every set/rep built-in exercise has one offline illustration and one
+// external coaching-video link; asset existence is verified by the Xcode build.
+// Timed exercises (cardio machines, stretches) are demonstrated by their form
+// notes rather than an illustration/video, so they're excluded here.
+let demoExercises = ExerciseLibrary.all.filter { !$0.isTimed }
+let timedExercises = ExerciseLibrary.all.filter { $0.isTimed }
+expect(demoExercises.count == 24, "24 built-in set/rep exercises")
+expect(timedExercises.count == 10, "10 built-in timed exercises (cardio + stretch)")
+expect(demoExercises.allSatisfy { $0.demoImageName != nil }, "all set/rep built-ins have demo illustrations")
+expect(Set(demoExercises.compactMap(\.demoImageName)).count == 24, "demo illustration names are unique")
 expect(
-    ExerciseLibrary.all.allSatisfy {
+    demoExercises.allSatisfy {
         $0.techniqueVideoURL?.host?.contains("youtube.com") == true &&
         $0.techniqueVideoURL?.query?.contains("v=") == true
     },
-    "all built-ins have direct YouTube watch links"
+    "all set/rep built-ins have direct YouTube watch links"
+)
+expect(timedExercises.allSatisfy { !$0.instructions.isEmpty }, "timed built-ins have form notes")
+
+// --- Watch-first live-workout replication ---
+
+// 46. Ownership epochs outrank revisions from a former owner.
+let oldOwnerLateEdit = SessionVersion(ownershipEpoch: 2, revision: 500)
+let newOwnerInitial = SessionVersion(ownershipEpoch: 3, revision: 0)
+expect(oldOwnerLateEdit < newOwnerInitial, "new ownership epoch rejects former-owner edits")
+expect(
+    SessionVersion.initial.advanced() == SessionVersion(ownershipEpoch: 0, revision: 1),
+    "ordinary edit advances revision"
+)
+expect(
+    oldOwnerLateEdit.transferred() == SessionVersion(ownershipEpoch: 3, revision: 0),
+    "ownership transfer advances epoch and resets revision"
+)
+
+// 47. Replicas accept only newer state and terminal tombstones always win.
+let syncSession = WorkoutSession(name: "Watch-first test")
+let initialReplica = WorkoutReplica(session: syncSession, owner: .phone)
+let watchReplica = WorkoutReplica(
+    session: syncSession,
+    owner: .watch,
+    version: initialReplica.version.transferred(),
+    healthRecorder: .watch
+)
+var runtime = WorkoutRuntimeState(activeReplica: initialReplica, authorityState: .offeringTransfer)
+expect(runtime.accepts(watchReplica), "newer Watch-owned replica accepted")
+expect(!runtime.accepts(initialReplica), "duplicate replica rejected")
+runtime.terminalSessions[syncSession.id] = WorkoutTombstone(
+    sessionID: syncSession.id,
+    finalVersion: watchReplica.version,
+    finished: true,
+    createdAt: Date()
+)
+expect(!runtime.accepts(watchReplica), "terminal tombstone rejects later replica")
+
+// 48. Active runtime, outbox and tombstones survive an atomic disk round-trip.
+let runtimeDir = FileManager.default.temporaryDirectory
+    .appendingPathComponent("arulifts-runtime-\(UUID().uuidString)")
+let runtimeRepo = ActiveWorkoutRepository(directory: runtimeDir)
+let pending = PendingWorkoutMessage(payload: Data("event".utf8))
+runtime.activeReplica = watchReplica
+runtime.authorityState = .authoritative
+runtime.syncStatus = .waitingForPhone
+runtime.outbox = [pending]
+expect(runtimeRepo.save(runtime), "active runtime persisted atomically")
+let restoredRuntime = runtimeRepo.load()
+expect(restoredRuntime.activeReplica == watchReplica, "active replica restored")
+expect(restoredRuntime.outbox == [pending], "durable outbox restored")
+expect(restoredRuntime.terminalSessions[syncSession.id]?.finished == true, "tombstone restored")
+runtimeRepo.removeFile()
+try? FileManager.default.removeItem(at: runtimeDir)
+
+// 49. Phone-start handoff is two-phase and acceptance is durable on Watch.
+let syncRoot = FileManager.default.temporaryDirectory
+    .appendingPathComponent("arulifts-sync-\(UUID().uuidString)")
+let phoneRepository = ActiveWorkoutRepository(directory: syncRoot.appendingPathComponent("phone"))
+let watchRepository = ActiveWorkoutRepository(directory: syncRoot.appendingPathComponent("watch"))
+var phoneWire: [WorkoutMessageEnvelope] = []
+var watchWire: [WorkoutMessageEnvelope] = []
+let phoneCoordinator = WorkoutSyncCoordinator(
+    localDevice: .phone,
+    repository: phoneRepository,
+    transmit: { envelope, _ in phoneWire.append(envelope) }
+)
+let watchCoordinator = WorkoutSyncCoordinator(
+    localDevice: .watch,
+    repository: watchRepository,
+    transmit: { envelope, _ in watchWire.append(envelope) }
+)
+let handoffSession = WorkoutSession(name: "Handoff")
+expect(phoneCoordinator.start(handoffSession), "phone persists ownership offer")
+expect(phoneCoordinator.canEdit, "phone remains editable before Watch acceptance")
+let offerEnvelope = phoneWire.first { $0.kind == .ownershipOffer }!
+expect(watchCoordinator.receive(offerEnvelope) == .applied, "Watch accepts phone start")
+expect(
+    watchCoordinator.owner == .phone && !watchCoordinator.canEdit,
+    "Watch persists acceptance without overlapping phone edits"
+)
+let acceptanceEnvelope = watchWire.first { $0.kind == .ownershipAcceptance }!
+expect(
+    phoneCoordinator.receive(acceptanceEnvelope) == .applied,
+    "phone applies durable Watch receipt"
+)
+expect(
+    phoneCoordinator.owner == .watch && !phoneCoordinator.canEdit,
+    "phone becomes read-only only after acceptance"
+)
+let ownershipCommit = phoneWire.last { $0.kind == .ownershipCommit }!
+expect(
+    watchCoordinator.receive(ownershipCommit) == .applied &&
+    watchCoordinator.owner == .watch &&
+    watchCoordinator.canEdit,
+    "Watch edits only after transfer commit"
+)
+
+// 50. Application acknowledgments are idempotent.
+let receiptAck = watchWire.last { $0.kind == .acknowledgment }!
+expect(
+    phoneCoordinator.receive(receiptAck) == .applied,
+    "application ack clears transfer commit outbox"
+)
+expect(
+    phoneCoordinator.receive(receiptAck) == .duplicate,
+    "duplicate application ack is harmless"
+)
+
+// 51. Former-owner epochs and revision gaps cannot mutate the mirror.
+var staleReplica = phoneCoordinator.replica!
+staleReplica.owner = .phone
+staleReplica.version = SessionVersion(ownershipEpoch: 0, revision: 99)
+let staleEnvelope = try! WorkoutMessageEnvelope(
+    kind: .checkpoint,
+    sender: .phone,
+    sessionID: handoffSession.id,
+    payload: WorkoutCheckpoint(replica: staleReplica)
+)
+expect(watchCoordinator.receive(staleEnvelope) == .stale, "stale former-owner epoch is rejected")
+
+var gapReplica = phoneCoordinator.replica!
+gapReplica.version.revision += 2
+let gapEnvelope = try! WorkoutMessageEnvelope(
+    kind: .checkpoint,
+    sender: .watch,
+    sessionID: handoffSession.id,
+    payload: WorkoutCheckpoint(replica: gapReplica)
+)
+expect(phoneCoordinator.receive(gapEnvelope) == .applied, "newer full checkpoint repairs reordering")
+expect(phoneCoordinator.replica?.version == gapReplica.version, "newer checkpoint converges mirror")
+
+var revisionOne = gapReplica
+revisionOne.version.revision -= 1
+let revisionOneEnvelope = try! WorkoutMessageEnvelope(
+    kind: .checkpoint,
+    sender: .watch,
+    sessionID: handoffSession.id,
+    payload: WorkoutCheckpoint(replica: revisionOne)
+)
+expect(phoneCoordinator.receive(revisionOneEnvelope) == .stale, "older checkpoint cannot overwrite convergence")
+expect(phoneCoordinator.receive(gapEnvelope) == .duplicate, "duplicate newer checkpoint is harmless")
+
+// 52. Terminal state is self-contained, persisted, and wins permanently.
+let terminal = WorkoutTombstone(
+    sessionID: handoffSession.id,
+    finalVersion: gapReplica.version,
+    finished: true,
+    createdAt: Date()
+)
+let terminalEnvelope = try! WorkoutMessageEnvelope(
+    kind: .tombstone,
+    sender: .watch,
+    sessionID: handoffSession.id,
+    payload: WorkoutFinalization(
+        tombstone: terminal,
+        finalSession: handoffSession,
+        healthSaved: true
+    )
+)
+expect(phoneCoordinator.receive(terminalEnvelope) == .applied, "finalization installs tombstone")
+expect(
+    phoneCoordinator.replica == nil &&
+    phoneCoordinator.state.terminalSessions[handoffSession.id] != nil,
+    "tombstone clears active replica"
+)
+let resurrectionEnvelope = try! WorkoutMessageEnvelope(
+    kind: .checkpoint,
+    sender: .watch,
+    sessionID: handoffSession.id,
+    payload: WorkoutCheckpoint(replica: gapReplica)
+)
+expect(
+    phoneCoordinator.receive(resurrectionEnvelope) == .invalid,
+    "tombstone prevents resurrection"
+)
+
+// 53. Watch ownership and unknown wire kinds both survive decoding/relaunch.
+let restoredWatchCoordinator = WorkoutSyncCoordinator(
+    localDevice: .watch,
+    repository: watchRepository
+)
+expect(
+    restoredWatchCoordinator.owner == .watch &&
+    restoredWatchCoordinator.replica?.session.id == handoffSession.id,
+    "accepted Watch ownership restores after termination"
+)
+let unknownEnvelope = try! WorkoutMessageEnvelope(
+    kind: WorkoutMessageKind(rawValue: "futureSemanticMutation"),
+    sender: .watch,
+    sessionID: handoffSession.id,
+    payload: ["future": true]
+)
+let unknownRoundTrip = try! JSONDecoder().decode(
+    WorkoutMessageEnvelope.self,
+    from: JSONEncoder().encode(unknownEnvelope)
+)
+expect(
+    unknownRoundTrip.kind.rawValue == "futureSemanticMutation",
+    "unknown v2 kinds decode forward-compatibly"
+)
+try? FileManager.default.removeItem(at: syncRoot)
+
+// 54. Phone takeover is also an acknowledged ownership-epoch transfer.
+let takeoverRoot = FileManager.default.temporaryDirectory
+    .appendingPathComponent("arulifts-takeover-\(UUID().uuidString)")
+var takeoverWatchWire: [WorkoutMessageEnvelope] = []
+var takeoverPhoneWire: [WorkoutMessageEnvelope] = []
+let takeoverWatch = WorkoutSyncCoordinator(
+    localDevice: .watch,
+    repository: ActiveWorkoutRepository(
+        directory: takeoverRoot.appendingPathComponent("watch")
+    ),
+    transmit: { envelope, _ in takeoverWatchWire.append(envelope) }
+)
+let takeoverPhone = WorkoutSyncCoordinator(
+    localDevice: .phone,
+    repository: ActiveWorkoutRepository(
+        directory: takeoverRoot.appendingPathComponent("phone")
+    ),
+    transmit: { envelope, _ in takeoverPhoneWire.append(envelope) }
+)
+let watchStartedSession = WorkoutSession(name: "Watch start")
+expect(takeoverWatch.start(watchStartedSession), "Watch-start checkpoint is durable")
+let initialWatchCheckpoint = takeoverWatchWire.first { $0.kind == .checkpoint }!
+expect(
+    takeoverPhone.receive(initialWatchCheckpoint) == .applied,
+    "phone mirrors a Watch-started workout"
+)
+expect(takeoverPhone.requestTakeover(), "phone persists takeover request")
+let takeoverRequestEnvelope = takeoverPhoneWire.last { $0.kind == .takeoverRequest }!
+expect(
+    takeoverWatch.receive(takeoverRequestEnvelope) == .applied,
+    "Watch accepts phone takeover"
+)
+let takeoverAcceptance = takeoverWatchWire.last { $0.kind == .ownershipAcceptance }!
+expect(
+    takeoverPhone.receive(takeoverAcceptance) == .applied &&
+    takeoverPhone.owner == .phone &&
+    !takeoverPhone.canEdit,
+    "phone stays read-only while takeover commits"
+)
+let takeoverCommit = takeoverPhoneWire.last { $0.kind == .ownershipCommit }!
+expect(
+    takeoverWatch.receive(takeoverCommit) == .applied &&
+    takeoverWatch.owner == .phone && !takeoverWatch.canEdit,
+    "Watch becomes read-only after phone takeover"
+)
+let takeoverCommitAck = takeoverWatchWire.last { $0.kind == .acknowledgment }!
+expect(
+    takeoverPhone.receive(takeoverCommitAck) == .applied &&
+    takeoverPhone.canEdit,
+    "phone edits only after committed takeover ack"
+)
+try? FileManager.default.removeItem(at: takeoverRoot)
+
+// 55. Cached Watch plans preserve their template relation while every offline
+// start creates fresh transient identities.
+let watchPlan = WatchStartableWorkout(template: template, library: ExerciseLibrary.byID, settings: AppSettings())
+let watchAttemptA = watchPlan.makeFreshSession(at: Date(timeIntervalSinceReferenceDate: 1))
+let watchAttemptB = watchPlan.makeFreshSession(at: Date(timeIntervalSinceReferenceDate: 2))
+expect(watchAttemptA.templateID == template.id, "Watch plan preserves template link")
+expect(watchAttemptA.id != watchAttemptB.id, "Watch plan creates fresh session IDs")
+expect(
+    watchAttemptA.exercises.first?.id != watchAttemptB.exercises.first?.id &&
+        watchAttemptA.exercises.first?.sets.first?.id != watchAttemptB.exercises.first?.sets.first?.id,
+    "Watch plan regenerates exercise and set IDs"
+)
+var lbSettings = AppSettings()
+lbSettings.units = .lb
+lbSettings.autoStartRest = false
+lbSettings.restAlertsEnabled = false
+lbSettings.plateSet = [45, 25, 10, 5, 2.5]
+let lbExecution = WatchExecutionSettings(settings: lbSettings)
+let cacheV1 = WatchPlanCache().advanced(
+    workouts: [watchPlan], executionSettings: lbExecution
+)
+let cacheV2 = cacheV1.advanced(
+    workouts: [watchPlan], executionSettings: lbExecution
+)
+expect(cacheV2 > cacheV1, "Watch plan cache revision advances monotonically")
+expect(
+    cacheV2.executionSettings.units == .lb &&
+        !cacheV2.executionSettings.autoStartRest &&
+        cacheV2.executionSettings.availablePlates == [45, 25, 10, 5, 2.5],
+    "Watch plan cache retains units, rest behavior, and plates"
+)
+
+// 56. New recovery metadata remains compatible with sessions saved before it.
+let legacySetData = """
+{"id":"00000000-0000-0000-0000-000000000056","reps":4,"weight":100,"isCompleted":false,"isWarmup":false}
+""".data(using: .utf8)!
+let legacySet = try! JSONDecoder().decode(SetEntry.self, from: legacySetData)
+expect(legacySet.targetReps == 4, "legacy set target defaults to its saved reps")
+let pausedSnapshot = RestTimerSnapshot(
+    endDate: Date(timeIntervalSinceReferenceDate: 0),
+    totalSeconds: 120,
+    pausedRemainingSeconds: 73
+)
+let decodedPausedSnapshot = try! JSONDecoder().decode(
+    RestTimerSnapshot.self, from: JSONEncoder().encode(pausedSnapshot)
+)
+expect(
+    decodedPausedSnapshot.pausedRemainingSeconds == 73,
+    "paused rest remaining duration survives replication"
 )
 
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
