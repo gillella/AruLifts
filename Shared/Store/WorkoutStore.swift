@@ -16,6 +16,9 @@ struct AppSettings: Codable, Equatable {
     var defaultRestSeconds: Int = 180
     /// Play a haptic/notification when the rest timer ends.
     var restAlertsEnabled: Bool = true
+    var restAlertStyle: RestAlertStyle = .soundAndHaptic
+    var earlyRestCueEnabled: Bool = true
+    var earlyRestCueLeadSeconds: Int = 10
     /// Auto-start the rest timer when a set is completed.
     var autoStartRest: Bool = true
     /// Give an incomplete set longer recovery without making successful sets
@@ -46,6 +49,9 @@ struct AppSettings: Codable, Equatable {
         units = try c.decodeIfPresent(Units.self, forKey: .units) ?? .kg
         defaultRestSeconds = try c.decodeIfPresent(Int.self, forKey: .defaultRestSeconds) ?? 180
         restAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .restAlertsEnabled) ?? true
+        restAlertStyle = try c.decodeIfPresent(RestAlertStyle.self, forKey: .restAlertStyle) ?? .soundAndHaptic
+        earlyRestCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .earlyRestCueEnabled) ?? true
+        earlyRestCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .earlyRestCueLeadSeconds) ?? 10
         autoStartRest = try c.decodeIfPresent(Bool.self, forKey: .autoStartRest) ?? true
         adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
         failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5

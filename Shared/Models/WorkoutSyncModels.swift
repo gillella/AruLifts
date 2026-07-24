@@ -32,15 +32,17 @@ struct RestTimerSnapshot: Codable, Hashable {
     /// A paused timer has no meaningful wall-clock end date. Keep its remaining
     /// duration in the replica so a mirror can pause at exactly the same point.
     var pausedRemainingSeconds: Int?
+    var alertConfiguration: RestTimerAlertConfiguration
 
-    init(endDate: Date, totalSeconds: Int, pausedRemainingSeconds: Int? = nil) {
+    init(endDate: Date, totalSeconds: Int, pausedRemainingSeconds: Int? = nil, alertConfiguration: RestTimerAlertConfiguration = .default) {
         self.endDate = endDate
         self.totalSeconds = totalSeconds
         self.pausedRemainingSeconds = pausedRemainingSeconds
+        self.alertConfiguration = alertConfiguration
     }
 
     private enum CodingKeys: String, CodingKey {
-        case endDate, totalSeconds, pausedRemainingSeconds
+        case endDate, totalSeconds, pausedRemainingSeconds, alertConfiguration
     }
 
     init(from decoder: Decoder) throws {
@@ -48,7 +50,22 @@ struct RestTimerSnapshot: Codable, Hashable {
         endDate = try c.decode(Date.self, forKey: .endDate)
         totalSeconds = try c.decode(Int.self, forKey: .totalSeconds)
         pausedRemainingSeconds = try c.decodeIfPresent(Int.self, forKey: .pausedRemainingSeconds)
+        alertConfiguration = try c.decodeIfPresent(RestTimerAlertConfiguration.self, forKey: .alertConfiguration) ?? .default
     }
+}
+
+enum RestAlertStyle: String, Codable, CaseIterable, Hashable, Identifiable {
+    case soundAndHaptic, vibrationOnly
+    var id: String { rawValue }
+    var label: String { self == .soundAndHaptic ? "Sound & haptic" : "Vibration only" }
+}
+
+struct RestTimerAlertConfiguration: Codable, Hashable {
+    var alertsEnabled: Bool
+    var style: RestAlertStyle
+    var earlyCueEnabled: Bool
+    var earlyCueLeadSeconds: Int
+    static let `default` = RestTimerAlertConfiguration(alertsEnabled: true, style: .soundAndHaptic, earlyCueEnabled: true, earlyCueLeadSeconds: 10)
 }
 
 /// One self-contained, atomically persisted/published view of a workout.

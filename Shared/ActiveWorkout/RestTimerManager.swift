@@ -4,8 +4,9 @@ import UserNotifications
 
 #if os(iOS)
 import UIKit
-#elseif os(watchOS)
+#endif
 import AVFoundation
+#if os(watchOS)
 import WatchKit
 #endif
 
@@ -22,15 +23,14 @@ final class RestTimerManager: ObservableObject {
     private var ticker: Timer?
     private let notificationID = "aru.rest.timer"
     private var alertsEnabled = true
+    private(set) var alertConfiguration: RestTimerAlertConfiguration = .default
     private var lastSpokenSecond: Int?
     var onStateChange: (() -> Void)?
 
-    #if os(watchOS)
     /// Retained for the lifetime of the timer so spoken countdown cues are not
     /// deallocated mid-utterance. AVSpeechSynthesizer routes to connected
     /// Bluetooth earphones when present and otherwise uses the Watch audio route.
     private let speechSynthesizer = AVSpeechSynthesizer()
-    #endif
 
     var progress: Double {
         guard totalSeconds > 0 else { return 0 }
@@ -46,9 +46,10 @@ final class RestTimerManager: ObservableObject {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    func start(seconds: Int, alertsEnabled: Bool = true) {
+    func start(seconds: Int, configuration: RestTimerAlertConfiguration = .default) {
         guard seconds > 0 else { return }
-        self.alertsEnabled = alertsEnabled
+        alertConfiguration = configuration
+        alertsEnabled = configuration.alertsEnabled
         lastSpokenSecond = nil
         totalSeconds = seconds
         secondsRemaining = seconds
@@ -56,7 +57,7 @@ final class RestTimerManager: ObservableObject {
         endDate = Date().addingTimeInterval(TimeInterval(seconds))
         isRunning = true
         startTicker()
-        if alertsEnabled { scheduleNotification(after: seconds) }
+        if alertsEnabled, configuration.style == .soundAndHaptic { scheduleNotification(after: seconds) }
         onStateChange?()
     }
 
@@ -72,7 +73,7 @@ final class RestTimerManager: ObservableObject {
         endDate = newEnd
         totalSeconds = max(totalSeconds + seconds, 1)
         cancelNotification()
-        if alertsEnabled {
+        if alertsEnabled, alertConfiguration.style == .soundAndHaptic {
             scheduleNotification(after: Int(newEnd.timeIntervalSinceNow))
         }
         tick()
@@ -102,7 +103,7 @@ final class RestTimerManager: ObservableObject {
         isRunning = true
         endDate = Date().addingTimeInterval(TimeInterval(secondsRemaining))
         startTicker()
-        if alertsEnabled { scheduleNotification(after: secondsRemaining) }
+        if alertsEnabled, alertConfiguration.style == .soundAndHaptic { scheduleNotification(after: secondsRemaining) }
         onStateChange?()
     }
 
@@ -118,8 +119,23 @@ final class RestTimerManager: ObservableObject {
         onStateChange?()
     }
 
-    func sync(endDate: Date, totalSeconds: Int) {
-        alertsEnabled = true
+    func reset() {
+        guard totalSeconds > 0 else { return }
+        stopSpokenAlert()
+        lastSpokenSecond = nil
+        secondsRemaining = totalSeconds
+        isPaused = false
+        isRunning = true
+        endDate = Date().addingTimeInterval(TimeInterval(totalSeconds))
+        startTicker()
+        cancelNotification()
+        if alertsEnabled, alertConfiguration.style == .soundAndHaptic { scheduleNotification(after: totalSeconds) }
+        onStateChange?()
+    }
+
+    func sync(endDate: Date, totalSeconds: Int, configuration: RestTimerAlertConfiguration = .default) {
+        alertConfiguration = configuration
+        alertsEnabled = configuration.alertsEnabled
         lastSpokenSecond = nil
         self.totalSeconds = totalSeconds
         self.endDate = endDate
@@ -132,7 +148,9 @@ final class RestTimerManager: ObservableObject {
     /// Applies a remote paused timer without inventing a local end date or
     /// firing an alert. This intentionally does not invoke `onStateChange`:
     /// the replica is already the source of truth.
-    func syncPaused(remainingSeconds: Int, totalSeconds: Int) {
+    func syncPaused(remainingSeconds: Int, totalSeconds: Int, configuration: RestTimerAlertConfiguration = .default) {
+        alertConfiguration = configuration
+        alertsEnabled = configuration.alertsEnabled
         self.totalSeconds = max(totalSeconds, remainingSeconds)
         self.secondsRemaining = max(0, remainingSeconds)
         self.endDate = nil
@@ -203,20 +221,21 @@ final class RestTimerManager: ObservableObject {
     // MARK: - Haptics
 
     private func playCountdownCueIfNeeded(_ seconds: Int) {
-        #if os(watchOS)
-        guard [10, 3, 2, 1].contains(seconds),
+        guard alertConfiguration.earlyCueEnabled,
+              ([alertConfiguration.earlyCueLeadSeconds, 3, 2, 1].contains(seconds)),
               lastSpokenSecond != seconds else { return }
         lastSpokenSecond = seconds
 
         // A single early haptic gets the user's attention without repeatedly
         // interrupting HealthKit heart-rate sampling during the 3-2-1 speech.
-        if seconds == 10 {
+        if seconds == alertConfiguration.earlyCueLeadSeconds {
+            #if os(watchOS)
             WKInterfaceDevice.current().play(.start)
-            speak("Ten seconds")
+            #endif
+            speak("Get ready for your next set")
         } else {
             speak(String(seconds))
         }
-        #endif
     }
 
     private func playCompletionAlert() {
@@ -225,19 +244,18 @@ final class RestTimerManager: ObservableObject {
         generator.notificationOccurred(.success)
         #elseif os(watchOS)
         WKInterfaceDevice.current().play(.notification)
-        speak("Go. Start your next set.")
         #endif
+        if alertConfiguration.style == .soundAndHaptic {
+        speak("Go. Start your next set.")
+        }
     }
 
     private func stopSpokenAlert() {
-        #if os(watchOS)
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
-        #endif
     }
 
-    #if os(watchOS)
     private func speak(_ text: String) {
         // Drop any delayed phrase before announcing the current cue. This keeps
         // "three, two, one" aligned even if the selected voice starts slowly.
@@ -250,5 +268,4 @@ final class RestTimerManager: ObservableObject {
         utterance.volume = 1
         speechSynthesizer.speak(utterance)
     }
-    #endif
 }

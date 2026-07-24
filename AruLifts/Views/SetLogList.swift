@@ -140,6 +140,12 @@ struct SetLogList: View {
             setIndex: setIndex,
             autoStartRest: store.settings.autoStartRest,
             restAlerts: store.settings.restAlertsEnabled,
+            restAlertConfiguration: RestTimerAlertConfiguration(
+                alertsEnabled: store.settings.restAlertsEnabled,
+                style: store.settings.restAlertStyle,
+                earlyCueEnabled: store.settings.earlyRestCueEnabled,
+                earlyCueLeadSeconds: store.settings.earlyRestCueLeadSeconds
+            ),
             adaptiveRest: store.settings.adaptiveRestEnabled,
             failedSetRestMultiplier: store.settings.failedSetRestMultiplier
         )
@@ -276,6 +282,7 @@ struct StepValue: View {
 /// Floating rest-timer bar shown while resting. Observes the timer directly so
 /// it re-renders every tick.
 struct RestTimerBar: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
     @ObservedObject var timer: RestTimerManager
 
     var body: some View {
@@ -297,16 +304,30 @@ struct RestTimerBar: View {
                     .foregroundStyle(.white)
             }
             Spacer()
-            Button { timer.add(seconds: 30) } label: {
+            Button { active.toggleRestPause() } label: {
+                Text(timer.isPaused ? "Resume" : "Pause").font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(.white.opacity(0.2), in: Capsule())
+            }
+            .disabled(!active.canEdit)
+            Button { active.resetRest() } label: {
+                Image(systemName: "arrow.counterclockwise")
+                    .padding(8).background(.white.opacity(0.2), in: Circle())
+            }
+            .accessibilityLabel("Reset rest timer")
+            .disabled(!active.canEdit)
+            Button { active.addRest(seconds: 30) } label: {
                 Text("+30s").font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(.white.opacity(0.2), in: Capsule())
             }
-            Button { timer.skip() } label: {
+            .disabled(!active.canEdit)
+            Button { active.skipRest() } label: {
                 Text("Skip").font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(.white.opacity(0.2), in: Capsule())
             }
+            .disabled(!active.canEdit)
         }
         .foregroundStyle(.white)
         .padding(14)

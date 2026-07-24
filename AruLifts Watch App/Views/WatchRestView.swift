@@ -50,6 +50,19 @@ struct WatchRestView: View {
             }
 
             HStack(spacing: 8) {
+                Button { active.toggleRestPause() } label: {
+                    Text(timer.isPaused ? "Resume" : "Pause").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!active.canEdit || active.isWorkoutPaused)
+
+                Button { active.resetRest() } label: {
+                    Image(systemName: "arrow.counterclockwise").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Reset rest timer")
+                .disabled(!active.canEdit || active.isWorkoutPaused)
+
                 Button { active.addRest(seconds: 30) } label: {
                     Text("+30s").frame(maxWidth: .infinity)
                 }

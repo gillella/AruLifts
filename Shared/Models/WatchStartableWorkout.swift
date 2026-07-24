@@ -8,6 +8,9 @@ struct WatchExecutionSettings: Codable, Hashable {
     var availablePlates: [Double]
     var autoStartRest: Bool
     var restAlertsEnabled: Bool
+    var restAlertStyle: RestAlertStyle
+    var earlyRestCueEnabled: Bool
+    var earlyRestCueLeadSeconds: Int
     var adaptiveRestEnabled: Bool
     var failedSetRestMultiplier: Double
 
@@ -17,8 +20,31 @@ struct WatchExecutionSettings: Codable, Hashable {
         availablePlates = settings.plateSet ?? PlateCalculator.defaultPlates(units: settings.units)
         autoStartRest = settings.autoStartRest
         restAlertsEnabled = settings.restAlertsEnabled
+        restAlertStyle = settings.restAlertStyle
+        earlyRestCueEnabled = settings.earlyRestCueEnabled
+        earlyRestCueLeadSeconds = settings.earlyRestCueLeadSeconds
         adaptiveRestEnabled = settings.adaptiveRestEnabled
         failedSetRestMultiplier = settings.failedSetRestMultiplier
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case units, barWeight, availablePlates, autoStartRest, restAlertsEnabled
+        case restAlertStyle, earlyRestCueEnabled, earlyRestCueLeadSeconds
+        case adaptiveRestEnabled, failedSetRestMultiplier
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        units = try c.decodeIfPresent(AppSettings.Units.self, forKey: .units) ?? .kg
+        barWeight = try c.decodeIfPresent(Double.self, forKey: .barWeight) ?? Warmup.defaultBarWeight(units: units)
+        availablePlates = try c.decodeIfPresent([Double].self, forKey: .availablePlates) ?? PlateCalculator.defaultPlates(units: units)
+        autoStartRest = try c.decodeIfPresent(Bool.self, forKey: .autoStartRest) ?? true
+        restAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .restAlertsEnabled) ?? true
+        restAlertStyle = try c.decodeIfPresent(RestAlertStyle.self, forKey: .restAlertStyle) ?? .soundAndHaptic
+        earlyRestCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .earlyRestCueEnabled) ?? true
+        earlyRestCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .earlyRestCueLeadSeconds) ?? 10
+        adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
+        failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5
     }
 }
 

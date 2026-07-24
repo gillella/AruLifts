@@ -1,55 +1,124 @@
 ---
 name: "source-command-work-next-issue"
-description: "Pick the lowest-numbered open issue on the AruLifts project board, implement it to completion, verify, and close it. One issue per invocation."
+description: "Pick the lowest-numbered unassigned open issue on the AruLifts project board, implement it in an isolated Git Worktree, verify, open PR/merge, and close it. Safe for concurrent multi-agent workflows."
 ---
 
 # source-command-work-next-issue
 
-Use this skill when the user asks to run the migrated source command `work-next-issue`.
+Use this skill when the user asks to run `work-next-issue` or work on a project issue.
 
-## Command Template
+## 1. Concurrency Protection & Issue Selection
 
-Work exactly ONE issue per invocation, in progressive order. Repo: gillella/AruLifts. Project board: https://github.com/users/gillella/projects/2 (project number 2, owner gillella).
+Multiple processes or AI agents may run concurrently against the `gillella/AruLifts` repository. To prevent branch collisions, working directory contamination, or duplicate effort:
 
-## 1. Pick the issue
+1. **Find Next Unassigned Open Issue**:
+   ```bash
+   gh issue list --state open --no-assignee --json number,title --jq 'sort_by(.number) | .[0]'
+   ```
+   - If no unassigned open issues remain, verify if any issue currently assigned to `@me` requires completion.
+   - If no eligible open issues remain, report: `"Board clear — no unassigned open issues."` and STOP.
 
-- `gh issue list --state open --json number,title --jq 'sort_by(.number) | .[0]'` — the lowest-numbered open issue is next. Issues #1–#16 are ordered by dependency (e.g. #2 HKWorkoutSession depends on #1 HealthKit setup), so never skip ahead unless the current issue is hard-blocked.
-- If no open issues remain: report "board clear" and STOP the loop (ScheduleWakeup stop:true if running under /loop).
-- Read the full issue body (`gh issue view N`) — acceptance criteria live there as checkboxes.
-- Move its board Status to "In Progress":
-  `gh project item-list 2 --owner gillella --format json` to find the item id, then
-  `gh project item-edit --project-id PVT_kwHOAB3sds4BdH7A --id <ITEM_ID> --field-id PVTSSF_lAHOAB3sds4BdH7AzhXrurU --single-select-option-id 47fc9ee4`
-  (Status option ids: Todo=f75ad846, In Progress=47fc9ee4, Done=98236657).
+2. **Atomic Assignee Locking**:
+   Immediately claim the issue before taking any further action:
+   ```bash
+   gh issue edit <ISSUE_NUMBER> --add-assignee "@me"
+   ```
+   If `gh issue edit` fails because another process claimed it concurrently, re-query for the next unassigned issue.
 
-## 2. Design, then implement
+3. **Update Board Status to "In Progress"**:
+   ```bash
+   ITEM_ID=$(gh project item-list 2 --owner gillella --format json | jq -r ".items[] | select(.content.number == <ISSUE_NUMBER>) | .id")
+   gh project item-edit --project-id PVT_kwHOAB3sds4BdH7A --id "$ITEM_ID" --field-id PVTSSF_lAHOAB3sds4BdH7AzhXrurU --single-select-option-id 47fc9ee4
+   ```
+   *(Status IDs: Todo=`f75ad846`, In Progress=`47fc9ee4`, Done=`98236657`)*
 
-- For issues touching HealthKit, HKWorkoutSession, WatchConnectivity, or new subsystems: get a design first — spawn the `swift-architect` agent if available, otherwise write a brief design yourself (approach, files, risks) before coding.
-- Implement via the matching agent when available (`watch-health-dev` for issues #1–#3/#9 Health parts, `ios-feature-dev` for iPhone UI features), otherwise implement directly.
-- Respect the architecture: shared logic in `Shared/`, thin platform views, persistence only through `WorkoutStore`, phone↔watch sync via `ConnectivityManager`.
-- Work on `main` unless the change is risky; commit in small logical units.
+---
 
-## 3. Definition of done (all required before closing)
+## 2. Isolated Git Worktree Setup (Eliminates Workspace & Branch Conflicts)
 
-1. **Acceptance criteria**: every checkbox in the issue body is either implemented or explicitly commented on the issue as deferred-with-reason. No silent skips.
-2. **Builds clean**: both targets compile —
-   `xcodebuild -project AruLifts.xcodeproj -scheme AruLifts -destination 'generic/platform=iOS Simulator' build 2>&1 | tail -30`
-   and the same for scheme `"AruLifts Watch App"` with `generic/platform=watchOS Simulator`. A failed build is an absolute blocker.
-3. **Tests pass** if a test target exists; add tests for pure logic (progression math, calculators, deload rules — issues #4–#7 especially).
-4. **Runtime verification**: launch in the simulator and exercise the changed flow (boot with `xcrun simctl`, or the `build-runner` agent). Capability/plist issues (HealthKit!) only surface at runtime, never at compile time.
-5. **Code review**: spawn the `code-reviewer` agent on the diff (fall back to a self-review pass against correctness, cross-target state sync, and session/timer lifecycle). Fix anything rated ship-blocking.
-6. **Committed and pushed** to origin/main. Commit message references the issue (`Fixes #N` style is fine but see step 4 below — prefer manual close with comment).
-7. **Verification comment** posted on the issue before closing: what was implemented, how it was verified, and — critically for Watch/HealthKit issues — an explicit **"Needs on-device verification"** checklist for anything the simulator cannot prove (haptics during wrist-down, activity-ring credit, background suspension behavior, real heart-rate samples). Simulator-verified ≠ device-verified; never claim the latter.
+**CRITICAL**: NEVER edit files or switch branches directly in the primary workspace root when multiple processes run concurrently. Switching branches in a shared directory mutates files under other active processes and triggers `.git/index.lock` contention.
 
-## 4. Close out
+Always create a dedicated **Git Worktree** in a separate directory:
 
-- Comment per item 7, then `gh issue close N`.
-- Move the board item Status to "Done" (option id 98236657).
-- Report a short summary: issue closed, files changed, what still needs on-device testing.
+1. **Create Worktree & Feature Branch**:
+   ```bash
+   git fetch origin main
+   WORKTREE_DIR="../AruLifts-worktree-issue-<ISSUE_NUMBER>"
+   BRANCH_NAME="feature/issue-<ISSUE_NUMBER>-<SHORT_SLUG>"
 
-## Blockers
+   git worktree add -b "$BRANCH_NAME" "$WORKTREE_DIR" origin/main
+   ```
 
-If genuinely blocked (needs an Apple developer account action, a product decision, or on-device testing before further progress is safe):
-- Comment the blocker on the issue, add a `blocked` label (`gh label create blocked` first if missing), move its Status back to "Todo".
-- Move to the NEXT lowest-numbered non-blocked issue. If everything remaining is blocked, stop the loop and summarize the blockers for Aravind.
+2. **Switch Working Context**:
+   Execute ALL file edits, code searches, script runs (`./Tests/run.sh`), and `xcodebuild` commands inside `$WORKTREE_DIR`.
 
-Never: force-push, delete branches, rewrite history, close an issue whose acceptance criteria aren't met, or mark device-only behavior as verified.
+---
+
+## 3. Implementation & Verification
+
+1. **Read Acceptance Criteria**: View full issue body (`gh issue view <ISSUE_NUMBER>`). Checkboxes define acceptance criteria.
+2. **Architecture Rules**:
+   - Shared business logic lives in `Shared/`.
+   - iPhone views live in `AruLifts/Views/`.
+   - Watch views live in `WatchApp/`.
+   - State and persistence pass exclusively through `WorkoutStore`.
+   - Cross-target state sync via `ConnectivityManager`.
+3. **Required Verification** inside `$WORKTREE_DIR`:
+   - **Logic Tests**: `./Tests/run.sh` (must pass 100% of assertions).
+   - **iOS Build**:
+     ```bash
+     xcodebuild -project AruLifts.xcodeproj -scheme AruLifts -destination 'generic/platform=iOS Simulator' build
+     ```
+   - **WatchOS Build**:
+     ```bash
+     xcodebuild -project AruLifts.xcodeproj -scheme "AruLifts Watch App" -destination 'generic/platform=watchOS Simulator' build
+     ```
+
+---
+
+## 4. PR, Merge & Worktree Cleanup
+
+Once implementation and verification are complete:
+
+1. **Commit & Push from Worktree**:
+   ```bash
+   cd "$WORKTREE_DIR"
+   git add .
+   git commit -m "Implement Issue #<ISSUE_NUMBER>: <TITLE>"
+   git push origin "$BRANCH_NAME"
+   ```
+
+2. **Pull Request & Squash Merge**:
+   ```bash
+   gh pr create --title "[#<ISSUE_NUMBER>] <TITLE>" --body "Closes #<ISSUE_NUMBER>"
+   gh pr merge --squash --delete-branch
+   ```
+   *(If `gh pr create` fails due to transient GitHub API errors, merge `$BRANCH_NAME` into `main` and push `origin main` directly).*
+
+3. **Clean Up Worktree**:
+   From the main repo root:
+   ```bash
+   git worktree remove --force "$WORKTREE_DIR"
+   ```
+
+4. **Close Issue & Update Board**:
+   - Post verification comment:
+     ```bash
+     gh issue comment <ISSUE_NUMBER> --body "## Verification Summary\n..."
+     ```
+   - Close issue: `gh issue close <ISSUE_NUMBER>`
+   - Move board item to **Done** (`98236657`):
+     ```bash
+     gh project item-edit --project-id PVT_kwHOAB3sds4BdH7A --id "$ITEM_ID" --field-id PVTSSF_lAHOAB3sds4BdH7AzhXrurU --single-select-option-id 98236657
+     ```
+
+---
+
+## Blocker Handling
+
+If an issue is blocked by external hardware or missing requirements:
+1. Post a comment describing the blocker on the issue.
+2. Unassign yourself (`gh issue edit <ISSUE_NUMBER> --remove-assignee "@me"`).
+3. Move board status back to **Todo** (`f75ad846`).
+4. Remove worktree: `git worktree remove --force "$WORKTREE_DIR"`.
+5. Re-run selection query for the next unassigned issue.
