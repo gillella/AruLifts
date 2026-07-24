@@ -47,6 +47,7 @@ struct SetLogList: View {
                         label: setLabel(setIndex, in: exercise),
                         set: set,
                         usesWeight: exercise.usesWeight,
+                        loadingMode: exercise.loadingMode,
                         increment: store.settings.weightIncrement,
                         units: store.settings.units,
                         onComplete: { completeSet(setIndex) },
@@ -54,7 +55,14 @@ struct SetLogList: View {
                             active.updateSet(exerciseIndex: exerciseIndex, setIndex: setIndex, reps: set.reps + delta)
                         },
                         onWeight: { delta in
-                            active.updateSet(exerciseIndex: exerciseIndex, setIndex: setIndex, weight: set.weight + delta)
+                            let minimumWeight = exercise.loadingMode == .barbell
+                                ? (store.settings.barWeight ?? Warmup.defaultBarWeight(units: store.settings.units))
+                                : 0
+                            active.updateSet(
+                                exerciseIndex: exerciseIndex,
+                                setIndex: setIndex,
+                                weight: max(minimumWeight, set.weight + delta)
+                            )
                         }
                     )
                 }
@@ -114,7 +122,8 @@ struct SetLogList: View {
     /// Plate breakdown for the next uncompleted set's weight.
     @ViewBuilder
     private func plateGuide(_ exercise: SessionExercise) -> some View {
-        if exercise.usesWeight,
+        if exercise.loadingMode == .barbell,
+           exercise.usesWeight,
            let next = exercise.sets.first(where: { !$0.isCompleted }),
            next.weight > 0 {
             let bar = store.settings.barWeight ?? Warmup.defaultBarWeight(units: store.settings.units)
@@ -215,6 +224,7 @@ struct SetRow: View {
     let label: String
     let set: SetEntry
     let usesWeight: Bool
+    let loadingMode: LoadingMode
     let increment: Double
     let units: AppSettings.Units
     let onComplete: () -> Void
@@ -234,6 +244,7 @@ struct SetRow: View {
                     onMinus: { onWeight(-increment) },
                     onPlus: { onWeight(increment) }
                 )
+                .accessibilityLabel(loadingMode.accessibilityLabel + ": " + formatWeight(set.weight, units: units))
             }
 
             StepValue(

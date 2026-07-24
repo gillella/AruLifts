@@ -21,6 +21,15 @@ expect(
 
 let squatID = UUID(), dlID = UUID(), pressID = UUID(), bwID = UUID()
 
+// Equipment metadata drives a clear loading mode rather than making every
+// exercise look like a barbell.
+let modeBarbell = Exercise(name: "Squat", primaryMuscle: .quads, equipment: .barbell)
+let modeMachine = Exercise(name: "Press", primaryMuscle: .chest, equipment: .machine)
+let modeBodyweight = Exercise(name: "Pull Up", primaryMuscle: .back, equipment: .bodyweight, usesWeight: false)
+expect(modeBarbell.loadingMode == .barbell, "barbell metadata maps to total-bar loading")
+expect(modeMachine.loadingMode == .direct, "machine metadata maps to direct loading")
+expect(modeBodyweight.loadingMode == .bodyweight, "bodyweight metadata maps to added-load mode")
+
 // Template: squat 5x5@100 (default inc), deadlift 1x5@140 (default), press 3x5@40 (custom inc 1.0, ), pullups bodyweight
 var template = WorkoutTemplate(
     name: "A",
@@ -202,15 +211,31 @@ expect(ex21.volume == 1000, "completed warmup still excluded from volume")
 // 22. Session built with warmups enabled prepends flagged sets; disabled -> none.
 var settingsOn = AppSettings()
 settingsOn.warmupsEnabled = true
-let libEmpty: [UUID: Exercise] = [:]
-let sess22 = WorkoutSession.from(template: template, library: libEmpty, settings: settingsOn)
+let warmupLibrary: [UUID: Exercise] = [
+    squatID: Exercise(name: "Barbell Squat", primaryMuscle: .quads, equipment: .barbell)
+]
+let sess22 = WorkoutSession.from(template: template, library: warmupLibrary, settings: settingsOn)
 let squat22 = sess22.exercises.first { $0.exerciseID == squatID }!
 expect(squat22.sets.filter { $0.isWarmup }.count == 5, "session prepends 5 warmups for 100kg squat")
 expect(squat22.sets.filter { !$0.isWarmup }.count == 5, "5 work sets intact")
 var settingsOff = AppSettings()
 settingsOff.warmupsEnabled = false
-let sess22b = WorkoutSession.from(template: template, library: libEmpty, settings: settingsOff)
+let sess22b = WorkoutSession.from(template: template, library: warmupLibrary, settings: settingsOff)
 expect(sess22b.exercises.first { $0.exerciseID == squatID }!.sets.allSatisfy { !$0.isWarmup }, "disabled -> no warmups")
+
+// 22b. Warmup ramps are barbell-only; machines and cables have no implied bar.
+let machine22ID = UUID()
+let machine22 = Exercise(name: "Chest Press", primaryMuscle: .chest, equipment: .machine)
+let machineTemplate22 = WorkoutTemplate(
+    name: "Machines",
+    exercises: [TemplateExercise(exerciseID: machine22ID, name: machine22.name, weight: 70)]
+)
+let machineSession22 = WorkoutSession.from(
+    template: machineTemplate22,
+    library: [machine22ID: machine22],
+    settings: settingsOn
+)
+expect(machineSession22.exercises[0].sets.allSatisfy { !$0.isWarmup }, "direct equipment receives no barbell warmups")
 
 // --- Plate calculator (issue #7) ---
 

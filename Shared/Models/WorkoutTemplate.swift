@@ -104,6 +104,9 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
     var progressionIncrement: Double?
     /// Consecutive failed sessions; drives the auto deload (see `Progression`).
     var failureCount: Int
+    /// Bodyweight movements start without a load; this opt-in records an
+    /// external weight when the user deliberately adds one.
+    var tracksAddedBodyweight: Bool
 
     init(
         id: UUID = UUID(),
@@ -116,7 +119,8 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         durationSeconds: Int = 0,
         progressionEnabled: Bool = true,
         progressionIncrement: Double? = nil,
-        failureCount: Int = 0
+        failureCount: Int = 0,
+        tracksAddedBodyweight: Bool = false
     ) {
         self.id = id
         self.exerciseID = exerciseID
@@ -129,6 +133,7 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         self.progressionEnabled = progressionEnabled
         self.progressionIncrement = progressionIncrement
         self.failureCount = failureCount
+        self.tracksAddedBodyweight = tracksAddedBodyweight
     }
 
     /// Time-based entry (cardio/stretch) rather than sets × reps.
@@ -148,6 +153,7 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
         progressionEnabled = try c.decodeIfPresent(Bool.self, forKey: .progressionEnabled) ?? true
         progressionIncrement = try c.decodeIfPresent(Double.self, forKey: .progressionIncrement)
         failureCount = try c.decodeIfPresent(Int.self, forKey: .failureCount) ?? 0
+        tracksAddedBodyweight = try c.decodeIfPresent(Bool.self, forKey: .tracksAddedBodyweight) ?? false
     }
 }
 

@@ -243,10 +243,13 @@ final class WorkoutStore: ObservableObject {
                 durationSeconds: seconds
             )
         }
+        let minimumWeight = exercise.loadingMode == .barbell
+            ? (settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units))
+            : 0
         return TemplateExercise(
             exerciseID: exercise.id,
             name: exercise.name,
-            weight: lastWeight(for: exercise.id) ?? 0,
+            weight: max(lastWeight(for: exercise.id) ?? 0, minimumWeight),
             restSeconds: settings.defaultRestSeconds
         )
     }
