@@ -543,18 +543,17 @@ enum ExerciseLibrary {
         let imageName: String
         let videoURL: String
         let videoName: String?
-        let localTechniqueVideoName: String?
 
-        init(imageName: String, videoURL: String, videoName: String? = nil, localTechniqueVideoName: String? = nil) {
+        init(imageName: String, videoURL: String, videoName: String? = nil) {
             self.imageName = imageName
             self.videoURL = videoURL
             self.videoName = videoName ?? imageName
-            self.localTechniqueVideoName = localTechniqueVideoName ?? (imageName + "_technique")
         }
     }
 
     /// Original, offline illustrations and video demos are bundled with the app.
-    /// Full-fledged offline technique videos replace external YouTube links.
+    /// The external links open public coaching videos without downloading or
+    /// redistributing third-party content.
     private static let demosByExercise: [String: DemoMetadata] = [
         "Barbell Bench Press": .init(imageName: "barbell_bench_press", videoURL: "https://www.youtube.com/watch?v=rT7DgCr-3pg"),
         "Incline Dumbbell Press": .init(imageName: "incline_dumbbell_press", videoURL: "https://www.youtube.com/watch?v=8iPEnn-ltC8"),
@@ -597,7 +596,6 @@ enum ExerciseLibrary {
         var exercise = raw
         exercise.demoImageName = demo.imageName
         exercise.videoName = demo.videoName ?? demo.imageName
-        exercise.localTechniqueVideoName = demo.localTechniqueVideoName ?? (demo.imageName + "_technique")
         exercise.techniqueVideoURL = URL(string: demo.videoURL)
         return exercise
     }

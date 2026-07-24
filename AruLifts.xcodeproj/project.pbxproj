@@ -7,40 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		TBF000000000000000000000 /* barbell_bench_press_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000000 /* barbell_bench_press_technique.mp4 */; };
-		TBF000000000000000000001 /* incline_dumbbell_press_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000001 /* incline_dumbbell_press_technique.mp4 */; };
-		TBF000000000000000000002 /* push_up_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000002 /* push_up_technique.mp4 */; };
-		TBF000000000000000000003 /* deadlift_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000003 /* deadlift_technique.mp4 */; };
-		TBF000000000000000000004 /* barbell_row_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000004 /* barbell_row_technique.mp4 */; };
-		TBF000000000000000000005 /* pull_up_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000005 /* pull_up_technique.mp4 */; };
-		TBF000000000000000000006 /* lat_pulldown_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000006 /* lat_pulldown_technique.mp4 */; };
-		TBF000000000000000000007 /* overhead_press_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000007 /* overhead_press_technique.mp4 */; };
-		TBF000000000000000000008 /* dumbbell_lateral_raise_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000008 /* dumbbell_lateral_raise_technique.mp4 */; };
-		TBF000000000000000000009 /* barbell_curl_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000009 /* barbell_curl_technique.mp4 */; };
-		TBF000000000000000000010 /* dumbbell_hammer_curl_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000010 /* dumbbell_hammer_curl_technique.mp4 */; };
-		TBF000000000000000000011 /* triceps_pushdown_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000011 /* triceps_pushdown_technique.mp4 */; };
-		TBF000000000000000000012 /* close_grip_bench_press_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000012 /* close_grip_bench_press_technique.mp4 */; };
-		TBF000000000000000000013 /* triceps_dip_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000013 /* triceps_dip_technique.mp4 */; };
-		TBF000000000000000000014 /* back_squat_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000014 /* back_squat_technique.mp4 */; };
-		TBF000000000000000000015 /* romanian_deadlift_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000015 /* romanian_deadlift_technique.mp4 */; };
-		TBF000000000000000000016 /* leg_press_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000016 /* leg_press_technique.mp4 */; };
-		TBF000000000000000000017 /* walking_lunge_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000017 /* walking_lunge_technique.mp4 */; };
-		TBF000000000000000000018 /* standing_calf_raise_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000018 /* standing_calf_raise_technique.mp4 */; };
-		TBF000000000000000000019 /* hip_thrust_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000019 /* hip_thrust_technique.mp4 */; };
-		TBF000000000000000000020 /* plank_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000020 /* plank_technique.mp4 */; };
-		TBF000000000000000000021 /* hanging_leg_raise_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000021 /* hanging_leg_raise_technique.mp4 */; };
-		TBF000000000000000000022 /* cable_crunch_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000022 /* cable_crunch_technique.mp4 */; };
-		TBF000000000000000000023 /* kettlebell_swing_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000023 /* kettlebell_swing_technique.mp4 */; };
-		TBF000000000000000000024 /* treadmill_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000024 /* treadmill_technique.mp4 */; };
-		TBF000000000000000000025 /* stationary_bike_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000025 /* stationary_bike_technique.mp4 */; };
-		TBF000000000000000000026 /* elliptical_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000026 /* elliptical_technique.mp4 */; };
-		TBF000000000000000000027 /* rowing_machine_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000027 /* rowing_machine_technique.mp4 */; };
-		TBF000000000000000000028 /* hamstring_stretch_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000028 /* hamstring_stretch_technique.mp4 */; };
-		TBF000000000000000000029 /* quad_stretch_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000029 /* quad_stretch_technique.mp4 */; };
-		TBF000000000000000000030 /* chest_doorway_stretch_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000030 /* chest_doorway_stretch_technique.mp4 */; };
-		TBF000000000000000000031 /* shoulder_cross_body_stretch_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000031 /* shoulder_cross_body_stretch_technique.mp4 */; };
-		TBF000000000000000000032 /* hip_flexor_stretch_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000032 /* hip_flexor_stretch_technique.mp4 */; };
-		TBF000000000000000000033 /* childs_pose_technique.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = TFR000000000000000000033 /* childs_pose_technique.mp4 */; };
 		VBF000000000000000000024 /* treadmill.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000024 /* treadmill.mp4 */; };
 		VBF000000000000000000025 /* stationary_bike.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000025 /* stationary_bike.mp4 */; };
 		VBF000000000000000000026 /* elliptical.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000026 /* elliptical.mp4 */; };
@@ -164,40 +130,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		TFR000000000000000000000 /* barbell_bench_press_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = barbell_bench_press_technique.mp4; path = Resources/ResourceVideos/barbell_bench_press_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000001 /* incline_dumbbell_press_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = incline_dumbbell_press_technique.mp4; path = Resources/ResourceVideos/incline_dumbbell_press_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000002 /* push_up_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = push_up_technique.mp4; path = Resources/ResourceVideos/push_up_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000003 /* deadlift_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = deadlift_technique.mp4; path = Resources/ResourceVideos/deadlift_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000004 /* barbell_row_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = barbell_row_technique.mp4; path = Resources/ResourceVideos/barbell_row_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000005 /* pull_up_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = pull_up_technique.mp4; path = Resources/ResourceVideos/pull_up_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000006 /* lat_pulldown_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = lat_pulldown_technique.mp4; path = Resources/ResourceVideos/lat_pulldown_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000007 /* overhead_press_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = overhead_press_technique.mp4; path = Resources/ResourceVideos/overhead_press_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000008 /* dumbbell_lateral_raise_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = dumbbell_lateral_raise_technique.mp4; path = Resources/ResourceVideos/dumbbell_lateral_raise_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000009 /* barbell_curl_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = barbell_curl_technique.mp4; path = Resources/ResourceVideos/barbell_curl_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000010 /* dumbbell_hammer_curl_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = dumbbell_hammer_curl_technique.mp4; path = Resources/ResourceVideos/dumbbell_hammer_curl_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000011 /* triceps_pushdown_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = triceps_pushdown_technique.mp4; path = Resources/ResourceVideos/triceps_pushdown_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000012 /* close_grip_bench_press_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = close_grip_bench_press_technique.mp4; path = Resources/ResourceVideos/close_grip_bench_press_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000013 /* triceps_dip_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = triceps_dip_technique.mp4; path = Resources/ResourceVideos/triceps_dip_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000014 /* back_squat_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = back_squat_technique.mp4; path = Resources/ResourceVideos/back_squat_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000015 /* romanian_deadlift_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = romanian_deadlift_technique.mp4; path = Resources/ResourceVideos/romanian_deadlift_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000016 /* leg_press_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = leg_press_technique.mp4; path = Resources/ResourceVideos/leg_press_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000017 /* walking_lunge_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = walking_lunge_technique.mp4; path = Resources/ResourceVideos/walking_lunge_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000018 /* standing_calf_raise_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = standing_calf_raise_technique.mp4; path = Resources/ResourceVideos/standing_calf_raise_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000019 /* hip_thrust_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = hip_thrust_technique.mp4; path = Resources/ResourceVideos/hip_thrust_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000020 /* plank_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = plank_technique.mp4; path = Resources/ResourceVideos/plank_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000021 /* hanging_leg_raise_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = hanging_leg_raise_technique.mp4; path = Resources/ResourceVideos/hanging_leg_raise_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000022 /* cable_crunch_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = cable_crunch_technique.mp4; path = Resources/ResourceVideos/cable_crunch_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000023 /* kettlebell_swing_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = kettlebell_swing_technique.mp4; path = Resources/ResourceVideos/kettlebell_swing_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000024 /* treadmill_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = treadmill_technique.mp4; path = Resources/ResourceVideos/treadmill_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000025 /* stationary_bike_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = stationary_bike_technique.mp4; path = Resources/ResourceVideos/stationary_bike_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000026 /* elliptical_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = elliptical_technique.mp4; path = Resources/ResourceVideos/elliptical_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000027 /* rowing_machine_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = rowing_machine_technique.mp4; path = Resources/ResourceVideos/rowing_machine_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000028 /* hamstring_stretch_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = hamstring_stretch_technique.mp4; path = Resources/ResourceVideos/hamstring_stretch_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000029 /* quad_stretch_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = quad_stretch_technique.mp4; path = Resources/ResourceVideos/quad_stretch_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000030 /* chest_doorway_stretch_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = chest_doorway_stretch_technique.mp4; path = Resources/ResourceVideos/chest_doorway_stretch_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000031 /* shoulder_cross_body_stretch_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = shoulder_cross_body_stretch_technique.mp4; path = Resources/ResourceVideos/shoulder_cross_body_stretch_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000032 /* hip_flexor_stretch_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = hip_flexor_stretch_technique.mp4; path = Resources/ResourceVideos/hip_flexor_stretch_technique.mp4; sourceTree = "<group>"; };
-		TFR000000000000000000033 /* childs_pose_technique.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = childs_pose_technique.mp4; path = Resources/ResourceVideos/childs_pose_technique.mp4; sourceTree = "<group>"; };
 		VFR000000000000000000024 /* treadmill.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = treadmill.mp4; path = Resources/treadmill.mp4; sourceTree = "<group>"; };
 		VFR000000000000000000025 /* stationary_bike.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = stationary_bike.mp4; path = Resources/stationary_bike.mp4; sourceTree = "<group>"; };
 		VFR000000000000000000026 /* elliptical.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = elliptical.mp4; path = Resources/elliptical.mp4; sourceTree = "<group>"; };
@@ -351,40 +283,6 @@
 		AA000000000000000000005E /* AruLifts */ = {
 			isa = PBXGroup;
 			children = (
-				TFR000000000000000000000 /* barbell_bench_press_technique.mp4 */,
-				TFR000000000000000000001 /* incline_dumbbell_press_technique.mp4 */,
-				TFR000000000000000000002 /* push_up_technique.mp4 */,
-				TFR000000000000000000003 /* deadlift_technique.mp4 */,
-				TFR000000000000000000004 /* barbell_row_technique.mp4 */,
-				TFR000000000000000000005 /* pull_up_technique.mp4 */,
-				TFR000000000000000000006 /* lat_pulldown_technique.mp4 */,
-				TFR000000000000000000007 /* overhead_press_technique.mp4 */,
-				TFR000000000000000000008 /* dumbbell_lateral_raise_technique.mp4 */,
-				TFR000000000000000000009 /* barbell_curl_technique.mp4 */,
-				TFR000000000000000000010 /* dumbbell_hammer_curl_technique.mp4 */,
-				TFR000000000000000000011 /* triceps_pushdown_technique.mp4 */,
-				TFR000000000000000000012 /* close_grip_bench_press_technique.mp4 */,
-				TFR000000000000000000013 /* triceps_dip_technique.mp4 */,
-				TFR000000000000000000014 /* back_squat_technique.mp4 */,
-				TFR000000000000000000015 /* romanian_deadlift_technique.mp4 */,
-				TFR000000000000000000016 /* leg_press_technique.mp4 */,
-				TFR000000000000000000017 /* walking_lunge_technique.mp4 */,
-				TFR000000000000000000018 /* standing_calf_raise_technique.mp4 */,
-				TFR000000000000000000019 /* hip_thrust_technique.mp4 */,
-				TFR000000000000000000020 /* plank_technique.mp4 */,
-				TFR000000000000000000021 /* hanging_leg_raise_technique.mp4 */,
-				TFR000000000000000000022 /* cable_crunch_technique.mp4 */,
-				TFR000000000000000000023 /* kettlebell_swing_technique.mp4 */,
-				TFR000000000000000000024 /* treadmill_technique.mp4 */,
-				TFR000000000000000000025 /* stationary_bike_technique.mp4 */,
-				TFR000000000000000000026 /* elliptical_technique.mp4 */,
-				TFR000000000000000000027 /* rowing_machine_technique.mp4 */,
-				TFR000000000000000000028 /* hamstring_stretch_technique.mp4 */,
-				TFR000000000000000000029 /* quad_stretch_technique.mp4 */,
-				TFR000000000000000000030 /* chest_doorway_stretch_technique.mp4 */,
-				TFR000000000000000000031 /* shoulder_cross_body_stretch_technique.mp4 */,
-				TFR000000000000000000032 /* hip_flexor_stretch_technique.mp4 */,
-				TFR000000000000000000033 /* childs_pose_technique.mp4 */,
 				VFR000000000000000000024 /* treadmill.mp4 */,
 				VFR000000000000000000025 /* stationary_bike.mp4 */,
 				VFR000000000000000000026 /* elliptical.mp4 */,
@@ -591,40 +489,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				TBF000000000000000000000 /* barbell_bench_press_technique.mp4 in Resources */,
-				TBF000000000000000000001 /* incline_dumbbell_press_technique.mp4 in Resources */,
-				TBF000000000000000000002 /* push_up_technique.mp4 in Resources */,
-				TBF000000000000000000003 /* deadlift_technique.mp4 in Resources */,
-				TBF000000000000000000004 /* barbell_row_technique.mp4 in Resources */,
-				TBF000000000000000000005 /* pull_up_technique.mp4 in Resources */,
-				TBF000000000000000000006 /* lat_pulldown_technique.mp4 in Resources */,
-				TBF000000000000000000007 /* overhead_press_technique.mp4 in Resources */,
-				TBF000000000000000000008 /* dumbbell_lateral_raise_technique.mp4 in Resources */,
-				TBF000000000000000000009 /* barbell_curl_technique.mp4 in Resources */,
-				TBF000000000000000000010 /* dumbbell_hammer_curl_technique.mp4 in Resources */,
-				TBF000000000000000000011 /* triceps_pushdown_technique.mp4 in Resources */,
-				TBF000000000000000000012 /* close_grip_bench_press_technique.mp4 in Resources */,
-				TBF000000000000000000013 /* triceps_dip_technique.mp4 in Resources */,
-				TBF000000000000000000014 /* back_squat_technique.mp4 in Resources */,
-				TBF000000000000000000015 /* romanian_deadlift_technique.mp4 in Resources */,
-				TBF000000000000000000016 /* leg_press_technique.mp4 in Resources */,
-				TBF000000000000000000017 /* walking_lunge_technique.mp4 in Resources */,
-				TBF000000000000000000018 /* standing_calf_raise_technique.mp4 in Resources */,
-				TBF000000000000000000019 /* hip_thrust_technique.mp4 in Resources */,
-				TBF000000000000000000020 /* plank_technique.mp4 in Resources */,
-				TBF000000000000000000021 /* hanging_leg_raise_technique.mp4 in Resources */,
-				TBF000000000000000000022 /* cable_crunch_technique.mp4 in Resources */,
-				TBF000000000000000000023 /* kettlebell_swing_technique.mp4 in Resources */,
-				TBF000000000000000000024 /* treadmill_technique.mp4 in Resources */,
-				TBF000000000000000000025 /* stationary_bike_technique.mp4 in Resources */,
-				TBF000000000000000000026 /* elliptical_technique.mp4 in Resources */,
-				TBF000000000000000000027 /* rowing_machine_technique.mp4 in Resources */,
-				TBF000000000000000000028 /* hamstring_stretch_technique.mp4 in Resources */,
-				TBF000000000000000000029 /* quad_stretch_technique.mp4 in Resources */,
-				TBF000000000000000000030 /* chest_doorway_stretch_technique.mp4 in Resources */,
-				TBF000000000000000000031 /* shoulder_cross_body_stretch_technique.mp4 in Resources */,
-				TBF000000000000000000032 /* hip_flexor_stretch_technique.mp4 in Resources */,
-				TBF000000000000000000033 /* childs_pose_technique.mp4 in Resources */,
 				VBF000000000000000000024 /* treadmill.mp4 in Resources */,
 				VBF000000000000000000025 /* stationary_bike.mp4 in Resources */,
 				VBF000000000000000000026 /* elliptical.mp4 in Resources */,
