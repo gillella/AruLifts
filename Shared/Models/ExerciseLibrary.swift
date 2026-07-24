@@ -578,7 +578,17 @@ enum ExerciseLibrary {
         "Plank": .init(imageName: "plank", videoURL: "https://www.youtube.com/watch?v=pSHjTRCQxIw"),
         "Hanging Leg Raise": .init(imageName: "hanging_leg_raise", videoURL: "https://www.youtube.com/watch?v=hdng3Nm1x_E"),
         "Cable Crunch": .init(imageName: "cable_crunch", videoURL: "https://www.youtube.com/watch?v=2fbujeH3F0E"),
-        "Kettlebell Swing": .init(imageName: "kettlebell_swing", videoURL: "https://www.youtube.com/watch?v=YSxHifyI6s8")
+        "Kettlebell Swing": .init(imageName: "kettlebell_swing", videoURL: "https://www.youtube.com/watch?v=YSxHifyI6s8"),
+        "Treadmill": .init(imageName: "treadmill", videoURL: "https://www.youtube.com/watch?v=8i3VroHA8hE", videoName: "treadmill"),
+        "Stationary Bike": .init(imageName: "stationary_bike", videoURL: "https://www.youtube.com/watch?v=vVw-Ua99VdQ", videoName: "stationary_bike"),
+        "Elliptical": .init(imageName: "elliptical", videoURL: "https://www.youtube.com/watch?v=33K16298nFk", videoName: "elliptical"),
+        "Rowing Machine": .init(imageName: "rowing_machine", videoURL: "https://www.youtube.com/watch?v=H0r_ZStB5kI", videoName: "rowing_machine"),
+        "Hamstring Stretch": .init(imageName: "hamstring_stretch", videoURL: "https://www.youtube.com/watch?v=52aYgJqR7_0", videoName: "hamstring_stretch"),
+        "Quad Stretch": .init(imageName: "quad_stretch", videoURL: "https://www.youtube.com/watch?v=2L1E1S0R4J0", videoName: "quad_stretch"),
+        "Chest Doorway Stretch": .init(imageName: "chest_doorway_stretch", videoURL: "https://www.youtube.com/watch?v=N6Lp6fW0M88", videoName: "chest_doorway_stretch"),
+        "Shoulder Cross-Body Stretch": .init(imageName: "shoulder_cross_body_stretch", videoURL: "https://www.youtube.com/watch?v=I7X1vY3t0bM", videoName: "shoulder_cross_body_stretch"),
+        "Hip Flexor Stretch": .init(imageName: "hip_flexor_stretch", videoURL: "https://www.youtube.com/watch?v=YQmpO9VTk4E", videoName: "hip_flexor_stretch"),
+        "Child's Pose": .init(imageName: "childs_pose", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "childs_pose")
     ]
 
     static let all: [Exercise] = rawAll.map { raw in
