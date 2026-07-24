@@ -10,6 +10,7 @@ struct WatchActiveView: View {
     @State private var showingAdjustment = false
     @State private var showingOverview = false
     @State private var showingFinishConfirmation = false
+    @State private var isReordering = false
 
     private var exercise: SessionExercise? { active.currentExercise }
 
@@ -251,10 +252,7 @@ struct WatchActiveView: View {
             List {
                 if let session = active.session {
                     ForEach(Array(session.exercises.enumerated()), id: \.element.id) { index, exercise in
-                        Button {
-                            active.currentExerciseIndex = index
-                            showingOverview = false
-                        } label: {
+                        if isReordering {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(exercise.name)
@@ -267,9 +265,42 @@ struct WatchActiveView: View {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.green)
                                 }
+                                Button {
+                                    active.moveExercises(from: IndexSet(integer: index), to: index - 1)
+                                } label: {
+                                    Image(systemName: "arrow.up")
+                                }
+                                .disabled(index == 0)
+                                .accessibilityLabel("Move \(exercise.name) earlier")
+                                Button {
+                                    active.moveExercises(from: IndexSet(integer: index), to: index + 2)
+                                } label: {
+                                    Image(systemName: "arrow.down")
+                                }
+                                .disabled(index == session.exercises.count - 1)
+                                .accessibilityLabel("Move \(exercise.name) later")
                             }
+                        } else {
+                            Button {
+                                active.currentExerciseIndex = index
+                                showingOverview = false
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(exercise.name)
+                                        Text("\(exercise.completedSets)/\(exercise.sets.count) sets")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if exercise.isComplete {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+                            }
+                            .disabled(!active.canEdit)
                         }
-                        .disabled(!active.canEdit)
                     }
 
                     if active.canEdit {
@@ -298,6 +329,16 @@ struct WatchActiveView: View {
                 }
             }
             .navigationTitle(active.session?.name ?? "Workout")
+            .toolbar {
+                if active.canEdit, (active.session?.exercises.count ?? 0) > 1 {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(isReordering ? "Done" : "Reorder") {
+                            isReordering.toggle()
+                        }
+                        .accessibilityLabel(isReordering ? "Finish reordering exercises" : "Reorder today's exercises")
+                    }
+                }
+            }
         }
     }
 

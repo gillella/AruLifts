@@ -157,6 +157,27 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         return Double(completedSets) / Double(totalSets)
     }
 
+    /// Reorders only the exercise instances in this session. Each instance,
+    /// including its logged sets and completion state, travels intact. This is
+    /// deliberately separate from `WorkoutTemplate` so a one-day order never
+    /// rewrites the saved routine.
+    mutating func moveExercises(from source: IndexSet, to destination: Int) {
+        guard exercises.count > 1, !source.isEmpty else { return }
+        let moving = source.compactMap { exercises.indices.contains($0) ? exercises[$0] : nil }
+        guard !moving.isEmpty else { return }
+
+        var remaining = exercises.enumerated()
+            .filter { !source.contains($0.offset) }
+            .map(\.element)
+        let removedBeforeDestination = source.filter { $0 < destination }.count
+        let insertionIndex = min(
+            max(0, destination - removedBeforeDestination),
+            remaining.count
+        )
+        remaining.insert(contentsOf: moving, at: insertionIndex)
+        exercises = remaining
+    }
+
     /// Builds a fresh session from a template, pre-populating each set.
     /// Pass `settings` to prepend generated warmup sets (when enabled) for
     /// weighted exercises.

@@ -11,7 +11,7 @@ struct MyWorkoutsView: View {
             List {
                 ForEach(store.templates) { template in
                     NavigationLink {
-                        TemplateDetailView(template: template, onStart: { startWorkout(template) })
+                        TemplateDetailView(template: template)
                     } label: {
                         templateRow(template)
                     }
@@ -67,18 +67,15 @@ struct MyWorkoutsView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func startWorkout(_ template: WorkoutTemplate) {
-        let session = WorkoutSession.from(template: template, library: store.exerciseIndex, settings: store.settings)
-        active.start(session)
-    }
 }
 
 /// Read-only template overview with Start and Edit actions.
 struct TemplateDetailView: View {
     @EnvironmentObject private var store: WorkoutStore
+    @EnvironmentObject private var active: ActiveWorkoutManager
     let template: WorkoutTemplate
-    let onStart: () -> Void
     @State private var showingEdit = false
+    @State private var showingTodaySetup = false
 
     var body: some View {
         List {
@@ -116,7 +113,7 @@ struct TemplateDetailView: View {
         .navigationTitle(template.name)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
-            Button(action: onStart) {
+            Button { showingTodaySetup = true } label: {
                 Label("Start Workout", systemImage: "play.fill")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
@@ -135,6 +132,14 @@ struct TemplateDetailView: View {
         .sheet(isPresented: $showingEdit) {
             WorkoutBuilderView(existing: template)
         }
+        .sheet(isPresented: $showingTodaySetup) {
+            TodayWorkoutSetupView(
+                template: template,
+                library: store.exerciseIndex,
+                settings: store.settings
+            )
+            .environmentObject(active)
+        }
     }
 
     /// "4 × 8 · 60 KG" for lifts, or "10 min" for timed cardio/stretches.
@@ -142,6 +147,65 @@ struct TemplateDetailView: View {
         if ex.isTimed { return formatDuration(ex.durationSeconds) }
         let base = "\(ex.targetSets) × \(ex.targetReps)"
         return ex.weight > 0 ? base + " · \(formatWeight(ex.weight, units: store.settings.units))" : base
+    }
+}
+
+/// Lets the lifter choose a one-day exercise order before a session exists.
+/// The resulting session contains the reordered instances; the template stays
+/// untouched in `WorkoutStore`.
+struct TodayWorkoutSetupView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    let template: WorkoutTemplate
+    @State private var session: WorkoutSession
+
+    init(template: WorkoutTemplate, library: [UUID: Exercise], settings: AppSettings) {
+        self.template = template
+        _session = State(initialValue: WorkoutSession.from(template: template, library: library, settings: settings))
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Choose today's exercise order. Your saved workout will stay unchanged.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Exercises") {
+                    ForEach(session.exercises) { exercise in
+                        Text(exercise.name)
+                            .accessibilityHint("Drag to change the order for today's workout")
+                    }
+                    .onMove { session.exercises.move(fromOffsets: $0, toOffset: $1) }
+                }
+            }
+            .navigationTitle("Today's Order")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton().disabled(session.exercises.count < 2)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    active.start(session)
+                    dismiss()
+                } label: {
+                    Label("Start Workout", systemImage: "play.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .padding()
+                .background(.bar)
+            }
+        }
     }
 }
 

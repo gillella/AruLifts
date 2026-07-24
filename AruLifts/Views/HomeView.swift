@@ -4,6 +4,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var active: ActiveWorkoutManager
     @ObservedObject private var connectivity = ConnectivityManager.shared
+    @State private var todayTemplate: WorkoutTemplate?
 
     var body: some View {
         NavigationStack {
@@ -19,6 +20,14 @@ struct HomeView: View {
             }
             .navigationTitle("AruLifts")
             .background(Color(.systemGroupedBackground))
+            .sheet(item: $todayTemplate) { template in
+                TodayWorkoutSetupView(
+                    template: template,
+                    library: store.exerciseIndex,
+                    settings: store.settings
+                )
+                .environmentObject(active)
+            }
         }
     }
 
@@ -119,17 +128,13 @@ struct HomeView: View {
             } else {
                 ForEach(store.templates) { template in
                     TemplateRowButton(template: template) {
-                        startWorkout(template)
+                        todayTemplate = template
                     }
                 }
             }
         }
     }
 
-    private func startWorkout(_ template: WorkoutTemplate) {
-        let session = WorkoutSession.from(template: template, library: store.exerciseIndex, settings: store.settings)
-        active.start(session)
-    }
 }
 
 /// A tappable card that starts a workout from a template.
