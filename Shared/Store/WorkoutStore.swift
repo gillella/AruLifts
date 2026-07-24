@@ -66,6 +66,8 @@ final class WorkoutStore: ObservableObject {
     @Published var templates: [WorkoutTemplate] = []
     @Published var history: [WorkoutSession] = []
     @Published var customExercises: [Exercise] = []
+    /// IDs of library exercises the user has starred for quick access.
+    @Published var favoriteExerciseIDs: Set<UUID> = []
     /// Weight bumps applied by the most recent finished session, for the
     /// "next time: X" UI. Not persisted — informational only.
     @Published var lastProgression: [ProgressionChange] = []
@@ -80,6 +82,7 @@ final class WorkoutStore: ObservableObject {
     private let templatesFile = "templates.json"
     private let historyFile = "history.json"
     private let exercisesFile = "custom_exercises.json"
+    private let favoritesFile = "favorite_exercises.json"
     private let settingsFile = "settings.json"
     private let bodyWeightFile = "bodyweight.json"
 
@@ -90,7 +93,7 @@ final class WorkoutStore: ObservableObject {
     private var storageDir: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
 
     private var allFiles: [String] {
-        [templatesFile, historyFile, exercisesFile, settingsFile, bodyWeightFile]
+        [templatesFile, historyFile, exercisesFile, favoritesFile, settingsFile, bodyWeightFile]
     }
 
     init() {
@@ -146,6 +149,7 @@ final class WorkoutStore: ObservableObject {
             templates: templates,
             history: history,
             customExercises: customExercises,
+            favoriteExerciseIDs: favoriteExerciseIDs,
             bodyWeights: bodyWeights,
             settings: settings
         ))
@@ -157,9 +161,10 @@ final class WorkoutStore: ObservableObject {
         templates = payload.templates
         history = payload.history
         customExercises = payload.customExercises
+        favoriteExerciseIDs = payload.favoriteExerciseIDs
         bodyWeights = payload.bodyWeights
         settings = payload.settings
-        saveTemplates(); saveHistory(); saveExercises(); saveBodyWeights()
+        saveTemplates(); saveHistory(); saveExercises(); saveFavorites(); saveBodyWeights()
         // settings saves via didSet
     }
 
@@ -177,6 +182,19 @@ final class WorkoutStore: ObservableObject {
     }
 
     func exercise(for id: UUID) -> Exercise? { exerciseIndex[id] }
+
+    func isFavorite(_ exercise: Exercise) -> Bool {
+        favoriteExerciseIDs.contains(exercise.id)
+    }
+
+    func toggleFavorite(_ exercise: Exercise) {
+        if favoriteExerciseIDs.contains(exercise.id) {
+            favoriteExerciseIDs.remove(exercise.id)
+        } else {
+            favoriteExerciseIDs.insert(exercise.id)
+        }
+        saveFavorites()
+    }
 
     // MARK: - Templates
 
@@ -196,6 +214,35 @@ final class WorkoutStore: ObservableObject {
     func deleteTemplate(_ template: WorkoutTemplate) {
         templates.removeAll { $0.id == template.id }
         saveTemplates()
+    }
+
+    /// Appends an exercise to an existing workout using the same sensible
+    /// defaults as the builder. This powers the library's "Add to workout"
+    /// shortcut while keeping template construction in one place.
+    func addExercise(_ exercise: Exercise, to templateID: UUID) {
+        guard let index = templates.firstIndex(where: { $0.id == templateID }) else { return }
+        templates[index].exercises.append(templateExercise(for: exercise))
+        saveTemplates()
+    }
+
+    func templateExercise(for exercise: Exercise) -> TemplateExercise {
+        if exercise.isTimed {
+            let seconds = exercise.primaryMuscle == .cardio ? 600 : 45
+            return TemplateExercise(
+                exerciseID: exercise.id,
+                name: exercise.name,
+                targetSets: 1,
+                targetReps: 0,
+                restSeconds: 0,
+                durationSeconds: seconds
+            )
+        }
+        return TemplateExercise(
+            exerciseID: exercise.id,
+            name: exercise.name,
+            weight: lastWeight(for: exercise.id) ?? 0,
+            restSeconds: settings.defaultRestSeconds
+        )
     }
 
     func deleteTemplates(at offsets: IndexSet) {
@@ -301,6 +348,7 @@ final class WorkoutStore: ObservableObject {
         templates = decode([WorkoutTemplate].self, from: templatesFile) ?? []
         history = decode([WorkoutSession].self, from: historyFile) ?? []
         customExercises = decode([Exercise].self, from: exercisesFile) ?? []
+        favoriteExerciseIDs = Set(decode([UUID].self, from: favoritesFile) ?? [])
         settings = decode(AppSettings.self, from: settingsFile) ?? AppSettings()
         bodyWeights = decode([BodyWeightEntry].self, from: bodyWeightFile) ?? []
 
@@ -323,6 +371,7 @@ final class WorkoutStore: ObservableObject {
     private func saveTemplates() { encode(templates, to: templatesFile) }
     private func saveHistory() { encode(history, to: historyFile) }
     private func saveExercises() { encode(customExercises, to: exercisesFile) }
+    private func saveFavorites() { encode(favoriteExerciseIDs.sorted { $0.uuidString < $1.uuidString }, to: favoritesFile) }
     private func saveSettings() { encode(settings, to: settingsFile) }
     private func saveBodyWeights() { encode(bodyWeights, to: bodyWeightFile) }
 }

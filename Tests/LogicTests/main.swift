@@ -366,12 +366,14 @@ let payload = BackupPayload(
     templates: [template],
     history: [datedSession(daysAgo: 1, weight: 100)],
     customExercises: [],
+    favoriteExerciseIDs: [squatID],
     bodyWeights: [BodyWeightEntry(weightKg: 80)],
     settings: bset
 )
 if let data = try? Backup.encode(payload), let back = try? Backup.decode(data) {
     expect(back.templates.count == 1 && back.templates[0].id == template.id, "backup templates round-trip")
     expect(back.history.count == 1, "backup history round-trip")
+    expect(back.favoriteExerciseIDs == [squatID], "backup favorites round-trip")
     expect(back.bodyWeights.first?.weightKg == 80, "backup body weights round-trip")
     expect(back.settings.units == .lb && back.settings.deloadPercent == 15, "backup settings round-trip")
     expect(back.version == 1, "backup version present")
@@ -380,7 +382,7 @@ if let data = try? Backup.encode(payload), let back = try? Backup.decode(data) {
 // 44. Partial/older backup decodes with defaults.
 let partial = #"{"templates":[],"history":[]}"#.data(using: .utf8)!
 if let p = try? Backup.decode(partial) {
-    expect(p.bodyWeights.isEmpty && p.settings.units == .kg, "partial backup fills defaults")
+    expect(p.bodyWeights.isEmpty && p.favoriteExerciseIDs.isEmpty && p.settings.units == .kg, "partial backup fills defaults")
 } else { failures += 1; print("FAIL partial backup did not decode") }
 
 // --- Exercise demonstrations (issue #12) ---
@@ -402,6 +404,8 @@ expect(
     },
     "all set/rep built-ins have direct YouTube watch links"
 )
+expect(ExerciseLibrary.all.allSatisfy { $0.videoName != nil }, "all 34 exercises have video demo clips assigned")
+expect(Set(ExerciseLibrary.all.compactMap(\.videoName)).count == 34, "video demo names are unique across all 34 exercises")
 expect(timedExercises.allSatisfy { !$0.instructions.isEmpty }, "timed built-ins have form notes")
 
 // --- Watch-first live-workout replication ---
