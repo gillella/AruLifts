@@ -263,6 +263,7 @@ final class ActiveWorkoutManager: ObservableObject {
         setIndex: Int,
         autoStartRest: Bool,
         restAlerts: Bool,
+        restAlertConfiguration: RestTimerAlertConfiguration = .default,
         adaptiveRest: Bool = true,
         failedSetRestMultiplier: Double = 1.5
     ) {
@@ -292,7 +293,9 @@ final class ActiveWorkoutManager: ObservableObject {
             let rest = adaptiveRest && completedSet.reps < completedSet.targetReps
                 ? Int((Double(baseRest) * max(1, failedSetRestMultiplier)).rounded())
                 : baseRest
-            restTimer.start(seconds: rest, alertsEnabled: restAlerts)
+            var configuration = restAlertConfiguration
+            configuration.alertsEnabled = restAlerts
+            restTimer.start(seconds: rest, configuration: configuration)
         }
         broadcast()
     }
@@ -378,6 +381,16 @@ final class ActiveWorkoutManager: ObservableObject {
         restTimer.add(seconds: seconds)
     }
 
+    func toggleRestPause() {
+        guard canEdit, !isWorkoutPaused else { return }
+        if restTimer.isPaused { restTimer.resume() } else { restTimer.pause() }
+    }
+
+    func resetRest() {
+        guard canEdit, !isWorkoutPaused else { return }
+        restTimer.reset()
+    }
+
     func skipRest() {
         guard canEdit, !isWorkoutPaused else { return }
         restTimer.skip()
@@ -436,13 +449,14 @@ final class ActiveWorkoutManager: ObservableObject {
         guard !applyingRemote, let session else { return }
         let rest: RestTimerSnapshot?
         if let endDate = restTimer.endDate {
-            rest = RestTimerSnapshot(endDate: endDate, totalSeconds: restTimer.totalSeconds)
+            rest = RestTimerSnapshot(endDate: endDate, totalSeconds: restTimer.totalSeconds, alertConfiguration: restTimer.alertConfiguration)
         } else if restTimer.isPaused, restTimer.secondsRemaining > 0 {
             // `endDate` is retained for wire compatibility only while paused;
             // receivers use pausedRemainingSeconds rather than this value.
             rest = RestTimerSnapshot(
                 endDate: Date(), totalSeconds: restTimer.totalSeconds,
-                pausedRemainingSeconds: restTimer.secondsRemaining
+                pausedRemainingSeconds: restTimer.secondsRemaining,
+                alertConfiguration: restTimer.alertConfiguration
             )
         } else {
             rest = nil
@@ -495,7 +509,7 @@ final class ActiveWorkoutManager: ObservableObject {
                 let remaining = Int(ceil(newEndDate.timeIntervalSinceNow))
                 if remaining > 0 {
                     if restTimer.endDate != newEndDate {
-                        restTimer.sync(endDate: newEndDate, totalSeconds: total)
+                restTimer.sync(endDate: newEndDate, totalSeconds: total)
                     }
                 } else {
                     restTimer.stop()
@@ -563,13 +577,14 @@ final class ActiveWorkoutManager: ObservableObject {
             replica.currentExerciseIndex
         ) ? replica.currentExerciseIndex : max(0, replica.session.exercises.count - 1)
         isWorkoutPaused = replica.isWorkoutPaused
-        if replica.isWorkoutPaused, let timer = replica.restTimer {
+        if let timer = replica.restTimer, let pausedRemaining = timer.pausedRemainingSeconds {
             restTimer.syncPaused(
-                remainingSeconds: timer.pausedRemainingSeconds ?? timer.totalSeconds,
-                totalSeconds: timer.totalSeconds
+                remainingSeconds: pausedRemaining,
+                totalSeconds: timer.totalSeconds,
+                configuration: timer.alertConfiguration
             )
         } else if let timer = replica.restTimer, timer.endDate > Date() {
-            restTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds)
+            restTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds, configuration: timer.alertConfiguration)
         } else {
             restTimer.stop()
         }

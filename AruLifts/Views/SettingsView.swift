@@ -91,6 +91,15 @@ struct SettingsView: View {
                     }
                     Toggle("Auto-start after a set", isOn: $store.settings.autoStartRest)
                     Toggle("Alert when rest ends", isOn: $store.settings.restAlertsEnabled)
+                    Picker("Rest alert", selection: $store.settings.restAlertStyle) {
+                        ForEach(RestAlertStyle.allCases) { Text($0.label).tag($0) }
+                    }
+                    Toggle("Early get-ready cue", isOn: $store.settings.earlyRestCueEnabled)
+                    if store.settings.earlyRestCueEnabled {
+                        Picker("Get-ready cue", selection: $store.settings.earlyRestCueLeadSeconds) {
+                            ForEach([5, 10, 15], id: \.self) { Text("\($0) seconds before").tag($0) }
+                        }
+                    }
                     Toggle("Adaptive recovery after a partial set", isOn: $store.settings.adaptiveRestEnabled)
                     if store.settings.adaptiveRestEnabled {
                         Picker("Partial-set rest", selection: $store.settings.failedSetRestMultiplier) {
