@@ -542,11 +542,18 @@ enum ExerciseLibrary {
     private struct DemoMetadata {
         let imageName: String
         let videoURL: String
+        let videoName: String?
+
+        init(imageName: String, videoURL: String, videoName: String? = nil) {
+            self.imageName = imageName
+            self.videoURL = videoURL
+            self.videoName = videoName ?? imageName
+        }
     }
 
-    /// Original, offline illustrations are bundled with the app. The external
-    /// links open public coaching videos without downloading or redistributing
-    /// third-party content.
+    /// Original, offline illustrations and video demos are bundled with the app.
+    /// The external links open public coaching videos without downloading or
+    /// redistributing third-party content.
     private static let demosByExercise: [String: DemoMetadata] = [
         "Barbell Bench Press": .init(imageName: "barbell_bench_press", videoURL: "https://www.youtube.com/watch?v=rT7DgCr-3pg"),
         "Incline Dumbbell Press": .init(imageName: "incline_dumbbell_press", videoURL: "https://www.youtube.com/watch?v=8iPEnn-ltC8"),
@@ -578,6 +585,7 @@ enum ExerciseLibrary {
         guard let demo = demosByExercise[raw.name] else { return raw }
         var exercise = raw
         exercise.demoImageName = demo.imageName
+        exercise.videoName = demo.videoName ?? demo.imageName
         exercise.techniqueVideoURL = URL(string: demo.videoURL)
         return exercise
     }

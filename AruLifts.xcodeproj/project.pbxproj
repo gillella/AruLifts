@@ -7,6 +7,30 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		VBF000000000000000000000 /* barbell_bench_press.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000000 /* barbell_bench_press.mp4 */; };
+		VBF000000000000000000001 /* incline_dumbbell_press.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000001 /* incline_dumbbell_press.mp4 */; };
+		VBF000000000000000000002 /* push_up.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000002 /* push_up.mp4 */; };
+		VBF000000000000000000003 /* deadlift.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000003 /* deadlift.mp4 */; };
+		VBF000000000000000000004 /* barbell_row.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000004 /* barbell_row.mp4 */; };
+		VBF000000000000000000005 /* pull_up.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000005 /* pull_up.mp4 */; };
+		VBF000000000000000000006 /* lat_pulldown.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000006 /* lat_pulldown.mp4 */; };
+		VBF000000000000000000007 /* overhead_press.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000007 /* overhead_press.mp4 */; };
+		VBF000000000000000000008 /* dumbbell_lateral_raise.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000008 /* dumbbell_lateral_raise.mp4 */; };
+		VBF000000000000000000009 /* barbell_curl.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000009 /* barbell_curl.mp4 */; };
+		VBF000000000000000000010 /* dumbbell_hammer_curl.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000010 /* dumbbell_hammer_curl.mp4 */; };
+		VBF000000000000000000011 /* triceps_pushdown.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000011 /* triceps_pushdown.mp4 */; };
+		VBF000000000000000000012 /* close_grip_bench_press.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000012 /* close_grip_bench_press.mp4 */; };
+		VBF000000000000000000013 /* triceps_dip.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000013 /* triceps_dip.mp4 */; };
+		VBF000000000000000000014 /* back_squat.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000014 /* back_squat.mp4 */; };
+		VBF000000000000000000015 /* romanian_deadlift.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000015 /* romanian_deadlift.mp4 */; };
+		VBF000000000000000000016 /* leg_press.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000016 /* leg_press.mp4 */; };
+		VBF000000000000000000017 /* walking_lunge.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000017 /* walking_lunge.mp4 */; };
+		VBF000000000000000000018 /* standing_calf_raise.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000018 /* standing_calf_raise.mp4 */; };
+		VBF000000000000000000019 /* hip_thrust.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000019 /* hip_thrust.mp4 */; };
+		VBF000000000000000000020 /* plank.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000020 /* plank.mp4 */; };
+		VBF000000000000000000021 /* hanging_leg_raise.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000021 /* hanging_leg_raise.mp4 */; };
+		VBF000000000000000000022 /* cable_crunch.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000022 /* cable_crunch.mp4 */; };
+		VBF000000000000000000023 /* kettlebell_swing.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = VFR000000000000000000023 /* kettlebell_swing.mp4 */; };
 		AA000000000000000000001D /* Exercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* Exercise.swift */; };
 		AA000000000000000000001E /* Exercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* Exercise.swift */; };
 		AA000000000000000000001F /* WorkoutTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000002 /* WorkoutTemplate.swift */; };
@@ -96,6 +120,30 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		VFR000000000000000000000 /* barbell_bench_press.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = barbell_bench_press.mp4; path = Resources/barbell_bench_press.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000001 /* incline_dumbbell_press.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = incline_dumbbell_press.mp4; path = Resources/incline_dumbbell_press.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000002 /* push_up.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = push_up.mp4; path = Resources/push_up.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000003 /* deadlift.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = deadlift.mp4; path = Resources/deadlift.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000004 /* barbell_row.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = barbell_row.mp4; path = Resources/barbell_row.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000005 /* pull_up.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = pull_up.mp4; path = Resources/pull_up.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000006 /* lat_pulldown.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = lat_pulldown.mp4; path = Resources/lat_pulldown.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000007 /* overhead_press.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = overhead_press.mp4; path = Resources/overhead_press.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000008 /* dumbbell_lateral_raise.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = dumbbell_lateral_raise.mp4; path = Resources/dumbbell_lateral_raise.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000009 /* barbell_curl.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = barbell_curl.mp4; path = Resources/barbell_curl.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000010 /* dumbbell_hammer_curl.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = dumbbell_hammer_curl.mp4; path = Resources/dumbbell_hammer_curl.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000011 /* triceps_pushdown.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = triceps_pushdown.mp4; path = Resources/triceps_pushdown.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000012 /* close_grip_bench_press.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = close_grip_bench_press.mp4; path = Resources/close_grip_bench_press.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000013 /* triceps_dip.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = triceps_dip.mp4; path = Resources/triceps_dip.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000014 /* back_squat.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = back_squat.mp4; path = Resources/back_squat.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000015 /* romanian_deadlift.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = romanian_deadlift.mp4; path = Resources/romanian_deadlift.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000016 /* leg_press.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = leg_press.mp4; path = Resources/leg_press.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000017 /* walking_lunge.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = walking_lunge.mp4; path = Resources/walking_lunge.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000018 /* standing_calf_raise.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = standing_calf_raise.mp4; path = Resources/standing_calf_raise.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000019 /* hip_thrust.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = hip_thrust.mp4; path = Resources/hip_thrust.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000020 /* plank.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = plank.mp4; path = Resources/plank.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000021 /* hanging_leg_raise.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = hanging_leg_raise.mp4; path = Resources/hanging_leg_raise.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000022 /* cable_crunch.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = cable_crunch.mp4; path = Resources/cable_crunch.mp4; sourceTree = "<group>"; };
+		VFR000000000000000000023 /* kettlebell_swing.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; name = kettlebell_swing.mp4; path = Resources/kettlebell_swing.mp4; sourceTree = "<group>"; };
 		AA0000000000000000000001 /* Exercise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exercise.swift; sourceTree = "<group>"; };
 		AA0000000000000000000002 /* WorkoutTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutTemplate.swift; sourceTree = "<group>"; };
 		AA0000000000000000000003 /* WorkoutSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSession.swift; sourceTree = "<group>"; };
@@ -215,6 +263,30 @@
 		AA000000000000000000005E /* AruLifts */ = {
 			isa = PBXGroup;
 			children = (
+				VFR000000000000000000000 /* barbell_bench_press.mp4 */,
+				VFR000000000000000000001 /* incline_dumbbell_press.mp4 */,
+				VFR000000000000000000002 /* push_up.mp4 */,
+				VFR000000000000000000003 /* deadlift.mp4 */,
+				VFR000000000000000000004 /* barbell_row.mp4 */,
+				VFR000000000000000000005 /* pull_up.mp4 */,
+				VFR000000000000000000006 /* lat_pulldown.mp4 */,
+				VFR000000000000000000007 /* overhead_press.mp4 */,
+				VFR000000000000000000008 /* dumbbell_lateral_raise.mp4 */,
+				VFR000000000000000000009 /* barbell_curl.mp4 */,
+				VFR000000000000000000010 /* dumbbell_hammer_curl.mp4 */,
+				VFR000000000000000000011 /* triceps_pushdown.mp4 */,
+				VFR000000000000000000012 /* close_grip_bench_press.mp4 */,
+				VFR000000000000000000013 /* triceps_dip.mp4 */,
+				VFR000000000000000000014 /* back_squat.mp4 */,
+				VFR000000000000000000015 /* romanian_deadlift.mp4 */,
+				VFR000000000000000000016 /* leg_press.mp4 */,
+				VFR000000000000000000017 /* walking_lunge.mp4 */,
+				VFR000000000000000000018 /* standing_calf_raise.mp4 */,
+				VFR000000000000000000019 /* hip_thrust.mp4 */,
+				VFR000000000000000000020 /* plank.mp4 */,
+				VFR000000000000000000021 /* hanging_leg_raise.mp4 */,
+				VFR000000000000000000022 /* cable_crunch.mp4 */,
+				VFR000000000000000000023 /* kettlebell_swing.mp4 */,
 				AA0000000000000000000061 /* Preview Content */,
 				AA000000000000000000005F /* Views */,
 				AA0000000000000000000009 /* AruLiftsApp.swift */,
@@ -387,6 +459,30 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				VBF000000000000000000000 /* barbell_bench_press.mp4 in Resources */,
+				VBF000000000000000000001 /* incline_dumbbell_press.mp4 in Resources */,
+				VBF000000000000000000002 /* push_up.mp4 in Resources */,
+				VBF000000000000000000003 /* deadlift.mp4 in Resources */,
+				VBF000000000000000000004 /* barbell_row.mp4 in Resources */,
+				VBF000000000000000000005 /* pull_up.mp4 in Resources */,
+				VBF000000000000000000006 /* lat_pulldown.mp4 in Resources */,
+				VBF000000000000000000007 /* overhead_press.mp4 in Resources */,
+				VBF000000000000000000008 /* dumbbell_lateral_raise.mp4 in Resources */,
+				VBF000000000000000000009 /* barbell_curl.mp4 in Resources */,
+				VBF000000000000000000010 /* dumbbell_hammer_curl.mp4 in Resources */,
+				VBF000000000000000000011 /* triceps_pushdown.mp4 in Resources */,
+				VBF000000000000000000012 /* close_grip_bench_press.mp4 in Resources */,
+				VBF000000000000000000013 /* triceps_dip.mp4 in Resources */,
+				VBF000000000000000000014 /* back_squat.mp4 in Resources */,
+				VBF000000000000000000015 /* romanian_deadlift.mp4 in Resources */,
+				VBF000000000000000000016 /* leg_press.mp4 in Resources */,
+				VBF000000000000000000017 /* walking_lunge.mp4 in Resources */,
+				VBF000000000000000000018 /* standing_calf_raise.mp4 in Resources */,
+				VBF000000000000000000019 /* hip_thrust.mp4 in Resources */,
+				VBF000000000000000000020 /* plank.mp4 in Resources */,
+				VBF000000000000000000021 /* hanging_leg_raise.mp4 in Resources */,
+				VBF000000000000000000022 /* cable_crunch.mp4 in Resources */,
+				VBF000000000000000000023 /* kettlebell_swing.mp4 in Resources */,
 				AA000000000000000000003F /* Preview Assets.xcassets in Resources */,
 				AA000000000000000000003E /* Assets.xcassets in Resources */,
 			);

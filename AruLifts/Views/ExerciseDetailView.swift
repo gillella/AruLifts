@@ -16,7 +16,13 @@ struct ExerciseDetailView: View {
                     .background(Color(.secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                if exercise.demoImageName != nil {
+                if exercise.videoName != nil {
+                    Text("AI-generated personalized form video demo")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .accessibilityLabel("AI generated personalized form video demo")
+                } else if exercise.demoImageName != nil {
                     Text("AI-generated personalized form illustration")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
