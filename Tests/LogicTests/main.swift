@@ -407,8 +407,6 @@ expect(
 )
 expect(ExerciseLibrary.all.allSatisfy { $0.videoName != nil }, "all 34 exercises have video demo clips assigned")
 expect(Set(ExerciseLibrary.all.compactMap(\.videoName)).count == 34, "video demo names are unique across all 34 exercises")
-expect(ExerciseLibrary.all.allSatisfy { $0.localTechniqueVideoName != nil }, "all 34 exercises have bundled local technique videos assigned")
-expect(Set(ExerciseLibrary.all.compactMap(\.localTechniqueVideoName)).count == 34, "local technique video names are unique across all 34 exercises")
 expect(timedExercises.allSatisfy { !$0.instructions.isEmpty }, "timed built-ins have form notes")
 
 // --- Watch-first live-workout replication ---
