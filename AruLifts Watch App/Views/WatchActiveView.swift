@@ -78,7 +78,7 @@ struct WatchActiveView: View {
             Text("The workout will be saved on your Watch and synchronized to your iPhone.")
         }
         .fullScreenCover(isPresented: Binding(
-            get: { active.restTimer.isRunning },
+            get: { active.restTimer.isRunning || active.restTimer.isPaused },
             set: { if !$0 && active.restTimer.isRunning { active.restTimer.skip() } }
         )) {
             WatchRestView(timer: active.restTimer)
@@ -135,6 +135,12 @@ struct WatchActiveView: View {
                     setIndex: index,
                     autoStartRest: active.watchExecutionSettings.autoStartRest,
                     restAlerts: active.watchExecutionSettings.restAlertsEnabled,
+                    restAlertConfiguration: RestTimerAlertConfiguration(
+                        alertsEnabled: active.watchExecutionSettings.restAlertsEnabled,
+                        style: active.watchExecutionSettings.restAlertStyle,
+                        earlyCueEnabled: active.watchExecutionSettings.earlyRestCueEnabled,
+                        earlyCueLeadSeconds: active.watchExecutionSettings.earlyRestCueLeadSeconds
+                    ),
                     adaptiveRest: active.watchExecutionSettings.adaptiveRestEnabled,
                     failedSetRestMultiplier: active.watchExecutionSettings.failedSetRestMultiplier
                 )

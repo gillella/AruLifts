@@ -158,6 +158,7 @@ let legacySettings = """
 if let ls = try? JSONDecoder().decode(AppSettings.self, from: legacySettings) {
     expect(ls.deloadFailureThreshold == 3 && ls.deloadPercent == 10, "legacy settings decode with deload defaults")
     expect(ls.defaultRestSeconds == 180 && ls.units == .kg, "legacy settings keep saved values")
+    expect(ls.restAlertStyle == .soundAndHaptic && ls.earlyRestCueEnabled && ls.earlyRestCueLeadSeconds == 10, "legacy settings decode rest alert defaults")
 } else { failures += 1; print("FAIL legacy AppSettings did not decode") }
 
 // --- Warmup (issue #6) ---
@@ -713,6 +714,20 @@ expect(
     decodedPausedSnapshot.pausedRemainingSeconds == 73,
     "paused rest remaining duration survives replication"
 )
+
+// Rest snapshots saved before configurable alerts existed still decode, while
+// new snapshots carry the exact cue settings to the mirrored timer.
+let legacyRestData = #"{"endDate":0,"totalSeconds":60}"#.data(using: .utf8)!
+if let legacyRest = try? JSONDecoder().decode(RestTimerSnapshot.self, from: legacyRestData) {
+    expect(legacyRest.alertConfiguration == .default, "legacy rest snapshot defaults alert configuration")
+} else { failures += 1; print("FAIL legacy rest snapshot did not decode") }
+let configuredRest = RestTimerSnapshot(
+    endDate: Date(), totalSeconds: 90,
+    alertConfiguration: RestTimerAlertConfiguration(alertsEnabled: true, style: .vibrationOnly, earlyCueEnabled: true, earlyCueLeadSeconds: 15)
+)
+if let restored = try? JSONDecoder().decode(RestTimerSnapshot.self, from: JSONEncoder().encode(configuredRest)) {
+    expect(restored.alertConfiguration.style == .vibrationOnly && restored.alertConfiguration.earlyCueLeadSeconds == 15, "rest snapshot retains configured cue")
+} else { failures += 1; print("FAIL configured rest snapshot did not decode") }
 
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
