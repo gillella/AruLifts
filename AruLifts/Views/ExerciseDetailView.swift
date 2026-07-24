@@ -6,6 +6,18 @@ struct ExerciseDetailView: View {
     @EnvironmentObject private var store: WorkoutStore
     let exercise: Exercise
     @State private var showingAddToWorkout = false
+    @State private var showingTechniqueVideoModal = false
+
+    private func resolveTechniqueURL() -> URL? {
+        if let name = exercise.localTechniqueVideoName {
+            for ext in ["mp4", "mov", "m4v"] {
+                if let url = Bundle.main.url(forResource: name, withExtension: ext) {
+                    return url
+                }
+            }
+        }
+        return nil
+    }
 
     var body: some View {
         ScrollView {
@@ -30,7 +42,22 @@ struct ExerciseDetailView: View {
                         .accessibilityLabel("AI generated personalized form illustration")
                 }
 
-                if let techniqueURL = exercise.techniqueVideoURL {
+                if let localTechniqueURL = resolveTechniqueURL() {
+                    Button {
+                        showingTechniqueVideoModal = true
+                    } label: {
+                        Label("Watch technique video", systemImage: "play.rectangle.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .accessibilityHint("Plays offline exercise technique video")
+                    .sheet(isPresented: $showingTechniqueVideoModal) {
+                        FullTechniqueVideoSheet(exercise: exercise, videoURL: localTechniqueURL)
+                    }
+                } else if let techniqueURL = exercise.techniqueVideoURL {
                     Link(destination: techniqueURL) {
                         Label("Watch technique video", systemImage: "play.rectangle.fill")
                             .font(.headline)
@@ -191,6 +218,39 @@ struct ExerciseDemoView: View {
             }
         }
         return exercise.videoURL
+    }
+}
+
+struct FullTechniqueVideoSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let exercise: Exercise
+    let videoURL: URL
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                if let player {
+                    VideoPlayer(player: player)
+                        .onAppear { player.play() }
+                        .onDisappear { player.pause() }
+                } else {
+                    ProgressView()
+                }
+            }
+            .navigationTitle("\(exercise.name) Technique")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                player = AVPlayer(url: videoURL)
+            }
+        }
     }
 }
 
