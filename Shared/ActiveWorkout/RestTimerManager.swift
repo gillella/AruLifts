@@ -262,10 +262,27 @@ final class RestTimerManager: ObservableObject {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
+        configureSpeechAudioSession()
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.language.languageCode?.identifier ?? "en-US")
         utterance.rate = 0.55
         utterance.volume = 1
         speechSynthesizer.speak(utterance)
+    }
+
+    /// Let a spoken cue share the iPhone's existing audio route (including
+    /// Bluetooth headphones) and briefly duck rather than interrupt music or a
+    /// podcast. watchOS manages its own audio session, so this is iOS-only.
+    private func configureSpeechAudioSession() {
+        #if os(iOS)
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.ambient, options: [.duckOthers])
+            try audioSession.setActive(true)
+        } catch {
+            // Speech remains best-effort: do not break rest timing if the
+            // system denies a transient audio-session change.
+        }
+        #endif
     }
 }
