@@ -114,7 +114,7 @@ struct WatchActiveView: View {
                 .foregroundStyle(set.isWarmup ? .orange : .secondary)
 
             if exercise.usesWeight {
-                Text("\(weightString(set.weight)) \(unitLabel) × \(set.reps)")
+                Text("\(WeightFormatter.string(set.weight, units: active.watchExecutionSettings.units)) × \(set.reps)")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
@@ -432,10 +432,6 @@ struct WatchActiveView: View {
         } ?? 0
     }
 
-    private var unitLabel: String {
-        active.watchExecutionSettings.units.label
-    }
-
     private func setLabel(_ index: Int, in exercise: SessionExercise) -> String {
         let set = exercise.sets[index]
         let earlierSameKind = exercise.sets.prefix(index)
@@ -443,12 +439,6 @@ struct WatchActiveView: View {
         return set.isWarmup
             ? "Warmup \(earlierSameKind + 1)"
             : "Set \(earlierSameKind + 1) of \(exercise.sets.filter { !$0.isWarmup }.count)"
-    }
-
-    private func weightString(_ weight: Double) -> String {
-        weight == weight.rounded()
-            ? String(Int(weight))
-            : String(format: "%.1f", weight)
     }
 
     private func plateString(for weight: Double) -> String {

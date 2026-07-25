@@ -2,14 +2,7 @@ import SwiftUI
 
 /// Formats a weight with the user's preferred units.
 func formatWeight(_ value: Double, units: AppSettings.Units) -> String {
-    let rounded = (value * 10).rounded() / 10
-    let number: String
-    if rounded == rounded.rounded() {
-        number = String(Int(rounded))
-    } else {
-        number = String(format: "%.1f", rounded)
-    }
-    return "\(number) \(units.label)"
+    WeightFormatter.string(value, units: units)
 }
 
 /// Formats a target duration for time-based exercises (cardio, stretches).

@@ -12,6 +12,7 @@ swiftc -o "$OUT" \
   Shared/Models/ExerciseLibrary.swift \
   Shared/Models/ProgressSeries.swift \
   Shared/Store/WorkoutStore.swift \
+  Shared/Store/WeightFormatter.swift \
   Shared/Store/Backup.swift \
   Shared/Store/ActiveWorkoutRepository.swift \
   Shared/Connectivity/WorkoutSyncCoordinator.swift \

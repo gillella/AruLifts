@@ -6,6 +6,10 @@ func expect(_ cond: Bool, _ label: String) {
     if cond { print("PASS \(label)") } else { failures += 1; print("FAIL \(label)") }
 }
 
+expect(WeightFormatter.number(100) == "100", "weight formatter omits .0")
+expect(WeightFormatter.number(100.25) == "100.3", "weight formatter rounds to one decimal")
+expect(WeightFormatter.string(45, units: .lb) == "45 LB", "weight formatter includes unit label")
+
 // History finalization is keyed by the stable app session ID. A repeated end
 // event must not re-run PR detection or progression.
 let historySessionID = UUID()

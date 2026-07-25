@@ -44,7 +44,7 @@ struct WatchSetLogView: View {
                         set: { active.updateSet(exerciseIndex: exerciseIndex, setIndex: setIndex, weight: $0) }
                     ), in: minimumWeight...999, step: active.watchExecutionSettings.weightIncrement) {
                         VStack(spacing: 0) {
-                            Text("\(weightString(set.weight))")
+                            Text(WeightFormatter.number(set.weight))
                                 .font(.title3.monospacedDigit().bold())
                             Text(loadingMode.accessibilityLabel).font(.system(size: 9)).foregroundStyle(.secondary)
                         }
@@ -74,10 +74,6 @@ struct WatchSetLogView: View {
             .padding(10)
             .navigationTitle("Adjust Set")
         }
-    }
-
-    private func weightString(_ w: Double) -> String {
-        w == w.rounded() ? String(Int(w)) : String(format: "%.1f", w)
     }
 
     private var minimumWeight: Double {
