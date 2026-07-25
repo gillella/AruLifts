@@ -85,7 +85,11 @@ final class WorkoutStore: ObservableObject {
     /// Records broken by the most recent finished session. Not persisted.
     @Published var lastPRs: [PRHighlight] = []
     @Published var settings: AppSettings = AppSettings() {
-        didSet { saveSettings() }
+        didSet {
+            // A disk reload must not immediately write the same settings back
+            // and create another iCloud metadata notification.
+            if !isLoadingFromDisk { saveSettings() }
+        }
     }
 
     private let templatesFile = "templates.json"
@@ -103,6 +107,15 @@ final class WorkoutStore: ObservableObject {
     /// Invalidates an in-flight load when the storage directory changes (for
     /// example after adopting iCloud).
     private var historyLoadGeneration = 0
+    /// Suppresses save-on-assignment side effects while applying a complete
+    /// file snapshot received from iCloud.
+    private var isLoadingFromDisk = false
+
+    #if os(iOS)
+    private var iCloudMetadataQuery: NSMetadataQuery?
+    private var iCloudMetadataObservers: [NSObjectProtocol] = []
+    private var iCloudReloadTask: Task<Void, Never>?
+    #endif
 
     private var allFiles: [String] {
         [templatesFile, historyFile, exercisesFile, favoritesFile, settingsFile, bodyWeightFile]
@@ -150,8 +163,73 @@ final class WorkoutStore: ObservableObject {
         storageDir = dir
         iCloudEnabled = true
         load()
+        startICloudObserver()
+    }
+
+    /// Observes this app's iCloud Documents files so edits made by another
+    /// device become visible without waiting for a cold app launch. A short
+    /// debounce lets iCloud finish a multi-file upload before one reload.
+    private func startICloudObserver() {
+        stopICloudObserver()
+
+        let query = NSMetadataQuery()
+        query.searchScopes = [storageDir]
+        query.predicate = NSPredicate(
+            format: "%K IN %@",
+            NSMetadataItemFSNameKey,
+            allFiles
+        )
+
+        let center = NotificationCenter.default
+        let reload: (Notification) -> Void = { [weak self] _ in
+            self?.scheduleICloudReload()
+        }
+        iCloudMetadataObservers = [
+            center.addObserver(
+                forName: .NSMetadataQueryDidFinishGathering,
+                object: query,
+                queue: .main,
+                using: reload
+            ),
+            center.addObserver(
+                forName: .NSMetadataQueryDidUpdate,
+                object: query,
+                queue: .main,
+                using: reload
+            )
+        ]
+        iCloudMetadataQuery = query
+        query.start()
+    }
+
+    private func scheduleICloudReload() {
+        iCloudReloadTask?.cancel()
+        iCloudReloadTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            self?.load()
+        }
+    }
+
+    private func stopICloudObserver() {
+        iCloudReloadTask?.cancel()
+        iCloudReloadTask = nil
+        iCloudMetadataQuery?.stop()
+        let center = NotificationCenter.default
+        iCloudMetadataObservers.forEach(center.removeObserver)
+        iCloudMetadataObservers = []
+        iCloudMetadataQuery = nil
     }
     #endif
+
+    deinit {
+        #if os(iOS)
+        iCloudReloadTask?.cancel()
+        iCloudMetadataQuery?.stop()
+        let center = NotificationCenter.default
+        iCloudMetadataObservers.forEach(center.removeObserver)
+        #endif
+    }
 
     // MARK: - Manual backup / restore
 
@@ -360,6 +438,8 @@ final class WorkoutStore: ObservableObject {
     }
 
     private func load() {
+        isLoadingFromDisk = true
+        defer { isLoadingFromDisk = false }
         templates = decode([WorkoutTemplate].self, from: templatesFile) ?? []
         customExercises = decode([Exercise].self, from: exercisesFile) ?? []
         favoriteExerciseIDs = Set(decode([UUID].self, from: favoritesFile) ?? [])
