@@ -18,6 +18,16 @@ expect(
     WorkoutStore.shouldRecordSession(id: UUID(), in: [recordedHistorySession]),
     "new session ID is accepted into history"
 )
+let loadedHistorySession = WorkoutSession(id: UUID(), name: "Loaded", finishedAt: Date())
+let earlyHistorySession = WorkoutSession(id: UUID(), name: "Early", finishedAt: Date())
+let mergedHistory = WorkoutStore.mergedHistory(
+    loaded: [loadedHistorySession, recordedHistorySession],
+    inMemory: [earlyHistorySession, recordedHistorySession]
+)
+expect(
+    mergedHistory.map(\.id) == [earlyHistorySession.id, recordedHistorySession.id, loadedHistorySession.id],
+    "async history load preserves early local sessions without duplicates"
+)
 
 let squatID = UUID(), dlID = UUID(), pressID = UUID(), bwID = UUID()
 

@@ -79,6 +79,9 @@ final class WorkoutStore: ObservableObject {
     @Published var lastProgression: [ProgressionChange] = []
     /// Body-weight log, newest first. Canonical kilograms (see BodyWeightEntry).
     @Published var bodyWeights: [BodyWeightEntry] = []
+    /// History is decoded separately because it is the only user collection
+    /// expected to grow without a practical upper bound.
+    @Published private(set) var isLoadingHistory = false
     /// Records broken by the most recent finished session. Not persisted.
     @Published var lastPRs: [PRHighlight] = []
     @Published var settings: AppSettings = AppSettings() {
@@ -97,6 +100,9 @@ final class WorkoutStore: ObservableObject {
     /// Where the JSON files live. Starts local; switches to the iCloud
     /// container after `resolveICloud()` migrates.
     private var storageDir: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    /// Invalidates an in-flight load when the storage directory changes (for
+    /// example after adopting iCloud).
+    private var historyLoadGeneration = 0
 
     private var allFiles: [String] {
         [templatesFile, historyFile, exercisesFile, favoritesFile, settingsFile, bodyWeightFile]
@@ -355,11 +361,12 @@ final class WorkoutStore: ObservableObject {
 
     private func load() {
         templates = decode([WorkoutTemplate].self, from: templatesFile) ?? []
-        history = decode([WorkoutSession].self, from: historyFile) ?? []
         customExercises = decode([Exercise].self, from: exercisesFile) ?? []
         favoriteExerciseIDs = Set(decode([UUID].self, from: favoritesFile) ?? [])
         settings = decode(AppSettings.self, from: settingsFile) ?? AppSettings()
         bodyWeights = decode([BodyWeightEntry].self, from: bodyWeightFile) ?? []
+
+        loadHistory()
 
         if templates.isEmpty {
             templates = ExerciseLibrary.defaultTemplates()
@@ -370,6 +377,44 @@ final class WorkoutStore: ObservableObject {
     private func decode<T: Decodable>(_ type: T.Type, from file: String) -> T? {
         guard let data = try? Data(contentsOf: url(for: file)) else { return nil }
         return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// Decoding years of completed workouts can be meaningfully more expensive
+    /// than the small settings/template files. Keep the actor responsive at
+    /// launch, then publish the decoded value once it is ready.
+    private func loadHistory() {
+        historyLoadGeneration &+= 1
+        let generation = historyLoadGeneration
+        let historyURL = url(for: historyFile)
+        let existingHistoryIDs = Set(history.map(\.id))
+        history = []
+        isLoadingHistory = true
+
+        Task { [weak self] in
+            let decoded = await Self.decodeHistory(at: historyURL) ?? []
+            guard let self, self.historyLoadGeneration == generation else { return }
+            let earlyLocalHistory = self.history.filter { !existingHistoryIDs.contains($0.id) }
+            self.history = Self.mergedHistory(loaded: decoded, inMemory: earlyLocalHistory)
+            self.isLoadingHistory = false
+        }
+    }
+
+    nonisolated private static func decodeHistory(at url: URL) async -> [WorkoutSession]? {
+        await Task.detached(priority: .utility) {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? JSONDecoder().decode([WorkoutSession].self, from: data)
+        }.value
+    }
+
+    /// Preserves an early local completion if the user records a workout before
+    /// an unusually large historical file has finished decoding.
+    nonisolated static func mergedHistory(
+        loaded: [WorkoutSession],
+        inMemory: [WorkoutSession]
+    ) -> [WorkoutSession] {
+        guard !inMemory.isEmpty else { return loaded }
+        let inMemoryIDs = Set(inMemory.map(\.id))
+        return inMemory + loaded.filter { !inMemoryIDs.contains($0.id) }
     }
 
     private func encode<T: Encodable>(_ value: T, to file: String) {
