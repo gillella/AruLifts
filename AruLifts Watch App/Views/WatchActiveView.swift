@@ -11,6 +11,9 @@ struct WatchActiveView: View {
     @State private var showingOverview = false
     @State private var showingFinishConfirmation = false
     @State private var isReordering = false
+    @State private var crownAdjustment: CrownAdjustment = .reps
+    @State private var crownValue = 0.0
+    @FocusState private var isCrownFocused: Bool
 
     private var exercise: SessionExercise? { active.currentExercise }
 
@@ -131,6 +134,23 @@ struct WatchActiveView: View {
             }
 
             Button {
+                crownAdjustment = crownAdjustment.next(usesWeight: exercise.usesWeight)
+                synchronizeCrownValue(with: set, exercise: exercise)
+                isCrownFocused = true
+            } label: {
+                Label(
+                    "Crown: \(crownAdjustment.label(usesWeight: exercise.usesWeight))",
+                    systemImage: "crown"
+                )
+                .font(.caption2.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .disabled(!active.canEdit)
+            .accessibilityLabel("Digital Crown adjusts \(crownAdjustment.label(usesWeight: exercise.usesWeight))")
+            .accessibilityHint(exercise.usesWeight ? "Double tap to switch between weight and reps" : "Rotate the Digital Crown to adjust reps")
+
+            Button {
                 active.completeSet(
                     exerciseIndex: active.currentExerciseIndex,
                     setIndex: index,
@@ -166,6 +186,70 @@ struct WatchActiveView: View {
         }
         .padding(8)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15))
+        .focusable(true)
+        .focused($isCrownFocused)
+        .digitalCrownRotation(
+            $crownValue,
+            from: crownMinimum(for: exercise),
+            through: crownMaximum(for: exercise),
+            by: crownStep(for: exercise),
+            sensitivity: .medium,
+            isContinuous: false,
+            isHapticFeedbackEnabled: true
+        )
+        .onAppear {
+            synchronizeCrownValue(with: set, exercise: exercise)
+            isCrownFocused = true
+        }
+        .onChange(of: index) { _, _ in
+            synchronizeCrownValue(with: set, exercise: exercise)
+        }
+        .onChange(of: crownAdjustment) { _, _ in
+            synchronizeCrownValue(with: set, exercise: exercise)
+        }
+        .onChange(of: crownValue) { _, value in
+            updateFocusedSet(fromCrown: value, index: index, exercise: exercise)
+        }
+    }
+
+    private func synchronizeCrownValue(with set: SetEntry, exercise: SessionExercise) {
+        crownValue = crownAdjustment == .weight && exercise.usesWeight
+            ? set.weight
+            : Double(set.reps)
+    }
+
+    private func updateFocusedSet(fromCrown value: Double, index: Int, exercise: SessionExercise) {
+        guard active.canEdit else { return }
+        switch crownAdjustment {
+        case .weight where exercise.usesWeight:
+            active.updateSet(
+                exerciseIndex: active.currentExerciseIndex,
+                setIndex: index,
+                weight: value
+            )
+        case .reps, .weight:
+            active.updateSet(
+                exerciseIndex: active.currentExerciseIndex,
+                setIndex: index,
+                reps: Int(value.rounded())
+            )
+        }
+    }
+
+    private func crownMinimum(for exercise: SessionExercise) -> Double {
+        crownAdjustment == .weight && exercise.usesWeight && exercise.loadingMode == .barbell
+            ? active.watchExecutionSettings.barWeight
+            : 0
+    }
+
+    private func crownMaximum(for exercise: SessionExercise) -> Double {
+        crownAdjustment == .weight && exercise.usesWeight ? 999 : 100
+    }
+
+    private func crownStep(for exercise: SessionExercise) -> Double {
+        crownAdjustment == .weight && exercise.usesWeight
+            ? max(active.watchExecutionSettings.weightIncrement, 0.5)
+            : 1
     }
 
     private var pausedCard: some View {
@@ -396,5 +480,19 @@ struct WatchActiveView: View {
                 .accessibilityLabel("Heart rate \(Int(bpm)) beats per minute")
             }
         }
+    }
+}
+
+private enum CrownAdjustment: String {
+    case weight
+    case reps
+
+    func next(usesWeight: Bool) -> CrownAdjustment {
+        guard usesWeight else { return .reps }
+        return self == .weight ? .reps : .weight
+    }
+
+    func label(usesWeight: Bool) -> String {
+        self == .weight && usesWeight ? "weight" : "reps"
     }
 }
