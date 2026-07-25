@@ -41,6 +41,11 @@ extension EndEvent: Equatable {
 /// device converges on the latest state regardless of message ordering. Discrete
 /// lifecycle events ("end") use the reliable `sendMessage`/`transferUserInfo`
 /// path instead, since they must never be coalesced away or lost.
+/// Main-actor isolation makes every published connectivity state transition
+/// deterministic. WatchConnectivity invokes its delegate from arbitrary
+/// background queues; the nonisolated delegate methods below explicitly hop
+/// back here before touching state.
+@MainActor
 final class ConnectivityManager: NSObject, ObservableObject {
     static let shared = ConnectivityManager()
 
@@ -251,7 +256,9 @@ final class ConnectivityManager: NSObject, ObservableObject {
         if session.isReachable {
             // Live message for immediate delivery.
             session.sendMessage(payload, replyHandler: nil, errorHandler: { [weak self] _ in
-                self?.queue(payload)
+                Task { @MainActor [weak self] in
+                    self?.queue(payload)
+                }
             })
         } else {
             queue(payload)
@@ -340,39 +347,73 @@ final class ConnectivityManager: NSObject, ObservableObject {
 
 #if canImport(WatchConnectivity)
 extension ConnectivityManager: WCSessionDelegate {
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        DispatchQueue.main.async {
-            self.refreshAvailability(session)
-            self.activationGeneration &+= 1
-        }
+    nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        let availability = SessionAvailability(session: session)
         // The counterpart may have pushed a session via updateApplicationContext
         // while this side was not running. That context does NOT arrive through
         // didReceiveApplicationContext on launch — the system only stashes it in
         // receivedApplicationContext — so pick it up here so a phone-started
         // workout is waiting when the watch app activates (and vice versa).
-        let pending = session.receivedApplicationContext
-        if !pending.isEmpty { handle(pending) }
+        let pending = ReceivedPayload(session.receivedApplicationContext)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.refreshAvailability(availability)
+            self.activationGeneration &+= 1
+            if !pending.values.isEmpty { self.handle(pending.values) }
+        }
     }
 
-    func sessionReachabilityDidChange(_ session: WCSession) {
-        DispatchQueue.main.async { self.refreshAvailability(session) }
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        let availability = SessionAvailability(session: session)
+        Task { @MainActor [weak self] in
+            self?.refreshAvailability(availability)
+        }
     }
 
-    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        handle(message)
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        let payload = ReceivedPayload(message)
+        Task { @MainActor [weak self] in
+            self?.handle(payload.values)
+        }
     }
 
-    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        handle(userInfo)
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        let payload = ReceivedPayload(userInfo)
+        Task { @MainActor [weak self] in
+            self?.handle(payload.values)
+        }
     }
 
     /// Delivered for `updateApplicationContext` pushes ("start"/"sync"). Same
     /// `["type", "session"]` shape as messages/userInfo, so it reuses `handle`.
-    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        handle(applicationContext)
+    nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        let payload = ReceivedPayload(applicationContext)
+        Task { @MainActor [weak self] in
+            self?.handle(payload.values)
+        }
     }
 
-    private func refreshAvailability(_ session: WCSession) {
+    private func refreshAvailability(_ availability: SessionAvailability) {
+        isReachable = availability.isReachable
+        isCounterpartAvailable = availability.isCounterpartAvailable
+    }
+
+    #if os(iOS)
+    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
+    nonisolated func sessionDidDeactivate(_ session: WCSession) {
+        // Reactivate for switching between paired watches.
+        Task { @MainActor [weak self] in
+            self?.activate()
+        }
+    }
+    #endif
+}
+
+private struct SessionAvailability: Sendable {
+    let isReachable: Bool
+    let isCounterpartAvailable: Bool
+
+    nonisolated init(session: WCSession) {
         isReachable = session.isReachable
         #if os(iOS)
         isCounterpartAvailable = session.isPaired && session.isWatchAppInstalled
@@ -380,13 +421,17 @@ extension ConnectivityManager: WCSessionDelegate {
         isCounterpartAvailable = session.isCompanionAppInstalled
         #endif
     }
+}
 
-    #if os(iOS)
-    func sessionDidBecomeInactive(_ session: WCSession) {}
-    func sessionDidDeactivate(_ session: WCSession) {
-        // Reactivate for switching between paired watches.
-        WCSession.default.activate()
+/// `WCSessionDelegate` vends Foundation dictionaries containing `Any`, which
+/// cannot be expressed as `Sendable`. They are copied at the callback boundary
+/// and only decoded after the main-actor hop; WatchConnectivity does not mutate
+/// a delivered payload after invoking its delegate.
+private struct ReceivedPayload: @unchecked Sendable {
+    let values: [String: Any]
+
+    init(_ values: [String: Any]) {
+        self.values = values
     }
-    #endif
 }
 #endif
