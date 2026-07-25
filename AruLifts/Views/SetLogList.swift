@@ -314,35 +314,87 @@ struct RestTimerBar: View {
                     .font(.title2.monospacedDigit().bold())
                     .foregroundStyle(.white)
             }
-            Spacer()
-            Button { active.toggleRestPause() } label: {
-                Text(timer.isPaused ? "Resume" : "Pause").font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(.white.opacity(0.2), in: Capsule())
-            }
-            .disabled(!active.canEdit)
-            Button { active.resetRest() } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .padding(8).background(.white.opacity(0.2), in: Circle())
-            }
-            .accessibilityLabel("Reset rest timer")
-            .disabled(!active.canEdit)
-            Button { active.addRest(seconds: 30) } label: {
-                Text("+30s").font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(.white.opacity(0.2), in: Capsule())
-            }
-            .disabled(!active.canEdit)
-            Button { active.skipRest() } label: {
-                Text("Skip").font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(.white.opacity(0.2), in: Capsule())
-            }
-            .disabled(!active.canEdit)
+            Spacer(minLength: 4)
+            controls
         }
         .foregroundStyle(.white)
         .padding(14)
         .background(Color.orange, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(radius: 8, y: 4)
+    }
+
+    /// The full control row remains available when it fits. On compact phones,
+    /// the secondary controls move into a menu rather than clipping beyond the
+    /// timer bar's rounded container.
+    @ViewBuilder
+    private var controls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                pauseButton
+                resetButton
+                addTimeButton
+                skipButton
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            HStack(spacing: 6) {
+                pauseButton
+                Menu {
+                    Button("Add 30 seconds", systemImage: "plus") {
+                        active.addRest(seconds: 30)
+                    }
+                    Button("Reset rest timer", systemImage: "arrow.counterclockwise") {
+                        active.resetRest()
+                    }
+                    Button("Skip rest", systemImage: "forward.end.fill", role: .destructive) {
+                        active.skipRest()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .padding(8)
+                        .background(.white.opacity(0.2), in: Circle())
+                }
+                .accessibilityLabel("More rest timer controls")
+                .disabled(!active.canEdit)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var pauseButton: some View {
+        Button { active.toggleRestPause() } label: {
+            Text(timer.isPaused ? "Resume" : "Pause")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(.white.opacity(0.2), in: Capsule())
+        }
+        .disabled(!active.canEdit)
+    }
+
+    private var resetButton: some View {
+        Button { active.resetRest() } label: {
+            Image(systemName: "arrow.counterclockwise")
+                .padding(8).background(.white.opacity(0.2), in: Circle())
+        }
+        .accessibilityLabel("Reset rest timer")
+        .disabled(!active.canEdit)
+    }
+
+    private var addTimeButton: some View {
+        Button { active.addRest(seconds: 30) } label: {
+            Text("+30s").font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(.white.opacity(0.2), in: Capsule())
+        }
+        .disabled(!active.canEdit)
+    }
+
+    private var skipButton: some View {
+        Button { active.skipRest() } label: {
+            Text("Skip").font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(.white.opacity(0.2), in: Capsule())
+        }
+        .disabled(!active.canEdit)
     }
 }
