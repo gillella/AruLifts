@@ -192,7 +192,7 @@ struct BarbellView: View {
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(summary).font(.caption2.weight(.medium))
                     if !result.isExact {
-                        Text("closest: \(result.achievedWeight.formatted()) \(units.label)")
+                        Text("closest: \(WeightFormatter.string(result.achievedWeight, units: units))")
                             .font(.system(size: 9))
                             .foregroundStyle(.orange)
                     }

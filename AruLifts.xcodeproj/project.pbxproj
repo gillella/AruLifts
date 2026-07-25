@@ -103,6 +103,8 @@
 		AA0000000000000000000097 /* WorkoutSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000098 /* WorkoutSyncCoordinator.swift */; };
 		AA0000000000000000000099 /* WatchStartableWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000009B /* WatchStartableWorkout.swift */; };
 		AA000000000000000000009A /* WatchStartableWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000009B /* WatchStartableWorkout.swift */; };
+		AA000000000000000000009D /* WeightFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000009C /* WeightFormatter.swift */; };
+		AA000000000000000000009E /* WeightFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000009C /* WeightFormatter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -208,6 +210,7 @@
 		AA0000000000000000000095 /* ActiveWorkoutRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutRepository.swift; sourceTree = "<group>"; };
 		AA0000000000000000000098 /* WorkoutSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSyncCoordinator.swift; sourceTree = "<group>"; };
 		AA000000000000000000009B /* WatchStartableWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStartableWorkout.swift; sourceTree = "<group>"; };
+		AA000000000000000000009C /* WeightFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightFormatter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -396,6 +399,7 @@
 				AA0000000000000000000005 /* WorkoutStore.swift */,
 				AA000000000000000000008B /* Backup.swift */,
 				AA0000000000000000000095 /* ActiveWorkoutRepository.swift */,
+				AA000000000000000000009C /* WeightFormatter.swift */,
 			);
 			path = Store;
 			sourceTree = "<group>";
@@ -562,6 +566,7 @@
 				AA0000000000000000000092 /* ActiveWorkoutRepository.swift in Sources */,
 				AA0000000000000000000096 /* WorkoutSyncCoordinator.swift in Sources */,
 				AA0000000000000000000099 /* WatchStartableWorkout.swift in Sources */,
+				AA000000000000000000009D /* WeightFormatter.swift in Sources */,
 				AA0000000000000000000029 /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002B /* ActiveWorkoutManager.swift in Sources */,
 				AA000000000000000000002D /* AruLiftsApp.swift in Sources */,
@@ -600,6 +605,7 @@
 				AA0000000000000000000093 /* ActiveWorkoutRepository.swift in Sources */,
 				AA0000000000000000000097 /* WorkoutSyncCoordinator.swift in Sources */,
 				AA000000000000000000009A /* WatchStartableWorkout.swift in Sources */,
+				AA000000000000000000009E /* WeightFormatter.swift in Sources */,
 				AA000000000000000000002A /* RestTimerManager.swift in Sources */,
 				AA000000000000000000002C /* ActiveWorkoutManager.swift in Sources */,
 				AA0000000000000000000039 /* AruLiftsWatchApp.swift in Sources */,

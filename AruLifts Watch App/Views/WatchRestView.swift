@@ -88,9 +88,7 @@ struct WatchRestView: View {
         let set = exercise.sets[index]
         let number = exercise.sets.prefix(index).filter { !$0.isWarmup }.count + 1
         if exercise.usesWeight {
-            let weight = set.weight == set.weight.rounded()
-                ? String(Int(set.weight))
-                : String(format: "%.1f", set.weight)
+            let weight = WeightFormatter.number(set.weight)
             let load = exercise.loadingMode == .bodyweight ? " +\(weight)" : " \(weight)"
             return "\(exercise.name) · Set \(number) ·\(load) × \(set.reps)"
         }
