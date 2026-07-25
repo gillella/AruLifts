@@ -350,6 +350,51 @@ final class WorkoutStore: ObservableObject {
         saveExercises()
     }
 
+    /// Replaces a user-created exercise while retaining its stable identity.
+    /// Template entries keep that identity, so refresh their display name too.
+    func updateCustomExercise(_ exercise: Exercise) {
+        guard let index = customExercises.firstIndex(where: { $0.id == exercise.id }) else { return }
+        customExercises[index] = exercise
+        let namesChanged = renameTemplateExercises(for: exercise)
+        saveExercises()
+        if namesChanged { saveTemplates() }
+    }
+
+    /// Removes a user-created exercise from the library and from future
+    /// workout templates. Completed session history remains unchanged.
+    func deleteCustomExercise(_ exercise: Exercise) {
+        guard customExercises.contains(where: { $0.id == exercise.id }) else { return }
+        customExercises.removeAll { $0.id == exercise.id }
+        favoriteExerciseIDs.remove(exercise.id)
+        let templateEntriesRemoved = removeTemplateExercises(for: exercise.id)
+        saveExercises()
+        saveFavorites()
+        if templateEntriesRemoved { saveTemplates() }
+    }
+
+    private func renameTemplateExercises(for exercise: Exercise) -> Bool {
+        var changed = false
+        for templateIndex in templates.indices {
+            for exerciseIndex in templates[templateIndex].exercises.indices
+            where templates[templateIndex].exercises[exerciseIndex].exerciseID == exercise.id {
+                guard templates[templateIndex].exercises[exerciseIndex].name != exercise.name else { continue }
+                templates[templateIndex].exercises[exerciseIndex].name = exercise.name
+                changed = true
+            }
+        }
+        return changed
+    }
+
+    private func removeTemplateExercises(for exerciseID: UUID) -> Bool {
+        var changed = false
+        for index in templates.indices {
+            let originalCount = templates[index].exercises.count
+            templates[index].exercises.removeAll { $0.exerciseID == exerciseID }
+            changed = changed || templates[index].exercises.count != originalCount
+        }
+        return changed
+    }
+
     // MARK: - History
 
     func recordSession(_ session: WorkoutSession) {

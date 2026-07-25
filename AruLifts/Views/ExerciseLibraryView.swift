@@ -8,6 +8,8 @@ struct ExerciseLibraryView: View {
     @State private var favoritesOnly = false
     @State private var showingNewExercise = false
     @State private var exerciseToAdd: Exercise?
+    @State private var exerciseToEdit: Exercise?
+    @State private var exerciseToDelete: Exercise?
 
     private var filtered: [Exercise] {
         store.allExercises.filter { ex in
@@ -25,6 +27,22 @@ struct ExerciseLibraryView: View {
                 List {
                     ForEach(filtered) { ex in
                         libraryRow(ex)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                if isCustomExercise(ex) {
+                                    Button(role: .destructive) {
+                                        exerciseToDelete = ex
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+
+                                    Button {
+                                        exerciseToEdit = ex
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    .tint(.orange)
+                                }
+                            }
                     }
                 }
                 .listStyle(.plain)
@@ -64,10 +82,33 @@ struct ExerciseLibraryView: View {
             .sheet(isPresented: $showingNewExercise) {
                 NewExerciseView()
             }
+            .sheet(item: $exerciseToEdit) { exercise in
+                NewExerciseView(exercise: exercise)
+            }
             .sheet(item: $exerciseToAdd) { exercise in
                 AddExerciseToWorkoutSheet(exercise: exercise)
             }
+            .confirmationDialog(
+                "Delete custom exercise?",
+                isPresented: Binding(
+                    get: { exerciseToDelete != nil },
+                    set: { if !$0 { exerciseToDelete = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: exerciseToDelete,
+            ) { exercise in
+                Button("Delete \(exercise.name)", role: .destructive) {
+                    store.deleteCustomExercise(exercise)
+                    exerciseToDelete = nil
+                }
+            } message: { exercise in
+                Text("This also removes \(exercise.name) from future workouts. Completed workout history is kept.")
+            }
         }
+    }
+
+    private func isCustomExercise(_ exercise: Exercise) -> Bool {
+        store.customExercises.contains { $0.id == exercise.id }
     }
 
     private var muscleFilterBar: some View {
@@ -349,15 +390,25 @@ struct ExercisePickerView: View {
     }
 }
 
-/// Minimal form to add a user-defined exercise.
+/// Minimal form to create or edit a user-defined exercise.
 struct NewExerciseView: View {
     @EnvironmentObject private var store: WorkoutStore
     @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var muscle: MuscleGroup = .chest
-    @State private var equipment: Equipment = .barbell
-    @State private var usesWeight = true
-    @State private var instructions = ""
+    private let existingExercise: Exercise?
+    @State private var name: String
+    @State private var muscle: MuscleGroup
+    @State private var equipment: Equipment
+    @State private var usesWeight: Bool
+    @State private var instructions: String
+
+    init(exercise: Exercise? = nil) {
+        existingExercise = exercise
+        _name = State(initialValue: exercise?.name ?? "")
+        _muscle = State(initialValue: exercise?.primaryMuscle ?? .chest)
+        _equipment = State(initialValue: exercise?.equipment ?? .barbell)
+        _usesWeight = State(initialValue: exercise?.usesWeight ?? true)
+        _instructions = State(initialValue: exercise?.instructions.joined(separator: "\n") ?? "")
+    }
 
     var body: some View {
         NavigationStack {
@@ -377,7 +428,7 @@ struct NewExerciseView: View {
                         .lineLimit(3...8)
                 }
             }
-            .navigationTitle("New Exercise")
+            .navigationTitle(existingExercise == nil ? "New Exercise" : "Edit Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -394,15 +445,25 @@ struct NewExerciseView: View {
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        let exercise = Exercise(
-            name: name.trimmingCharacters(in: .whitespaces),
-            primaryMuscle: muscle,
-            equipment: equipment,
-            instructions: steps,
-            symbol: equipment.symbol,
-            usesWeight: usesWeight
-        )
-        store.addCustomExercise(exercise)
+        if var exercise = existingExercise {
+            exercise.name = name.trimmingCharacters(in: .whitespaces)
+            exercise.primaryMuscle = muscle
+            exercise.equipment = equipment
+            exercise.instructions = steps
+            exercise.symbol = equipment.symbol
+            exercise.usesWeight = usesWeight
+            store.updateCustomExercise(exercise)
+        } else {
+            let exercise = Exercise(
+                name: name.trimmingCharacters(in: .whitespaces),
+                primaryMuscle: muscle,
+                equipment: equipment,
+                instructions: steps,
+                symbol: equipment.symbol,
+                usesWeight: usesWeight
+            )
+            store.addCustomExercise(exercise)
+        }
         dismiss()
     }
 }
