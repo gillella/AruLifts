@@ -241,14 +241,21 @@ struct SetRow: View {
             if usesWeight {
                 StepValue(
                     text: formatWeight(set.weight, units: units),
+                    valueAccessibilityLabel: "\(loadingMode.accessibilityLabel), \(formatWeight(set.weight, units: units))",
+                    minusAccessibilityLabel: "Decrease \(loadingMode.accessibilityLabel) by \(formatWeight(increment, units: units))",
+                    plusAccessibilityLabel: "Increase \(loadingMode.accessibilityLabel) by \(formatWeight(increment, units: units))",
+                    adjustmentHint: "Changes the weight for \(spokenSetLabel)",
                     onMinus: { onWeight(-increment) },
                     onPlus: { onWeight(increment) }
                 )
-                .accessibilityLabel(loadingMode.accessibilityLabel + ": " + formatWeight(set.weight, units: units))
             }
 
             StepValue(
                 text: "\(set.reps)",
+                valueAccessibilityLabel: "Reps, \(set.reps)",
+                minusAccessibilityLabel: "Decrease reps by 1",
+                plusAccessibilityLabel: "Increase reps by 1",
+                adjustmentHint: "Changes reps for \(spokenSetLabel)",
                 onMinus: { onReps(-1) },
                 onPlus: { onReps(1) }
             )
@@ -260,6 +267,12 @@ struct SetRow: View {
             }
             .frame(width: 50)
             .buttonStyle(.plain)
+            .accessibilityLabel(set.isCompleted ? "\(spokenSetLabel) complete" : "Mark \(spokenSetLabel) complete")
+            .accessibilityHint(
+                set.isCompleted
+                    ? "This set has already been logged"
+                    : "Logs \(set.reps) reps and starts the rest timer when enabled"
+            )
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
@@ -270,23 +283,37 @@ struct SetRow: View {
                       : (set.isWarmup ? Color.orange.opacity(0.08) : Color(.secondarySystemBackground)))
         )
     }
+
+    private var spokenSetLabel: String {
+        return set.isWarmup ? "warmup \(label.dropFirst())" : "set \(label)"
+    }
 }
 
 /// A stepper with - value + laid out compactly.
 struct StepValue: View {
     let text: String
+    let valueAccessibilityLabel: String
+    let minusAccessibilityLabel: String
+    let plusAccessibilityLabel: String
+    let adjustmentHint: String
     let onMinus: () -> Void
     let onPlus: () -> Void
     var body: some View {
         HStack(spacing: 6) {
             Button(action: onMinus) { Image(systemName: "minus") }
+                .accessibilityLabel(minusAccessibilityLabel)
+                .accessibilityHint(adjustmentHint)
             Text(text)
                 .font(.subheadline.monospacedDigit().weight(.medium))
                 .frame(minWidth: 52)
+                .accessibilityLabel(valueAccessibilityLabel)
             Button(action: onPlus) { Image(systemName: "plus") }
+                .accessibilityLabel(plusAccessibilityLabel)
+                .accessibilityHint(adjustmentHint)
         }
         .buttonStyle(.borderless)
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
     }
 }
 
