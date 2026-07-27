@@ -4,7 +4,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var active: ActiveWorkoutManager
     @ObservedObject private var connectivity = ConnectivityManager.shared
-    @State private var todayTemplate: WorkoutTemplate?
+    @State private var openedRoutine: GymSessionRoutine?
 
     var body: some View {
         NavigationStack {
@@ -20,13 +20,8 @@ struct HomeView: View {
             }
             .navigationTitle("AruLifts")
             .background(Color(.systemGroupedBackground))
-            .sheet(item: $todayTemplate) { template in
-                TodayWorkoutSetupView(
-                    template: template,
-                    library: store.exerciseIndex,
-                    settings: store.settings
-                )
-                .environmentObject(active)
+            .sheet(item: $openedRoutine) { routine in
+                RoutineComposerView(routine: routine)
             }
         }
     }
@@ -115,67 +110,94 @@ struct HomeView: View {
                 .font(.title2.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if store.templates.isEmpty {
+            if store.gymRoutines.isEmpty {
                 Card {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("No workouts yet")
+                        Text("No gym routines yet")
                             .font(.headline)
-                        Text("Create your first workout in the Workouts tab.")
+                        Text("Create your first gym session routine in the Workouts tab.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
             } else {
-                ForEach(store.templates) { template in
-                    TemplateRowButton(template: template) {
-                        todayTemplate = template
+                ForEach(store.gymRoutines) { routine in
+                    RoutineRowButton(
+                        routine: routine,
+                        onOpen: { openedRoutine = routine },
+                        onStart: { start(routine) }
+                    )
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            store.deleteGymRoutine(routine)
+                        } label: {
+                            Label("Delete Routine", systemImage: "trash")
+                        }
                     }
                 }
             }
         }
     }
 
+    private func start(_ routine: GymSessionRoutine) {
+        let session = WorkoutSession.from(
+            routine: routine,
+            templates: store.templates,
+            library: store.exerciseIndex,
+            settings: store.settings
+        )
+        active.start(session)
+    }
 }
 
-/// A tappable card that starts a workout from a template.
-struct TemplateRowButton: View {
-    let template: WorkoutTemplate
-    let action: () -> Void
+/// A gym session routine card with two independent tap targets: the card body
+/// opens the routine in `RoutineComposerView` (read-only), while the play
+/// button starts the multi-phase session immediately.
+struct RoutineRowButton: View {
+    let routine: GymSessionRoutine
+    let onOpen: () -> Void
+    let onStart: () -> Void
 
     private var subtitle: String {
-        var parts = [countLabel(template.exerciseCount, "exercise")]
-        if template.totalSets > 0 { parts.append(countLabel(template.totalSets, "set")) }
-        parts.append("~\(template.estimatedMinutes) min")
-        return parts.joined(separator: " · ")
+        "~\(routine.estimatedTotalMinutes) min · \(routine.enabledPhases.count) phases"
     }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(template.category.color.opacity(0.18))
-                        .frame(width: 46, height: 46)
-                    Image(systemName: template.category.symbol)
-                        .foregroundStyle(template.category.color)
+        HStack(spacing: 14) {
+            Button(action: onOpen) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.orange.opacity(0.18))
+                            .frame(width: 46, height: 46)
+                        Image(systemName: "flame.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(routine.name)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
                 }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(template.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens routine details")
+
+            Button(action: onStart) {
                 Image(systemName: "play.circle.fill")
                     .font(.title)
                     .foregroundStyle(.orange)
             }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(.secondarySystemBackground)))
+            .buttonStyle(.plain)
+            .accessibilityLabel("Start \(routine.name)")
         }
-        .buttonStyle(.plain)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(.secondarySystemBackground)))
     }
 }
 

@@ -118,7 +118,6 @@ struct ActiveWorkoutView: View {
                         SetLogList(exerciseIndex: idx)
                             .padding()
                             .padding(.bottom, 16)
-                            .disabled(!active.canEdit)
                             .opacity(active.canEdit ? 1 : 0.72)
                     }
                 }

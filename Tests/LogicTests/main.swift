@@ -831,6 +831,29 @@ expect(routineSession.phases.count == 7, "multi-phase session retains 7 phase lo
 expect(routineSession.currentPhaseIndex == 0, "session starts at phase 0")
 expect(routineSession.currentPhase?.phaseType == .preCardio, "first phase is pre-workout cardio")
 
+// Issue #78: a template linked to ANY phase must contribute its exercises to
+// the session, not just the main-strength phase.
+if let cardioTemplate = defaultTemplates.first(where: { !$0.exercises.isEmpty }) {
+    var linkedRoutine = GymSessionRoutine.defaultCompleteGymVisit()
+    if let cardioIdx = linkedRoutine.phases.firstIndex(where: { $0.phaseType == .preCardio }) {
+        linkedRoutine.phases[cardioIdx].templateID = cardioTemplate.id
+        let linkedSession = WorkoutSession.from(
+            routine: linkedRoutine,
+            templates: defaultTemplates,
+            library: ExerciseLibrary.byID
+        )
+        let cardioPhaseLog = linkedSession.phases.first(where: { $0.phaseType == .preCardio })
+        expect(
+            cardioPhaseLog?.exercises.count == cardioTemplate.exercises.count,
+            "template linked to a non-strength phase populates that phase's exercises"
+        )
+        expect(
+            cardioPhaseLog?.exercises.first?.name == cardioTemplate.exercises.first?.name,
+            "linked non-strength phase pulls exercises from the correct template"
+        )
+    }
+}
+
 if let routineData = try? JSONEncoder().encode(defaultRoutine),
    let decodedRoutine = try? JSONDecoder().decode(GymSessionRoutine.self, from: routineData) {
     expect(decodedRoutine.name == defaultRoutine.name && decodedRoutine.phases.count == 7, "GymSessionRoutine JSON encode/decode round-trip")
