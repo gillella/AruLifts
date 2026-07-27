@@ -12,21 +12,22 @@ struct ActiveWorkoutView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
+            ZStack {
                 if let session = active.session {
                     content(for: session)
                 } else {
                     Color(.systemGroupedBackground).ignoresSafeArea()
                 }
-
-                if active.restTimer.isRunning {
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if isRestPresented {
                     RestTimerBar(timer: active.restTimer)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.spring(duration: 0.35), value: active.restTimer.isRunning)
+            .animation(.spring(duration: 0.35), value: isRestPresented)
             .navigationTitle(active.session?.name ?? "Workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -103,7 +104,7 @@ struct ActiveWorkoutView: View {
                 if let idx = currentIndex(in: session) {
                     SetLogList(exerciseIndex: idx)
                         .padding()
-                        .padding(.bottom, active.restTimer.isRunning ? 90 : 16)
+                        .padding(.bottom, 16)
                         .disabled(!active.canEdit)
                         .opacity(active.canEdit ? 1 : 0.72)
                 }
@@ -217,6 +218,10 @@ struct ActiveWorkoutView: View {
     private func currentIndex(in session: WorkoutSession) -> Int? {
         guard session.exercises.indices.contains(active.currentExerciseIndex) else { return nil }
         return active.currentExerciseIndex
+    }
+
+    private var isRestPresented: Bool {
+        active.restTimer.isRunning || active.restTimer.isPaused
     }
 }
 

@@ -322,106 +322,296 @@ struct StepValue: View {
 struct RestTimerBar: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
     @ObservedObject var timer: RestTimerManager
+    @State private var showingExpandedTimer = false
 
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle().stroke(Color.white.opacity(0.25), lineWidth: 4)
-                Circle()
-                    .trim(from: 0, to: timer.progress)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Image(systemName: "timer").foregroundStyle(.white).font(.footnote)
-            }
-            .frame(width: 38, height: 38)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    showingExpandedTimer = true
+                } label: {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .stroke(Color.orange.opacity(0.18), lineWidth: 4)
+                            Circle()
+                                .trim(from: 0, to: timer.progress)
+                                .stroke(
+                                    Color.orange,
+                                    style: StrokeStyle(
+                                        lineWidth: 4,
+                                        lineCap: .round
+                                    )
+                                )
+                                .rotationEffect(.degrees(-90))
+                                .animation(
+                                    .linear(duration: 0.5),
+                                    value: timer.progress
+                                )
+                            Image(systemName: timer.isPaused ? "pause.fill" : "timer")
+                                .foregroundStyle(.orange)
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .frame(width: 42, height: 42)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Resting").font(.caption).foregroundStyle(.white.opacity(0.8))
-                Text(timer.formattedRemaining)
-                    .font(.title2.monospacedDigit().bold())
-                    .foregroundStyle(.white)
-            }
-            Spacer(minLength: 4)
-            controls
-        }
-        .foregroundStyle(.white)
-        .padding(14)
-        .background(Color.orange, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(radius: 8, y: 4)
-    }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(timer.isPaused ? "Rest paused" : "Resting")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(timer.formattedRemaining)
+                                .font(.title2.monospacedDigit().bold())
+                                .foregroundStyle(.primary)
+                                .contentTransition(.numericText())
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    "\(timer.isPaused ? "Rest paused" : "Resting"), \(timer.formattedRemaining) remaining"
+                )
+                .accessibilityHint("Opens the focused rest timer")
 
-    /// The full control row remains available when it fits. On compact phones,
-    /// the secondary controls move into a menu rather than clipping beyond the
-    /// timer bar's rounded container.
-    @ViewBuilder
-    private var controls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
-                pauseButton
-                resetButton
-                addTimeButton
-                skipButton
-            }
-            .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 2)
 
-            HStack(spacing: 6) {
-                pauseButton
+                Button {
+                    active.addRest(seconds: 30)
+                } label: {
+                    Text("+30")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minWidth: 42, minHeight: 36)
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .disabled(!active.canEdit)
+                .accessibilityLabel("Add 30 seconds")
+
+                Button {
+                    active.skipRest()
+                } label: {
+                    Text("Skip")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minWidth: 42, minHeight: 36)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .disabled(!active.canEdit)
+
                 Menu {
-                    Button("Add 30 seconds", systemImage: "plus") {
-                        active.addRest(seconds: 30)
+                    Button {
+                        active.toggleRestPause()
+                    } label: {
+                        Label(
+                            timer.isPaused ? "Resume rest" : "Pause rest",
+                            systemImage: timer.isPaused
+                                ? "play.fill"
+                                : "pause.fill"
+                        )
                     }
-                    Button("Reset rest timer", systemImage: "arrow.counterclockwise") {
+                    Button {
                         active.resetRest()
-                    }
-                    Button("Skip rest", systemImage: "forward.end.fill", role: .destructive) {
-                        active.skipRest()
+                    } label: {
+                        Label(
+                            "Reset rest timer",
+                            systemImage: "arrow.counterclockwise"
+                        )
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .padding(8)
-                        .background(.white.opacity(0.2), in: Circle())
+                        .font(.headline)
+                        .frame(width: 36, height: 36)
                 }
-                .accessibilityLabel("More rest timer controls")
+                .buttonStyle(.bordered)
+                .tint(.secondary)
                 .disabled(!active.canEdit)
+                .accessibilityLabel("More rest timer controls")
             }
-            .fixedSize(horizontal: true, vertical: false)
+
+            if let nextSetDescription {
+                HStack(spacing: 5) {
+                    Text("UP NEXT")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.orange)
+                    Text(nextSetDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 8)
+            }
+
+            GeometryReader { proxy in
+                Capsule()
+                    .fill(Color.orange)
+                    .frame(
+                        width: proxy.size.width * min(max(timer.progress, 0), 1)
+                    )
+            }
+            .frame(height: 3)
+            .background(Color.orange.opacity(0.14), in: Capsule())
+            .padding(.top, 9)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.orange.opacity(0.28), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.14), radius: 10, y: 5)
+        .fullScreenCover(isPresented: $showingExpandedTimer) {
+            FocusedRestTimerView(timer: timer)
+                .environmentObject(active)
         }
     }
 
-    private var pauseButton: some View {
-        Button { active.toggleRestPause() } label: {
-            Text(timer.isPaused ? "Resume" : "Pause")
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(.white.opacity(0.2), in: Capsule())
+    private var nextSetDescription: String? {
+        guard let exercise = active.currentExercise,
+              let index = exercise.sets.firstIndex(where: { !$0.isCompleted })
+        else {
+            return nil
         }
-        .disabled(!active.canEdit)
+        let set = exercise.sets[index]
+        let number =
+            exercise.sets.prefix(index).filter { !$0.isWarmup }.count + 1
+        if exercise.usesWeight {
+            let weight = WeightFormatter.number(set.weight)
+            let load = exercise.loadingMode == .bodyweight
+                ? "+\(weight)"
+                : weight
+            return "\(exercise.name) · Set \(number) · \(load) × \(set.reps)"
+        }
+        return "\(exercise.name) · Set \(number) · \(set.reps) reps"
+    }
+}
+
+/// Optional focused presentation for users who want the countdown visible from
+/// across the gym. The compact card remains the default workout experience.
+private struct FocusedRestTimerView: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var timer: RestTimerManager
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 28) {
+                Spacer()
+
+                Text(timer.isPaused ? "REST PAUSED" : "REST")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.secondary)
+
+                ZStack {
+                    Circle()
+                        .stroke(Color.orange.opacity(0.14), lineWidth: 18)
+                    Circle()
+                        .trim(from: 0, to: timer.progress)
+                        .stroke(
+                            Color.orange.gradient,
+                            style: StrokeStyle(lineWidth: 18, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 0.5), value: timer.progress)
+                    VStack(spacing: 3) {
+                        Text(timer.formattedRemaining)
+                            .font(.system(size: 64, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        Text("remaining")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: 270)
+                .aspectRatio(1, contentMode: .fit)
+
+                if let nextSetDescription {
+                    VStack(spacing: 5) {
+                        Text("UP NEXT")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.orange)
+                        Text(nextSetDescription)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .padding(.horizontal)
+                }
+
+                HStack(spacing: 12) {
+                    Button {
+                        active.toggleRestPause()
+                    } label: {
+                        Label(
+                            timer.isPaused ? "Resume" : "Pause",
+                            systemImage: timer.isPaused ? "play.fill" : "pause.fill"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        active.addRest(seconds: 30)
+                    } label: {
+                        Label("30 sec", systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
+
+                    Button {
+                        active.skipRest()
+                        dismiss()
+                    } label: {
+                        Label("Skip", systemImage: "forward.end.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                }
+                .disabled(!active.canEdit)
+
+                Button {
+                    active.resetRest()
+                } label: {
+                    Label("Reset timer", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .disabled(!active.canEdit)
+
+                Spacer()
+            }
+            .padding(24)
+            .background(Color(.systemBackground).ignoresSafeArea())
+            .navigationTitle("Rest Timer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 
-    private var resetButton: some View {
-        Button { active.resetRest() } label: {
-            Image(systemName: "arrow.counterclockwise")
-                .padding(8).background(.white.opacity(0.2), in: Circle())
+    private var nextSetDescription: String? {
+        guard let exercise = active.currentExercise,
+              let index = exercise.sets.firstIndex(where: { !$0.isCompleted })
+        else {
+            return nil
         }
-        .accessibilityLabel("Reset rest timer")
-        .disabled(!active.canEdit)
-    }
-
-    private var addTimeButton: some View {
-        Button { active.addRest(seconds: 30) } label: {
-            Text("+30s").font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(.white.opacity(0.2), in: Capsule())
+        let set = exercise.sets[index]
+        let number =
+            exercise.sets.prefix(index).filter { !$0.isWarmup }.count + 1
+        if exercise.usesWeight {
+            let weight = WeightFormatter.number(set.weight)
+            let load = exercise.loadingMode == .bodyweight
+                ? "+\(weight)"
+                : weight
+            return "\(exercise.name) · Set \(number) · \(load) × \(set.reps)"
         }
-        .disabled(!active.canEdit)
-    }
-
-    private var skipButton: some View {
-        Button { active.skipRest() } label: {
-            Text("Skip").font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(.white.opacity(0.2), in: Capsule())
-        }
-        .disabled(!active.canEdit)
+        return "\(exercise.name) · Set \(number) · \(set.reps) reps"
     }
 }
