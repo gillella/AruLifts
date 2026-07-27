@@ -110,7 +110,10 @@ struct ActiveWorkoutView: View {
                 }
             }
 
-            if !session.exercises.isEmpty {
+            // Scoped to the phase in progress: a cardio or sauna phase with no
+            // exercises of its own shows its timer and guidance, never the next
+            // phase's lifts.
+            if !session.currentPhaseExerciseIndices.isEmpty {
                 ExercisePager(session: session)
 
                 ScrollView {
@@ -129,8 +132,14 @@ struct ActiveWorkoutView: View {
                         .foregroundStyle(.orange)
                     Text(session.currentPhase?.name ?? "Phase Active")
                         .font(.title2.bold())
-                    Text("Focus on timed recovery or exercises for this phase.")
-                        .font(.subheadline)
+                    if let names = session.currentPhase?.exerciseNames, !names.isEmpty {
+                        Text(names.joined(separator: " • "))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    Text("No logged exercises in this phase — use the timer above, then tap Next Phase when you're ready.")
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     Spacer()

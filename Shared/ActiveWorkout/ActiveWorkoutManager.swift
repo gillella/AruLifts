@@ -539,6 +539,13 @@ final class ActiveWorkoutManager: ObservableObject {
 
     var currentExercise: SessionExercise? {
         guard let session, session.exercises.indices.contains(currentExerciseIndex) else { return nil }
+        // Only surface an exercise belonging to the phase in progress. A timed
+        // phase with no exercises of its own (cardio, sauna) must show its
+        // timer, not the next phase's first lift.
+        if session.isMultiPhase,
+           session.exercises[currentExerciseIndex].phaseIndex != session.currentPhaseIndex {
+            return nil
+        }
         return session.exercises[currentExerciseIndex]
     }
 

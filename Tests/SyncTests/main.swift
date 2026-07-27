@@ -891,6 +891,40 @@ MainActor.assumeIsolated {
     )
     expect(!manager.hasNextExerciseInPhase, "no next exercise reported at the phase boundary")
 
+    // A phase with no exercises of its own must not surface another phase's
+    // work. The default routine's cardio phase has no linked template, so
+    // starting it should show the phase card, not the first strength lift.
+    let bareRoutineSession = WorkoutSession.from(
+        routine: GymSessionRoutine.defaultCompleteGymVisit(templates: templates),
+        templates: templates,
+        library: ExerciseLibrary.byID
+    )
+    let bare = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("barePhase"))
+    )
+    bare.start(bareRoutineSession, broadcast: false)
+    if bareRoutineSession.exerciseIndices(inPhase: 0).isEmpty {
+        expect(
+            bare.currentExercise == nil,
+            "a phase with no exercises shows no exercise, not the next phase's work"
+        )
+    }
+    // Advancing to a phase that does have exercises surfaces them again.
+    if let populated = bareRoutineSession.phases.indices.first(where: {
+        !bareRoutineSession.exerciseIndices(inPhase: $0).isEmpty
+    }) {
+        bare.selectPhase(at: populated)
+        expect(
+            bare.currentExercise != nil,
+            "selecting a phase that has exercises surfaces that phase's work"
+        )
+        expect(
+            bare.currentExercise?.phaseIndex == populated,
+            "the surfaced exercise belongs to the selected phase"
+        )
+    }
+
     // Advancing the phase is what moves you on — and it repositions the exercise.
     manager.advancePhase()
     let phase1 = manager.session?.exerciseIndices(inPhase: 1) ?? []
