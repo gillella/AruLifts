@@ -68,6 +68,18 @@ struct RestTimerAlertConfiguration: Codable, Hashable {
     static let `default` = RestTimerAlertConfiguration(alertsEnabled: true, style: .soundAndHaptic, earlyCueEnabled: true, earlyCueLeadSeconds: 10)
 }
 
+struct PhaseTimerSnapshot: Codable, Hashable {
+    var endDate: Date
+    var totalSeconds: Int
+    var pausedRemainingSeconds: Int?
+
+    init(endDate: Date, totalSeconds: Int, pausedRemainingSeconds: Int? = nil) {
+        self.endDate = endDate
+        self.totalSeconds = totalSeconds
+        self.pausedRemainingSeconds = pausedRemainingSeconds
+    }
+}
+
 /// One self-contained, atomically persisted/published view of a workout.
 struct WorkoutReplica: Codable, Hashable {
     var session: WorkoutSession
@@ -77,6 +89,7 @@ struct WorkoutReplica: Codable, Hashable {
     var restTimer: RestTimerSnapshot?
     var isWorkoutPaused: Bool
     var healthRecorder: WorkoutDevice?
+    var phaseTimer: PhaseTimerSnapshot?
 
     init(
         session: WorkoutSession,
@@ -85,7 +98,8 @@ struct WorkoutReplica: Codable, Hashable {
         currentExerciseIndex: Int = 0,
         restTimer: RestTimerSnapshot? = nil,
         isWorkoutPaused: Bool = false,
-        healthRecorder: WorkoutDevice? = nil
+        healthRecorder: WorkoutDevice? = nil,
+        phaseTimer: PhaseTimerSnapshot? = nil
     ) {
         self.session = session
         self.owner = owner
@@ -94,11 +108,12 @@ struct WorkoutReplica: Codable, Hashable {
         self.restTimer = restTimer
         self.isWorkoutPaused = isWorkoutPaused
         self.healthRecorder = healthRecorder
+        self.phaseTimer = phaseTimer
     }
 
     private enum CodingKeys: String, CodingKey {
         case session, owner, version, currentExerciseIndex, restTimer
-        case isWorkoutPaused, healthRecorder
+        case isWorkoutPaused, healthRecorder, phaseTimer
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +129,7 @@ struct WorkoutReplica: Codable, Hashable {
         healthRecorder = try c.decodeIfPresent(
             WorkoutDevice.self, forKey: .healthRecorder
         )
+        phaseTimer = try c.decodeIfPresent(PhaseTimerSnapshot.self, forKey: .phaseTimer)
     }
 }
 

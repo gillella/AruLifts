@@ -21,5 +21,7 @@ swiftc -o "$OUT" \
   Shared/ActiveWorkout/Warmup.swift \
   Shared/ActiveWorkout/PlateCalculator.swift \
   Shared/ActiveWorkout/Records.swift \
+  Shared/ActiveWorkout/PhaseTimerManager.swift \
+  Shared/Views/PhaseVisualHelper.swift \
   Tests/LogicTests/main.swift
 exec "$OUT"

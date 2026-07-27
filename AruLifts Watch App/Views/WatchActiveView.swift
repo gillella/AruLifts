@@ -115,6 +115,10 @@ struct WatchActiveView: View {
         .sheet(isPresented: $showingOverview) {
             workoutOverview
         }
+        .sheet(isPresented: $active.showingPhaseTransitionModal) {
+            WatchPhaseTransitionSheet()
+                .environmentObject(active)
+        }
         .confirmationDialog(
             incompleteSetCount == 0 ? "Finish this workout?" : "Finish with \(incompleteSetCount) sets incomplete?",
             isPresented: $showingFinishConfirmation,
@@ -136,10 +140,15 @@ struct WatchActiveView: View {
 
     private func header(_ exercise: SessionExercise) -> some View {
         VStack(spacing: 1) {
-            Text(exercise.name)
-                .font(.headline)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+            HStack(spacing: 4) {
+                Image(systemName: PhaseVisualHelper.iconSymbol(for: exercise.name))
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+                Text(exercise.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
 
             HStack(spacing: 6) {
                 Text("\(exercise.completedSets) of \(exercise.sets.count) sets")
@@ -501,17 +510,54 @@ struct WatchActiveView: View {
         VStack(spacing: 8) {
             if let phase = session.currentPhase {
                 VStack(spacing: 4) {
-                    Image(systemName: phase.phaseType.iconSymbol)
+                    Image(systemName: PhaseVisualHelper.iconSymbol(for: phase.name, phaseType: phase.phaseType))
                         .font(.title2)
                         .foregroundStyle(phase.phaseType.color)
                     Text(phase.name)
                         .font(.headline)
                         .multilineTextAlignment(.center)
-                    if phase.durationSeconds > 0 {
+
+                    if phase.phaseType.isTimed {
+                        Text(formatTime(active.phaseTimer.secondsRemaining))
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .foregroundStyle(active.phaseTimer.isPaused ? .secondary : .orange)
+
+                        HStack(spacing: 6) {
+                            Button {
+                                active.adjustPhaseTimer(by: -60)
+                            } label: {
+                                Text("-1m").font(.caption2)
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                active.togglePhaseTimerPause()
+                            } label: {
+                                Image(systemName: active.phaseTimer.isRunning ? "pause.fill" : "play.fill")
+                                    .font(.caption2.bold())
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+
+                            Button {
+                                active.adjustPhaseTimer(by: 60)
+                            } label: {
+                                Text("+1m").font(.caption2)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    } else if phase.durationSeconds > 0 {
                         Text("\(phase.durationSeconds / 60) min target")
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
                     }
+
+                    if phase.phaseType == .saunaRecovery || phase.phaseType == .steamRecovery {
+                        Label("Hydrate: Drink 500ml", systemImage: "drop.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.blue)
+                    }
+
                     if !phase.notes.isEmpty {
                         Text(phase.notes)
                             .font(.caption2)
@@ -545,6 +591,12 @@ struct WatchActiveView: View {
             }
         }
         .padding(8)
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        let m = seconds / 60
+        let s = seconds % 60
+        return String(format: "%02d:%02d", m, s)
     }
 
     /// Live heart rate from the Watch workout session; hidden until HealthKit

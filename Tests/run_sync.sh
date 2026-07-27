@@ -28,6 +28,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 swiftc -o "$APP/Contents/MacOS/AruLiftsSyncTests" \
   Shared/Models/WorkoutTemplate.swift \
+  Shared/Models/GymSessionRoutine.swift \
   Shared/Models/WorkoutSession.swift \
   Shared/Models/WorkoutSyncModels.swift \
   Shared/Models/WatchStartableWorkout.swift \
@@ -44,7 +45,9 @@ swiftc -o "$APP/Contents/MacOS/AruLiftsSyncTests" \
   Shared/ActiveWorkout/PlateCalculator.swift \
   Shared/ActiveWorkout/Records.swift \
   Shared/ActiveWorkout/RestTimerManager.swift \
+  Shared/ActiveWorkout/PhaseTimerManager.swift \
   Shared/ActiveWorkout/ActiveWorkoutManager.swift \
+  Shared/Views/PhaseVisualHelper.swift \
   Shared/LiveActivity/WorkoutActivityAttributes.swift \
   Shared/LiveActivity/WorkoutLiveActivityManager.swift \
   Tests/SyncTests/main.swift
