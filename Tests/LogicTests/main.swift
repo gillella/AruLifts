@@ -486,44 +486,42 @@ expect(
     "ownership transfer advances epoch and resets revision"
 )
 
-// 47. Replicas accept only newer state and terminal tombstones always win.
-let syncSession = WorkoutSession(name: "Watch-first test")
-let initialReplica = WorkoutReplica(session: syncSession, owner: .phone)
-let watchReplica = WorkoutReplica(
-    session: syncSession,
+// 47. Active runtime, outbox and tombstones survive an atomic disk round-trip.
+let runtimeSession = WorkoutSession(name: "Runtime persistence")
+let runtimeReplica = WorkoutReplica(
+    session: runtimeSession,
     owner: .watch,
-    version: initialReplica.version.transferred(),
+    version: SessionVersion.initial.transferred(),
     healthRecorder: .watch
 )
-var runtime = WorkoutRuntimeState(activeReplica: initialReplica, authorityState: .offeringTransfer)
-expect(runtime.accepts(watchReplica), "newer Watch-owned replica accepted")
-expect(!runtime.accepts(initialReplica), "duplicate replica rejected")
-runtime.terminalSessions[syncSession.id] = WorkoutTombstone(
-    sessionID: syncSession.id,
-    finalVersion: watchReplica.version,
+var runtime = WorkoutRuntimeState(
+    activeReplica: runtimeReplica,
+    authorityState: .authoritative
+)
+runtime.terminalSessions[runtimeSession.id] = WorkoutTombstone(
+    sessionID: runtimeSession.id,
+    finalVersion: runtimeReplica.version,
     finished: true,
     createdAt: Date()
 )
-expect(!runtime.accepts(watchReplica), "terminal tombstone rejects later replica")
-
-// 48. Active runtime, outbox and tombstones survive an atomic disk round-trip.
 let runtimeDir = FileManager.default.temporaryDirectory
     .appendingPathComponent("arulifts-runtime-\(UUID().uuidString)")
 let runtimeRepo = ActiveWorkoutRepository(directory: runtimeDir)
 let pending = PendingWorkoutMessage(payload: Data("event".utf8))
-runtime.activeReplica = watchReplica
-runtime.authorityState = .authoritative
 runtime.syncStatus = .waitingForPhone
 runtime.outbox = [pending]
 expect(runtimeRepo.save(runtime), "active runtime persisted atomically")
 let restoredRuntime = runtimeRepo.load()
-expect(restoredRuntime.activeReplica == watchReplica, "active replica restored")
+expect(restoredRuntime.activeReplica == runtimeReplica, "active replica restored")
 expect(restoredRuntime.outbox == [pending], "durable outbox restored")
-expect(restoredRuntime.terminalSessions[syncSession.id]?.finished == true, "tombstone restored")
+expect(
+    restoredRuntime.terminalSessions[runtimeSession.id]?.finished == true,
+    "tombstone restored"
+)
 runtimeRepo.removeFile()
 try? FileManager.default.removeItem(at: runtimeDir)
 
-// 49. Phone-start handoff is two-phase and acceptance is durable on Watch.
+// 48. Phone-start handoff is two-phase and acceptance is durable on Watch.
 let syncRoot = FileManager.default.temporaryDirectory
     .appendingPathComponent("arulifts-sync-\(UUID().uuidString)")
 let phoneRepository = ActiveWorkoutRepository(directory: syncRoot.appendingPathComponent("phone"))
@@ -566,7 +564,7 @@ expect(
     "Watch edits only after transfer commit"
 )
 
-// 50. Application acknowledgments are idempotent.
+// 49. Application acknowledgments are idempotent.
 let receiptAck = watchWire.last { $0.kind == .acknowledgment }!
 expect(
     phoneCoordinator.receive(receiptAck) == .applied,
@@ -577,7 +575,7 @@ expect(
     "duplicate application ack is harmless"
 )
 
-// 51. Former-owner epochs and revision gaps cannot mutate the mirror.
+// 50. Former-owner epochs and revision gaps cannot mutate the mirror.
 var staleReplica = phoneCoordinator.replica!
 staleReplica.owner = .phone
 staleReplica.version = SessionVersion(ownershipEpoch: 0, revision: 99)
@@ -611,7 +609,7 @@ let revisionOneEnvelope = try! WorkoutMessageEnvelope(
 expect(phoneCoordinator.receive(revisionOneEnvelope) == .stale, "older checkpoint cannot overwrite convergence")
 expect(phoneCoordinator.receive(gapEnvelope) == .duplicate, "duplicate newer checkpoint is harmless")
 
-// 52. Terminal state is self-contained, persisted, and wins permanently.
+// 51. Terminal state is self-contained, persisted, and wins permanently.
 let terminal = WorkoutTombstone(
     sessionID: handoffSession.id,
     finalVersion: gapReplica.version,
@@ -645,7 +643,7 @@ expect(
     "tombstone prevents resurrection"
 )
 
-// 53. Watch ownership and unknown wire kinds both survive decoding/relaunch.
+// 52. Watch ownership and unknown wire kinds both survive decoding/relaunch.
 let restoredWatchCoordinator = WorkoutSyncCoordinator(
     localDevice: .watch,
     repository: watchRepository
@@ -671,7 +669,7 @@ expect(
 )
 try? FileManager.default.removeItem(at: syncRoot)
 
-// 54. Phone takeover is also an acknowledged ownership-epoch transfer.
+// 53. Phone takeover is also an acknowledged ownership-epoch transfer.
 let takeoverRoot = FileManager.default.temporaryDirectory
     .appendingPathComponent("arulifts-takeover-\(UUID().uuidString)")
 var takeoverWatchWire: [WorkoutMessageEnvelope] = []
@@ -724,7 +722,7 @@ expect(
 )
 try? FileManager.default.removeItem(at: takeoverRoot)
 
-// 55. Cached Watch plans preserve their template relation while every offline
+// 54. Cached Watch plans preserve their template relation while every offline
 // start creates fresh transient identities.
 let watchPlan = WatchStartableWorkout(template: template, library: ExerciseLibrary.byID, settings: AppSettings())
 let watchAttemptA = watchPlan.makeFreshSession(at: Date(timeIntervalSinceReferenceDate: 1))
@@ -756,7 +754,7 @@ expect(
     "Watch plan cache retains units, rest behavior, and plates"
 )
 
-// 56. New recovery metadata remains compatible with sessions saved before it.
+// 55. New recovery metadata remains compatible with sessions saved before it.
 let legacySetData = """
 {"id":"00000000-0000-0000-0000-000000000056","reps":4,"weight":100,"isCompleted":false,"isWarmup":false}
 """.data(using: .utf8)!
@@ -775,7 +773,7 @@ expect(
     "paused rest remaining duration survives replication"
 )
 
-// 57. Form media kind drives the full-screen viewer's expand affordance (#27).
+// 56. Form media kind drives the full-screen viewer's expand affordance (#27).
 var mediaProbe = ExerciseLibrary.all[0]
 mediaProbe.videoName = nil
 mediaProbe.videoURL = nil

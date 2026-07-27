@@ -777,6 +777,62 @@ MainActor.assumeIsolated {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Replica acceptance, asserted against the coordinator that actually decides.
+//
+// These replace assertions that used to run against `WorkoutRuntimeState
+// .accepts(_:)`, a helper no device ever called. Two of its three rules are
+// covered elsewhere (tombstones above, newer-session adoption further up);
+// what was missing was duplicate handling and the ownership-epoch rule, and
+// the latter is where the dead helper actively disagreed with the app.
+// ---------------------------------------------------------------------------
+
+let (acceptWatch, acceptWire) = makeCoordinator(.watch, "accept-watch")
+var acceptSession = makeSession(name: "Acceptance")
+expect(acceptWatch.start(acceptSession), "watch starts the workout")
+acceptSession.exercises[0].sets[0].isCompleted = true
+_ = acceptWatch.mutate(
+    session: acceptSession, currentExerciseIndex: 0,
+    restTimer: nil, isWorkoutPaused: false
+)
+
+let (acceptPhone, _) = makeCoordinator(.phone, "accept-phone")
+let acceptCheckpoint = acceptWire.last(.checkpoint)!
+expect(acceptPhone.receive(acceptCheckpoint) == .applied, "phone adopts the checkpoint")
+
+// Re-delivery of the very same envelope is a duplicate, not a fresh apply, and
+// must still be acknowledged so the sender can retire it from its outbox.
+expect(
+    acceptPhone.receive(acceptCheckpoint) == .duplicate,
+    "the same checkpoint delivered twice is a duplicate"
+)
+let adoptedVersion = (try? acceptCheckpoint.decodePayload(WorkoutCheckpoint.self))?
+    .replica.version
+expect(
+    adoptedVersion != nil && acceptPhone.replica?.version == adoptedVersion,
+    "a duplicate leaves the adopted version untouched"
+)
+
+// A replica carrying a *different* ownership epoch cannot arrive as a plain
+// checkpoint: ownership only ever moves through the offer/acceptance/commit
+// handshake. This is the rule the deleted helper got wrong.
+let epochJumped = try! WorkoutMessageEnvelope(
+    kind: .checkpoint,
+    sender: .watch,
+    sessionID: acceptSession.id,
+    payload: WorkoutCheckpoint(
+        replica: WorkoutReplica(
+            session: acceptSession,
+            owner: .watch,
+            version: SessionVersion(ownershipEpoch: 9, revision: 0)
+        )
+    )
+)
+expect(
+    acceptPhone.receive(epochJumped) == .stale,
+    "a checkpoint from another ownership epoch is rejected, not adopted"
+)
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)
