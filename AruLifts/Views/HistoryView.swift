@@ -118,6 +118,32 @@ struct SessionDetailView: View {
                 LabeledContent("Sets completed", value: "\(session.completedSets)/\(session.totalSets)")
                 LabeledContent("Total volume", value: formatWeight(session.totalVolume, units: store.settings.units))
             }
+
+            if session.isMultiPhase {
+                Section("7-Phase Gym Session Breakdown") {
+                    ForEach(Array(session.phases.enumerated()), id: \.element.id) { idx, phase in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(phase.phaseType.color.opacity(0.18)).frame(width: 32, height: 32)
+                                Image(systemName: phase.phaseType.iconSymbol)
+                                    .font(.caption)
+                                    .foregroundStyle(phase.phaseType.color)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Phase \(idx + 1): \(phase.name)").font(.subheadline.bold())
+                                if !phase.exerciseNames.isEmpty {
+                                    Text(phase.exerciseNames.joined(separator: ", "))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Text("\(phase.durationSeconds / 60) min")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
             Section("Notes") {
                 TextField("How did it go?", text: $notesDraft, axis: .vertical)
                     .lineLimit(2...6)

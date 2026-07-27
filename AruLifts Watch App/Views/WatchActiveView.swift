@@ -23,6 +23,28 @@ struct WatchActiveView: View {
 
     var body: some View {
         VStack(spacing: 7) {
+            if let session = active.session, session.isMultiPhase {
+                HStack(spacing: 4) {
+                    Image(systemName: session.currentPhase?.phaseType.iconSymbol ?? "flame.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption2)
+                    Text("P\(session.currentPhaseIndex + 1)/\(session.phases.count): \(session.currentPhase?.name ?? "")")
+                        .font(.caption2.bold())
+                        .lineLimit(1)
+                    Spacer()
+                    Button {
+                        active.advancePhase()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+            }
+
             if let exercise {
                 header(exercise)
 

@@ -109,40 +109,67 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
     /// Free-text session note ("felt heavy", "new gym"…).
     var notes: String
 
+    /// Optional link to the GymSessionRoutine if started from a multi-phase routine.
+    var routineID: UUID?
+    /// Multi-phase breakdown for complex gym visits (cardio, warm-up, lifting, stretch, core, sauna, steam).
+    var phases: [GymSessionLogPhase]
+    /// Index of the current active phase during a multi-phase session.
+    var currentPhaseIndex: Int
+
     init(
         id: UUID = UUID(),
         templateID: UUID? = nil,
+        routineID: UUID? = nil,
         name: String,
         category: WorkoutCategory = .custom,
         exercises: [SessionExercise] = [],
+        phases: [GymSessionLogPhase] = [],
+        currentPhaseIndex: Int = 0,
         startedAt: Date = Date(),
         finishedAt: Date? = nil,
         notes: String = ""
     ) {
         self.id = id
         self.templateID = templateID
+        self.routineID = routineID
         self.name = name
         self.category = category
         self.exercises = exercises
+        self.phases = phases
+        self.currentPhaseIndex = currentPhaseIndex
         self.startedAt = startedAt
         self.finishedAt = finishedAt
         self.notes = notes
     }
 
-    // Manual decode so history saved before notes existed still loads.
+    private enum CodingKeys: String, CodingKey {
+        case id, templateID, routineID, name, category, exercises, phases
+        case currentPhaseIndex, startedAt, finishedAt, notes
+    }
+
+    // Manual decode so history saved before notes/phases existed still loads.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         templateID = try c.decodeIfPresent(UUID.self, forKey: .templateID)
+        routineID = try c.decodeIfPresent(UUID.self, forKey: .routineID)
         name = try c.decode(String.self, forKey: .name)
         category = try c.decode(WorkoutCategory.self, forKey: .category)
         exercises = try c.decode([SessionExercise].self, forKey: .exercises)
+        phases = try c.decodeIfPresent([GymSessionLogPhase].self, forKey: .phases) ?? []
+        currentPhaseIndex = try c.decodeIfPresent(Int.self, forKey: .currentPhaseIndex) ?? 0
         startedAt = try c.decode(Date.self, forKey: .startedAt)
         finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }
 
     var isFinished: Bool { finishedAt != nil }
+    var isMultiPhase: Bool { !phases.isEmpty }
+
+    var currentPhase: GymSessionLogPhase? {
+        guard phases.indices.contains(currentPhaseIndex) else { return nil }
+        return phases[currentPhaseIndex]
+    }
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var completedSets: Int { exercises.reduce(0) { $0 + $1.completedSets } }
@@ -239,6 +266,61 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
             name: template.name,
             category: template.category,
             exercises: exercises
+        )
+    }
+
+    /// Builds a fresh multi-phase `WorkoutSession` from a `GymSessionRoutine`.
+    static func from(
+        routine: GymSessionRoutine,
+        templates: [WorkoutTemplate],
+        library: [UUID: Exercise],
+        settings: AppSettings? = nil
+    ) -> WorkoutSession {
+        var allExercises: [SessionExercise] = []
+        var logPhases: [GymSessionLogPhase] = []
+
+        for phase in routine.enabledPhases {
+            var phaseExercises: [SessionExercise] = []
+            if phase.phaseType == .mainStrength, let templateID = phase.templateID, let template = templates.first(where: { $0.id == templateID }) {
+                let templateSession = WorkoutSession.from(template: template, library: library, settings: settings)
+                phaseExercises = templateSession.exercises
+            } else if phase.phaseType == .coreWork {
+                // Pre-populate default core exercises if available
+                let coreNames = phase.exerciseNames.isEmpty ? ["Plank", "Ab Rollout", "Hanging Knee Raise", "Cable Crunch"] : phase.exerciseNames
+                for name in coreNames {
+                    let matchingLib = library.values.first(where: { $0.name.lowercased() == name.lowercased() })
+                    let exID = matchingLib?.id ?? UUID()
+                    let isTimedCore = matchingLib?.isTimed ?? (name.lowercased().contains("plank"))
+                    let set = isTimedCore ? SetEntry(reps: 0, weight: 0) : SetEntry(reps: 15, weight: 0)
+                    phaseExercises.append(SessionExercise(
+                        exerciseID: exID,
+                        name: name,
+                        sets: [set, set, set],
+                        restSeconds: settings?.defaultRestSeconds ?? 60,
+                        usesWeight: false,
+                        loadingMode: .bodyweight
+                    ))
+                }
+            }
+
+            allExercises.append(contentsOf: phaseExercises)
+            logPhases.append(GymSessionLogPhase(
+                phaseType: phase.phaseType,
+                name: phase.name,
+                durationSeconds: phase.durationSeconds,
+                exerciseNames: phase.exerciseNames,
+                exercises: phaseExercises,
+                notes: phase.notes
+            ))
+        }
+
+        return WorkoutSession(
+            routineID: routine.id,
+            name: routine.name,
+            category: .fullBody,
+            exercises: allExercises,
+            phases: logPhases,
+            currentPhaseIndex: 0
         )
     }
 }

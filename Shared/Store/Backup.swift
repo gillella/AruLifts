@@ -3,6 +3,7 @@ import Foundation
 /// Everything the app persists, bundled for manual backup/restore.
 struct BackupPayload: Codable {
     var templates: [WorkoutTemplate]
+    var gymRoutines: [GymSessionRoutine]
     var history: [WorkoutSession]
     var customExercises: [Exercise]
     var favoriteExerciseIDs: Set<UUID>
@@ -13,6 +14,7 @@ struct BackupPayload: Codable {
 
     init(
         templates: [WorkoutTemplate],
+        gymRoutines: [GymSessionRoutine] = [],
         history: [WorkoutSession],
         customExercises: [Exercise],
         favoriteExerciseIDs: Set<UUID> = [],
@@ -20,6 +22,7 @@ struct BackupPayload: Codable {
         settings: AppSettings
     ) {
         self.templates = templates
+        self.gymRoutines = gymRoutines
         self.history = history
         self.customExercises = customExercises
         self.favoriteExerciseIDs = favoriteExerciseIDs
@@ -30,6 +33,7 @@ struct BackupPayload: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         templates = try c.decodeIfPresent([WorkoutTemplate].self, forKey: .templates) ?? []
+        gymRoutines = try c.decodeIfPresent([GymSessionRoutine].self, forKey: .gymRoutines) ?? []
         history = try c.decodeIfPresent([WorkoutSession].self, forKey: .history) ?? []
         customExercises = try c.decodeIfPresent([Exercise].self, forKey: .customExercises) ?? []
         favoriteExerciseIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .favoriteExerciseIDs) ?? []

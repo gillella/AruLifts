@@ -330,6 +330,42 @@ final class ActiveWorkoutManager: ObservableObject {
         #endif
     }
 
+    // MARK: - Multi-Phase Routine Controls
+
+    func advancePhase() {
+        guard canEdit, var current = session, !current.phases.isEmpty else { return }
+        let currentIndex = current.currentPhaseIndex
+        if current.phases.indices.contains(currentIndex) {
+            current.phases[currentIndex].isCompleted = true
+            let elapsed = Int(Date().timeIntervalSince(current.startedAt))
+            current.phases[currentIndex].actualDurationSeconds = elapsed
+        }
+        if currentIndex + 1 < current.phases.count {
+            current.currentPhaseIndex += 1
+            session = current
+            broadcast()
+        } else {
+            session = current
+            broadcast()
+        }
+    }
+
+    func previousPhase() {
+        guard canEdit, var current = session, !current.phases.isEmpty else { return }
+        if current.currentPhaseIndex > 0 {
+            current.currentPhaseIndex -= 1
+            session = current
+            broadcast()
+        }
+    }
+
+    func selectPhase(at index: Int) {
+        guard canEdit, var current = session, current.phases.indices.contains(index) else { return }
+        current.currentPhaseIndex = index
+        session = current
+        broadcast()
+    }
+
     // MARK: - Editing sets
 
     var currentExercise: SessionExercise? {

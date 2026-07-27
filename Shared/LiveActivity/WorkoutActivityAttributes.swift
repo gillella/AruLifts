@@ -15,6 +15,7 @@ public struct WorkoutActivityAttributes: ActivityAttributes {
         public var isResting: Bool
         public var isWorkoutPaused: Bool
         public var workoutStartDate: Date
+        public var phaseText: String?
 
         public init(
             currentExerciseName: String,
@@ -26,7 +27,8 @@ public struct WorkoutActivityAttributes: ActivityAttributes {
             restTimerDuration: TimeInterval? = nil,
             isResting: Bool = false,
             isWorkoutPaused: Bool = false,
-            workoutStartDate: Date = Date()
+            workoutStartDate: Date = Date(),
+            phaseText: String? = nil
         ) {
             self.currentExerciseName = currentExerciseName
             self.currentSetIndex = currentSetIndex
@@ -38,6 +40,7 @@ public struct WorkoutActivityAttributes: ActivityAttributes {
             self.isResting = isResting
             self.isWorkoutPaused = isWorkoutPaused
             self.workoutStartDate = workoutStartDate
+            self.phaseText = phaseText
         }
     }
 

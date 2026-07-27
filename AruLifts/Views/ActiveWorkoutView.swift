@@ -98,16 +98,41 @@ struct ActiveWorkoutView: View {
         VStack(spacing: 0) {
             syncBanner
 
-            ExercisePager(session: session)
-
-            ScrollView {
-                if let idx = currentIndex(in: session) {
-                    SetLogList(exerciseIndex: idx)
-                        .padding()
-                        .padding(.bottom, 16)
-                        .disabled(!active.canEdit)
-                        .opacity(active.canEdit ? 1 : 0.72)
+            if session.isMultiPhase {
+                PhaseProgressionBannerView(session: session)
+                if let phase = session.currentPhase, phase.phaseType.isTimed {
+                    PhaseTimerView(phase: phase)
+                        .padding(.vertical, 8)
                 }
+            }
+
+            if !session.exercises.isEmpty {
+                ExercisePager(session: session)
+
+                ScrollView {
+                    if let idx = currentIndex(in: session) {
+                        SetLogList(exerciseIndex: idx)
+                            .padding()
+                            .padding(.bottom, 16)
+                            .disabled(!active.canEdit)
+                            .opacity(active.canEdit ? 1 : 0.72)
+                    }
+                }
+            } else if session.isMultiPhase {
+                VStack(spacing: 12) {
+                    Spacer()
+                    Image(systemName: session.currentPhase?.phaseType.iconSymbol ?? "checkmark.circle")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.orange)
+                    Text(session.currentPhase?.name ?? "Phase Active")
+                        .font(.title2.bold())
+                    Text("Focus on timed recovery or exercises for this phase.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Spacer()
+                }
+                .padding()
             }
         }
     }
@@ -348,6 +373,159 @@ struct ExercisePager: View {
             }
         }
         .padding(.vertical, 8)
+    }
+}
+
+struct PhaseProgressionBannerView: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    let session: WorkoutSession
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                if let phase = session.currentPhase {
+                    Image(systemName: phase.phaseType.iconSymbol)
+                        .font(.title3)
+                        .foregroundStyle(phase.phaseType.color)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Phase \(session.currentPhaseIndex + 1) of \(session.phases.count): \(phase.name)")
+                            .font(.headline)
+                        if !phase.notes.isEmpty {
+                            Text(phase.notes)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button {
+                        active.previousPhase()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .disabled(session.currentPhaseIndex == 0)
+
+                    Button {
+                        active.advancePhase()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Next Phase")
+                            Image(systemName: "chevron.right")
+                        }
+                        .fontWeight(.semibold)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(session.currentPhaseIndex >= session.phases.count - 1)
+                }
+            }
+
+            ProgressView(value: Double(session.currentPhaseIndex + 1), total: Double(max(1, session.phases.count)))
+                .tint(session.currentPhase?.phaseType.color ?? .orange)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemGroupedBackground))
+    }
+}
+
+struct PhaseTimerView: View {
+    let phase: GymSessionLogPhase
+    @State private var timeRemaining: Int = 0
+    @State private var isRunning: Bool = false
+    @State private var timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    init(phase: GymSessionLogPhase) {
+        self.phase = phase
+        _timeRemaining = State(initialValue: phase.durationSeconds)
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.orange.opacity(0.2), lineWidth: 6)
+                        .frame(width: 80, height: 80)
+
+                    VStack(spacing: 2) {
+                        Text(formatTime(timeRemaining))
+                            .font(.system(size: 20, weight: .bold, design: .monospaced))
+                        Text(phase.phaseType.shortName)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(phase.name)
+                        .font(.headline)
+                    if !phase.exerciseNames.isEmpty {
+                        Text(phase.exerciseNames.joined(separator: " • "))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            timeRemaining = max(0, timeRemaining - 60)
+                        } label: {
+                            Text("-1m").font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            isRunning.toggle()
+                        } label: {
+                            Image(systemName: isRunning ? "pause.fill" : "play.fill")
+                                .font(.caption.bold())
+                                .padding(8)
+                                .background(Color.orange, in: Circle())
+                                .foregroundStyle(.white)
+                        }
+
+                        Button {
+                            timeRemaining += 60
+                        } label: {
+                            Text("+1m").font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                Spacer()
+            }
+
+            if phase.phaseType == .saunaRecovery || phase.phaseType == .steamRecovery {
+                HStack(spacing: 6) {
+                    Image(systemName: "drop.fill")
+                        .foregroundStyle(.blue)
+                    Text("Hydration Reminder: Drink 500ml water during heat recovery")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+        .onReceive(timer) { _ in
+            if isRunning && timeRemaining > 0 {
+                timeRemaining -= 1
+            }
+        }
+        .onChange(of: phase.id) { _ in
+            timeRemaining = phase.durationSeconds
+            isRunning = false
+        }
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        let m = seconds / 60
+        let s = seconds % 60
+        return String(format: "%02d:%02d", m, s)
     }
 }
 

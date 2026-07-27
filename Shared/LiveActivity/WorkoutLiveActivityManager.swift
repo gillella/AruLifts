@@ -130,6 +130,14 @@ final class WorkoutLiveActivityManager {
             }
         }
 
+        var phaseText: String? = nil
+        if session.isMultiPhase {
+            let pIdx = session.currentPhaseIndex + 1
+            let pTotal = session.phases.count
+            let pName = session.currentPhase?.name ?? ""
+            phaseText = "Phase \(pIdx)/\(pTotal): \(pName)"
+        }
+
         return WorkoutActivityAttributes.ContentState(
             currentExerciseName: exerciseName,
             currentSetIndex: currentSetNumber,
@@ -140,7 +148,8 @@ final class WorkoutLiveActivityManager {
             restTimerDuration: restTimerDuration,
             isResting: isResting,
             isWorkoutPaused: isWorkoutPaused,
-            workoutStartDate: session.startedAt
+            workoutStartDate: session.startedAt,
+            phaseText: phaseText
         )
     }
 }
