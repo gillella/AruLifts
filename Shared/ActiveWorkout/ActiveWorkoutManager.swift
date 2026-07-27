@@ -243,6 +243,7 @@ final class ActiveWorkoutManager: ObservableObject {
         isFinalizing = false
         currentExerciseIndex = 0
         restTimer.stop()
+        moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
         applyingRemote = false
         if broadcast {
@@ -354,6 +355,16 @@ final class ActiveWorkoutManager: ObservableObject {
 
     // MARK: - Multi-Phase Routine Controls
 
+    /// Moves the live exercise to the newly current phase's first unfinished
+    /// exercise. Without this the pager keeps showing the previous phase's work
+    /// after advancing, so the Watch never "recognises" the new phase.
+    private func moveToCurrentPhaseExercise() {
+        guard let session, session.isMultiPhase else { return }
+        if let landing = session.landingExerciseIndex(forPhase: session.currentPhaseIndex) {
+            currentExerciseIndex = landing
+        }
+    }
+
     private func checkAndStartPhaseTimer() {
         guard let currentPhase = session?.currentPhase else {
             phaseTimer.stop()
@@ -378,6 +389,7 @@ final class ActiveWorkoutManager: ObservableObject {
             current.currentPhaseIndex += 1
             session = current
             showingPhaseTransitionModal = false
+            moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
             broadcast()
         } else {
@@ -393,6 +405,7 @@ final class ActiveWorkoutManager: ObservableObject {
             current.currentPhaseIndex -= 1
             session = current
             showingPhaseTransitionModal = false
+            moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
             broadcast()
         }
@@ -403,6 +416,7 @@ final class ActiveWorkoutManager: ObservableObject {
         current.currentPhaseIndex = index
         session = current
         showingPhaseTransitionModal = false
+        moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
         broadcast()
     }
@@ -615,15 +629,47 @@ final class ActiveWorkoutManager: ObservableObject {
         restTimer.skip()
     }
 
+    /// Exercise navigation stays inside the phase in progress — reaching the
+    /// end of a phase does not roll into the next one, because advancing a
+    /// phase is always an explicit user action.
     func goToNextExercise() {
         guard canEdit, let session else { return }
-        if currentExerciseIndex < session.exercises.count - 1 {
-            currentExerciseIndex += 1
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else {
+            // Index is outside the current phase (e.g. mid-migration); snap back in.
+            if let landing = session.landingExerciseIndex(forPhase: session.currentPhaseIndex) {
+                currentExerciseIndex = landing
+            }
+            return
+        }
+        if position + 1 < scope.count {
+            currentExerciseIndex = scope[position + 1]
         }
     }
 
     func goToPreviousExercise() {
-        if canEdit && currentExerciseIndex > 0 { currentExerciseIndex -= 1 }
+        guard canEdit, let session else { return }
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return }
+        if position > 0 {
+            currentExerciseIndex = scope[position - 1]
+        }
+    }
+
+    /// True when a further exercise exists inside the current phase.
+    var hasNextExerciseInPhase: Bool {
+        guard let session else { return false }
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return false }
+        return position + 1 < scope.count
+    }
+
+    /// True when an earlier exercise exists inside the current phase.
+    var hasPreviousExerciseInPhase: Bool {
+        guard let session else { return false }
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return false }
+        return position > 0
     }
 
     /// The phone remains a read-only mirror until the Watch durably accepts

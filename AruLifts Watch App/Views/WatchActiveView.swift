@@ -357,8 +357,16 @@ struct WatchActiveView: View {
         .accessibilityLabel("\(exercise.completedSets) of \(exercise.sets.count) sets complete")
     }
 
+    /// Position and count are phase-relative — "2/4" means the second of four
+    /// exercises in this phase, not across the whole gym session.
+    private var phaseScope: [Int] {
+        active.session?.currentPhaseExerciseIndices ?? []
+    }
+
     private var exerciseNavigation: some View {
-        HStack(spacing: 8) {
+        let scope = phaseScope
+        let position = scope.firstIndex(of: active.currentExerciseIndex)
+        return HStack(spacing: 8) {
             Button {
                 active.goToPreviousExercise()
             } label: {
@@ -366,9 +374,9 @@ struct WatchActiveView: View {
                     .labelStyle(.iconOnly)
                     .frame(maxWidth: .infinity)
             }
-            .disabled(!active.canEdit || active.currentExerciseIndex == 0)
+            .disabled(!active.canEdit || !active.hasPreviousExerciseInPhase)
 
-            Text("\(active.currentExerciseIndex + 1)/\(active.session?.exercises.count ?? 1)")
+            Text("\((position ?? 0) + 1)/\(max(scope.count, 1))")
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
 
@@ -379,7 +387,7 @@ struct WatchActiveView: View {
                     .labelStyle(.iconOnly)
                     .frame(maxWidth: .infinity)
             }
-            .disabled(!active.canEdit || active.currentExerciseIndex >= (active.session?.exercises.count ?? 1) - 1)
+            .disabled(!active.canEdit || !active.hasNextExerciseInPhase)
         }
         .buttonStyle(.bordered)
     }

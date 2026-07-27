@@ -344,7 +344,10 @@ struct ExercisePager: View {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(Array(session.exercises.enumerated()), id: \.element.id) { idx, ex in
+                        // Scoped to the phase in progress: a gym session shows
+                        // only the work belonging to the phase you are in.
+                        ForEach(session.currentPhaseExerciseIndices, id: \.self) { idx in
+                            let ex = session.exercises[idx]
                             Button {
                                 active.currentExerciseIndex = idx
                             } label: {

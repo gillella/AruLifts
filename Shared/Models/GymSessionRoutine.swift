@@ -197,7 +197,6 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
     var actualDurationSeconds: Int?
     var isCompleted: Bool
     var exerciseNames: [String]
-    var exercises: [SessionExercise]
     var notes: String
 
     init(
@@ -208,7 +207,6 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
         actualDurationSeconds: Int? = nil,
         isCompleted: Bool = false,
         exerciseNames: [String] = [],
-        exercises: [SessionExercise] = [],
         notes: String = ""
     ) {
         self.id = id
@@ -218,7 +216,6 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
         self.actualDurationSeconds = actualDurationSeconds
         self.isCompleted = isCompleted
         self.exerciseNames = exerciseNames
-        self.exercises = exercises
         self.notes = notes
     }
 }

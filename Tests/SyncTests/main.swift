@@ -845,6 +845,74 @@ let phaseCheckEnvelope = pWire.last(.checkpoint) ?? pWire.last(.ownershipOffer)!
 expect(wCoord.receive(phaseCheckEnvelope) == .applied, "Watch adopts phase timer checkpoint")
 expect(wCoord.replica?.phaseTimer?.totalSeconds == 900, "Watch replica contains phase timer snapshot")
 
+// MARK: - Issue #80: phase-scoped exercise navigation (ActiveWorkoutManager)
+
+MainActor.assumeIsolated {
+    // A routine whose first three phases all carry exercises, so advancing has
+    // somewhere distinct to land each time.
+    let templates = ExerciseLibrary.defaultTemplates()
+    var routine = GymSessionRoutine.defaultCompleteGymVisit(templates: templates)
+    let withExercises = templates.filter { !$0.exercises.isEmpty }
+    if withExercises.count >= 3 {
+        for (offset, phaseType) in [GymSessionPhaseType.preCardio, .warmupStretches, .mainStrength].enumerated() {
+            if let idx = routine.phases.firstIndex(where: { $0.phaseType == phaseType }) {
+                routine.phases[idx].templateID = withExercises[offset].id
+            }
+        }
+    }
+
+    let session = WorkoutSession.from(
+        routine: routine,
+        templates: templates,
+        library: ExerciseLibrary.byID
+    )
+
+    let manager = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("phaseNav"))
+    )
+    manager.start(session, broadcast: false)
+
+    let phase0 = manager.session?.exerciseIndices(inPhase: 0) ?? []
+    expect(
+        phase0.contains(manager.currentExerciseIndex),
+        "starting a routine lands on an exercise inside phase 0"
+    )
+
+    // Walking to the end of phase 0 must not spill into phase 1.
+    for _ in 0..<(phase0.count + 3) { manager.goToNextExercise() }
+    expect(
+        phase0.contains(manager.currentExerciseIndex),
+        "Next never navigates past the end of the current phase"
+    )
+    expect(
+        manager.currentExerciseIndex == phase0.last,
+        "Next stops on the last exercise of the current phase"
+    )
+    expect(!manager.hasNextExerciseInPhase, "no next exercise reported at the phase boundary")
+
+    // Advancing the phase is what moves you on — and it repositions the exercise.
+    manager.advancePhase()
+    let phase1 = manager.session?.exerciseIndices(inPhase: 1) ?? []
+    expect(manager.session?.currentPhaseIndex == 1, "advancePhase moves to phase 1")
+    expect(
+        phase1.contains(manager.currentExerciseIndex),
+        "advancing a phase repositions the live exercise into that phase"
+    )
+    expect(
+        manager.currentExerciseIndex == phase1.first,
+        "advancing lands on the new phase's first unfinished exercise"
+    )
+
+    // Going back a phase repositions too.
+    manager.previousPhase()
+    expect(
+        phase0.contains(manager.currentExerciseIndex),
+        "previousPhase repositions the live exercise back into the earlier phase"
+    )
+    expect(!manager.hasPreviousExerciseInPhase || phase0.count > 1, "phase-relative Previous is consistent")
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)

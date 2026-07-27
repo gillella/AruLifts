@@ -842,16 +842,52 @@ if let cardioTemplate = defaultTemplates.first(where: { !$0.exercises.isEmpty })
             templates: defaultTemplates,
             library: ExerciseLibrary.byID
         )
-        let cardioPhaseLog = linkedSession.phases.first(where: { $0.phaseType == .preCardio })
+        let cardioPhaseIdx = linkedSession.phases.firstIndex(where: { $0.phaseType == .preCardio })
+        let cardioPhaseExercises = cardioPhaseIdx.map { linkedSession.exercises(inPhase: $0) } ?? []
         expect(
-            cardioPhaseLog?.exercises.count == cardioTemplate.exercises.count,
+            cardioPhaseExercises.count == cardioTemplate.exercises.count,
             "template linked to a non-strength phase populates that phase's exercises"
         )
         expect(
-            cardioPhaseLog?.exercises.first?.name == cardioTemplate.exercises.first?.name,
+            cardioPhaseExercises.first?.name == cardioTemplate.exercises.first?.name,
             "linked non-strength phase pulls exercises from the correct template"
         )
+
+        // Issue #80: every exercise must be attributed to the phase that owns it,
+        // and phase scoping must partition the flat list without gaps or overlap.
+        expect(
+            linkedSession.exercises.allSatisfy { $0.phaseIndex != nil },
+            "every exercise in a routine session carries a phaseIndex"
+        )
+        let partitioned = linkedSession.phases.indices
+            .flatMap { linkedSession.exerciseIndices(inPhase: $0) }
+            .sorted()
+        expect(
+            partitioned == Array(linkedSession.exercises.indices),
+            "phase scoping partitions the whole exercise list exactly once"
+        )
+        if let cardioPhaseIdx {
+            expect(
+                linkedSession.landingExerciseIndex(forPhase: cardioPhaseIdx)
+                    == linkedSession.exerciseIndices(inPhase: cardioPhaseIdx).first,
+                "landing index for a fresh phase is its first exercise"
+            )
+        }
     }
+}
+
+// Issue #80: a plain single-template session has no phases, so navigation scope
+// must stay the entire exercise list.
+if let plainTemplate = defaultTemplates.first(where: { $0.exercises.count > 1 }) {
+    let plainSession = WorkoutSession.from(
+        template: plainTemplate,
+        library: ExerciseLibrary.byID
+    )
+    expect(!plainSession.isMultiPhase, "single-template session is not multi-phase")
+    expect(
+        plainSession.currentPhaseExerciseIndices == Array(plainSession.exercises.indices),
+        "single-template session scopes navigation to all exercises"
+    )
 }
 
 if let routineData = try? JSONEncoder().encode(defaultRoutine),
