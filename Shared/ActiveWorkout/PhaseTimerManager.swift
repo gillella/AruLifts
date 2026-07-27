@@ -40,20 +40,44 @@ final class PhaseTimerManager: ObservableObject {
 
     var onStateChange: (() -> Void)?
     var onCompletion: (() -> Void)?
+    /// Fired once, `leadSeconds` before the phase reaches zero, so the owner can
+    /// announce what is coming next. Returning the announcement text keeps the
+    /// manager unaware of session structure.
+    var onLeadCue: (() -> String?)?
+
+    /// Seconds before zero at which `onLeadCue` fires. Zero disables the cue.
+    private(set) var cueLeadSeconds: Int = 0
+    /// Latches so the cue fires exactly once per phase run, including across
+    /// pause/resume cycles that cross the lead threshold again.
+    private var hasFiredLeadCue = false
 
     private var timerSubscription: AnyCancellable?
     #if canImport(AVFoundation)
     private var speechSynthesizer: AVSpeechSynthesizer?
     #endif
 
-    init() {
+    let localDevice: WorkoutDevice
+
+    /// Both devices buzz, but only one speaks. Two physical devices
+    /// synthesizing the same announcement produces overlapping, unsynchronized
+    /// speech. Mirrors `RestTimerManager.spokenAlertsEnabled(for:)` — stated
+    /// here rather than referenced so this file stays independently compilable
+    /// for the pure-logic test target.
+    var spokenAlertsEnabled: Bool { localDevice == .phone }
+
+    init(localDevice: WorkoutDevice = .phone) {
+        self.localDevice = localDevice
         #if canImport(AVFoundation)
         speechSynthesizer = AVSpeechSynthesizer()
         #endif
     }
 
-    func start(seconds: Int) {
+    func start(seconds: Int, cueLeadSeconds: Int = 0) {
         guard seconds > 0 else { return }
+        // A lead at or beyond the phase's own length would fire immediately, so
+        // it is treated as "no cue" rather than an instant announcement.
+        self.cueLeadSeconds = cueLeadSeconds < seconds ? max(0, cueLeadSeconds) : 0
+        hasFiredLeadCue = false
         totalSeconds = seconds
         secondsRemaining = seconds
         endDate = Date().addingTimeInterval(TimeInterval(seconds))
@@ -118,6 +142,8 @@ final class PhaseTimerManager: ObservableObject {
         isPaused = false
         hasCompleted = false
         overtimeSeconds = 0
+        cueLeadSeconds = 0
+        hasFiredLeadCue = false
     }
 
     func sync(endDate: Date, totalSeconds: Int) {
@@ -167,6 +193,7 @@ final class PhaseTimerManager: ObservableObject {
         guard remaining <= 0 else {
             secondsRemaining = remaining
             overtimeSeconds = 0
+            fireLeadCueIfNeeded(remaining)
             return
         }
         secondsRemaining = 0
@@ -180,6 +207,18 @@ final class PhaseTimerManager: ObservableObject {
             onStateChange?()
         }
         overtimeSeconds = -remaining
+    }
+
+    /// Announces the upcoming phase once the countdown crosses the lead time.
+    /// The haptic always plays; speech is left to whichever device owns the
+    /// session, so a phone and Watch don't announce over each other.
+    private func fireLeadCueIfNeeded(_ remaining: Int) {
+        guard !hasFiredLeadCue, cueLeadSeconds > 0, remaining <= cueLeadSeconds else { return }
+        hasFiredLeadCue = true
+        playHapticAlert()
+        if let message = onLeadCue?() {
+            speakAnnouncement(message)
+        }
     }
 
     func triggerCompletionAlerts(message: String? = nil) {
@@ -209,7 +248,7 @@ final class PhaseTimerManager: ObservableObject {
 
     func speakAnnouncement(_ text: String) {
         #if canImport(AVFoundation)
-        guard let synth = speechSynthesizer else { return }
+        guard spokenAlertsEnabled, let synth = speechSynthesizer else { return }
         let utterance = AVSpeechUtterance(string: text)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")

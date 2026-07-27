@@ -12,6 +12,8 @@ struct WatchExecutionSettings: Codable, Hashable {
     var restAlertStyle: RestAlertStyle
     var earlyRestCueEnabled: Bool
     var earlyRestCueLeadSeconds: Int
+    var phaseCueEnabled: Bool
+    var phaseCueLeadSeconds: Int
     var adaptiveRestEnabled: Bool
     var failedSetRestMultiplier: Double
 
@@ -25,6 +27,8 @@ struct WatchExecutionSettings: Codable, Hashable {
         restAlertStyle = settings.restAlertStyle
         earlyRestCueEnabled = settings.earlyRestCueEnabled
         earlyRestCueLeadSeconds = settings.earlyRestCueLeadSeconds
+        phaseCueEnabled = settings.phaseCueEnabled
+        phaseCueLeadSeconds = settings.phaseCueLeadSeconds
         adaptiveRestEnabled = settings.adaptiveRestEnabled
         failedSetRestMultiplier = settings.failedSetRestMultiplier
     }
@@ -32,6 +36,7 @@ struct WatchExecutionSettings: Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case units, barWeight, availablePlates, weightIncrement, autoStartRest, restAlertsEnabled
         case restAlertStyle, earlyRestCueEnabled, earlyRestCueLeadSeconds
+        case phaseCueEnabled, phaseCueLeadSeconds
         case adaptiveRestEnabled, failedSetRestMultiplier
     }
 
@@ -46,6 +51,8 @@ struct WatchExecutionSettings: Codable, Hashable {
         restAlertStyle = try c.decodeIfPresent(RestAlertStyle.self, forKey: .restAlertStyle) ?? .soundAndHaptic
         earlyRestCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .earlyRestCueEnabled) ?? true
         earlyRestCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .earlyRestCueLeadSeconds) ?? 10
+        phaseCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .phaseCueEnabled) ?? true
+        phaseCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .phaseCueLeadSeconds) ?? 30
         adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
         failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5
     }

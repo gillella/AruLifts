@@ -985,6 +985,59 @@ MainActor.assumeIsolated {
     )
 }
 
+// MARK: - Issue #82: "prepare for next phase" lead cue
+
+MainActor.assumeIsolated {
+    var cueCount = 0
+    let cued = PhaseTimerManager(localDevice: .phone)
+    cued.onLeadCue = { cueCount += 1; return "Next up: Warm-Up." }
+    cued.start(seconds: 60, cueLeadSeconds: 30)
+    expect(cued.cueLeadSeconds == 30, "lead time is retained when shorter than the phase")
+    expect(cueCount == 0, "no cue while the phase is above the lead time")
+
+    // Drive real ticks: a 4s phase with a 3s lead must cue once, and stay at
+    // once while it keeps ticking below the threshold.
+    var firedCount = 0
+    let ticking = PhaseTimerManager(localDevice: .phone)
+    ticking.onLeadCue = { firedCount += 1; return nil }
+    ticking.start(seconds: 4, cueLeadSeconds: 3)
+    RunLoop.current.run(until: Date().addingTimeInterval(2.5))
+    expect(firedCount == 1, "the lead cue fires when the countdown crosses the lead time")
+    // Run past zero so a tick lands in overtime. Exactly at 0:00 the timer
+    // reads "0:00", not "+0:00" — overtime only begins on the next second.
+    RunLoop.current.run(until: Date().addingTimeInterval(3.0))
+    expect(firedCount == 1, "the lead cue never fires more than once per phase run")
+    expect(ticking.isOvertime, "the phase keeps counting into overtime after the cue")
+    expect(ticking.isRunning, "the phase is still running after passing zero")
+
+    // Suppressed when the lead is as long as (or longer than) the phase itself.
+    let shortPhase = PhaseTimerManager(localDevice: .phone)
+    shortPhase.start(seconds: 20, cueLeadSeconds: 30)
+    expect(shortPhase.cueLeadSeconds == 0, "a lead >= the phase duration disables the cue")
+    let exactPhase = PhaseTimerManager(localDevice: .phone)
+    exactPhase.start(seconds: 30, cueLeadSeconds: 30)
+    expect(exactPhase.cueLeadSeconds == 0, "a lead equal to the phase duration disables the cue")
+
+    // Only the phone speaks; the Watch still buzzes.
+    expect(PhaseTimerManager(localDevice: .phone).spokenAlertsEnabled, "phone speaks phase announcements")
+    expect(!PhaseTimerManager(localDevice: .watch).spokenAlertsEnabled, "watch does not duplicate spoken announcements")
+
+    // The setting travels to the Watch with the plan cache.
+    var tuned = AppSettings()
+    tuned.phaseCueEnabled = true
+    tuned.phaseCueLeadSeconds = 60
+    let execution = WatchExecutionSettings(settings: tuned)
+    expect(execution.phaseCueLeadSeconds == 60, "phase cue lead replicates in execution settings")
+    if let data = try? JSONEncoder().encode(execution),
+       let restored = try? JSONDecoder().decode(WatchExecutionSettings.self, from: data) {
+        expect(restored.phaseCueLeadSeconds == 60, "phase cue lead survives the wire round-trip")
+        expect(restored.phaseCueEnabled, "phase cue toggle survives the wire round-trip")
+    } else {
+        failures += 1; print("FAIL execution settings round-trip")
+    }
+    expect(WatchExecutionSettings().phaseCueLeadSeconds == 30, "phase cue defaults to 30 seconds")
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)

@@ -143,7 +143,7 @@ final class ActiveWorkoutManager: ObservableObject {
         let device = localDevice ?? .phone
         #endif
         restTimer = RestTimerManager(localDevice: device)
-        phaseTimer = PhaseTimerManager()
+        phaseTimer = PhaseTimerManager(localDevice: device)
         syncCoordinator = WorkoutSyncCoordinator(
             localDevice: device,
             repository: repository
@@ -179,6 +179,10 @@ final class ActiveWorkoutManager: ObservableObject {
         phaseTimer.onStateChange = { [weak self] in
             guard let self else { return }
             self.broadcast()
+        }
+
+        phaseTimer.onLeadCue = { [weak self] in
+            self?.leadCueAnnouncement()
         }
 
         phaseTimer.onCompletion = { [weak self] in
@@ -375,10 +379,31 @@ final class ActiveWorkoutManager: ObservableObject {
             return
         }
         if currentPhase.phaseType.isTimed, currentPhase.durationSeconds > 0 {
-            phaseTimer.start(seconds: currentPhase.durationSeconds)
+            phaseTimer.start(
+                seconds: currentPhase.durationSeconds,
+                cueLeadSeconds: phaseCueLeadSeconds
+            )
         } else {
             phaseTimer.stop()
         }
+    }
+
+    /// Lead time for the "prepare for the next phase" cue, zero when disabled.
+    /// The Watch reads the phone's setting from the cached execution settings.
+    private var phaseCueLeadSeconds: Int {
+        guard watchExecutionSettings.phaseCueEnabled else { return 0 }
+        return max(0, watchExecutionSettings.phaseCueLeadSeconds)
+    }
+
+    /// Text announced at the lead cue: what the user should get ready for.
+    private func leadCueAnnouncement() -> String? {
+        guard let session, session.isMultiPhase else { return nil }
+        let lead = phaseCueLeadSeconds
+        let nextIndex = session.currentPhaseIndex + 1
+        guard session.phases.indices.contains(nextIndex) else {
+            return "\(lead) seconds left. Final phase ending."
+        }
+        return "\(lead) seconds left. Next up: \(session.phases[nextIndex].name)."
     }
 
     func advancePhase() {
@@ -743,9 +768,13 @@ final class ActiveWorkoutManager: ObservableObject {
         workouts += gymRoutines.map {
             WatchStartableWorkout(routine: $0, templates: templates, library: library, settings: settings)
         }
+        let execution = WatchExecutionSettings(settings: settings)
+        // Keep the phone's own copy current too, so execution-time behaviour
+        // (like the phase cue) reads one source on both platforms.
+        watchExecutionSettings = execution
         let cache = (syncCoordinator.watchPlanCache ?? WatchPlanCache()).advanced(
             workouts: workouts,
-            executionSettings: WatchExecutionSettings(settings: settings)
+            executionSettings: execution
         )
         _ = syncCoordinator.updateWatchPlanCache(cache)
     }
