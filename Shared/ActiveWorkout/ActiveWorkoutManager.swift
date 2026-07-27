@@ -87,8 +87,10 @@ final class ActiveWorkoutManager: ObservableObject {
     @Published private(set) var watchPlans: [WatchStartableWorkout] = []
     /// Phone configuration cached alongside plans for Watch-owned execution.
     @Published private(set) var watchExecutionSettings = WatchExecutionSettings()
+    @Published var showingPhaseTransitionModal = false
 
     let restTimer: RestTimerManager
+    let phaseTimer: PhaseTimerManager
 
     private let connectivity = ConnectivityManager.shared
     private let syncCoordinator: WorkoutSyncCoordinator
@@ -138,6 +140,7 @@ final class ActiveWorkoutManager: ObservableObject {
         let device = localDevice ?? .phone
         #endif
         restTimer = RestTimerManager(localDevice: device)
+        phaseTimer = PhaseTimerManager()
         syncCoordinator = WorkoutSyncCoordinator(
             localDevice: device,
             repository: repository
@@ -164,6 +167,24 @@ final class ActiveWorkoutManager: ObservableObject {
         restTimer.onStateChange = { [weak self] in
             guard let self else { return }
             self.broadcast()
+        }
+
+        phaseTimer.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        phaseTimer.onStateChange = { [weak self] in
+            guard let self else { return }
+            self.broadcast()
+        }
+
+        phaseTimer.onCompletion = { [weak self] in
+            guard let self else { return }
+            self.showingPhaseTransitionModal = true
+            if let current = self.session?.currentPhase {
+                let msg = "Phase \(self.session?.currentPhaseIndex ?? 0 + 1) \(current.name) complete."
+                self.phaseTimer.speakAnnouncement(msg)
+            }
         }
 
         connectivity.$receivedWorkoutEnvelope
@@ -222,6 +243,7 @@ final class ActiveWorkoutManager: ObservableObject {
         isFinalizing = false
         currentExerciseIndex = 0
         restTimer.stop()
+        checkAndStartPhaseTimer()
         applyingRemote = false
         if broadcast {
             let persisted = syncCoordinator.start(newSession)
@@ -332,6 +354,18 @@ final class ActiveWorkoutManager: ObservableObject {
 
     // MARK: - Multi-Phase Routine Controls
 
+    private func checkAndStartPhaseTimer() {
+        guard let currentPhase = session?.currentPhase else {
+            phaseTimer.stop()
+            return
+        }
+        if currentPhase.phaseType.isTimed, currentPhase.durationSeconds > 0 {
+            phaseTimer.start(seconds: currentPhase.durationSeconds)
+        } else {
+            phaseTimer.stop()
+        }
+    }
+
     func advancePhase() {
         guard canEdit, var current = session, !current.phases.isEmpty else { return }
         let currentIndex = current.currentPhaseIndex
@@ -343,9 +377,12 @@ final class ActiveWorkoutManager: ObservableObject {
         if currentIndex + 1 < current.phases.count {
             current.currentPhaseIndex += 1
             session = current
+            showingPhaseTransitionModal = false
+            checkAndStartPhaseTimer()
             broadcast()
         } else {
             session = current
+            showingPhaseTransitionModal = false
             broadcast()
         }
     }
@@ -355,6 +392,8 @@ final class ActiveWorkoutManager: ObservableObject {
         if current.currentPhaseIndex > 0 {
             current.currentPhaseIndex -= 1
             session = current
+            showingPhaseTransitionModal = false
+            checkAndStartPhaseTimer()
             broadcast()
         }
     }
@@ -363,7 +402,49 @@ final class ActiveWorkoutManager: ObservableObject {
         guard canEdit, var current = session, current.phases.indices.contains(index) else { return }
         current.currentPhaseIndex = index
         session = current
+        showingPhaseTransitionModal = false
+        checkAndStartPhaseTimer()
         broadcast()
+    }
+
+    func togglePhaseTimerPause() {
+        guard canEdit else { return }
+        if phaseTimer.isRunning {
+            phaseTimer.pause()
+        } else {
+            phaseTimer.resume()
+        }
+        broadcast()
+    }
+
+    func adjustPhaseTimer(by seconds: Int) {
+        guard canEdit else { return }
+        phaseTimer.add(seconds: seconds)
+        broadcast()
+    }
+
+    func extendPhaseTimerFiveMinutes() {
+        guard canEdit else { return }
+        phaseTimer.add(seconds: 300)
+        if phaseTimer.isPaused {
+            phaseTimer.resume()
+        }
+        showingPhaseTransitionModal = false
+        broadcast()
+    }
+
+    func startNextPhaseFromModal() {
+        showingPhaseTransitionModal = false
+        advancePhase()
+    }
+
+    func skipPhaseFromModal() {
+        showingPhaseTransitionModal = false
+        advancePhase()
+    }
+
+    func dismissPhaseTransitionModal() {
+        showingPhaseTransitionModal = false
     }
 
     // MARK: - Editing sets
@@ -644,11 +725,23 @@ final class ActiveWorkoutManager: ObservableObject {
         } else {
             rest = nil
         }
+        let pTimer: PhaseTimerSnapshot?
+        if let endDate = phaseTimer.endDate {
+            pTimer = PhaseTimerSnapshot(endDate: endDate, totalSeconds: phaseTimer.totalSeconds)
+        } else if phaseTimer.isPaused, phaseTimer.secondsRemaining > 0 {
+            pTimer = PhaseTimerSnapshot(
+                endDate: Date(), totalSeconds: phaseTimer.totalSeconds,
+                pausedRemainingSeconds: phaseTimer.secondsRemaining
+            )
+        } else {
+            pTimer = nil
+        }
         _ = syncCoordinator.mutate(
             session: session,
             currentExerciseIndex: currentExerciseIndex,
             restTimer: rest,
-            isWorkoutPaused: isWorkoutPaused
+            isWorkoutPaused: isWorkoutPaused,
+            phaseTimer: pTimer
         )
         #if os(iOS)
         updateLiveActivity()
@@ -813,6 +906,16 @@ final class ActiveWorkoutManager: ObservableObject {
             restTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds, configuration: timer.alertConfiguration)
         } else {
             restTimer.stop()
+        }
+        if let timer = replica.phaseTimer, let pausedRemaining = timer.pausedRemainingSeconds {
+            phaseTimer.syncPaused(
+                remainingSeconds: pausedRemaining,
+                totalSeconds: timer.totalSeconds
+            )
+        } else if let timer = replica.phaseTimer, timer.endDate > Date() {
+            phaseTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds)
+        } else {
+            phaseTimer.stop()
         }
         clearUndo()
         applyingRemote = false

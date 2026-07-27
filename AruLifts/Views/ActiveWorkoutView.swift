@@ -74,6 +74,10 @@ struct ActiveWorkoutView: View {
                 ActiveSessionReorderSheet()
                     .environmentObject(active)
             }
+            .sheet(isPresented: $active.showingPhaseTransitionModal) {
+                PhaseTransitionSheet()
+                    .environmentObject(active)
+            }
             .confirmationDialog("Discard this workout?", isPresented: $showingCancelConfirm, titleVisibility: .visible) {
                 Button("Discard workout", role: .destructive) { active.cancel() }
                 Button("Keep going", role: .cancel) {}
@@ -384,7 +388,7 @@ struct PhaseProgressionBannerView: View {
         VStack(spacing: 8) {
             HStack {
                 if let phase = session.currentPhase {
-                    Image(systemName: phase.phaseType.iconSymbol)
+                    Image(systemName: PhaseVisualHelper.iconSymbol(for: phase.name, phaseType: phase.phaseType))
                         .font(.title3)
                         .foregroundStyle(phase.phaseType.color)
 
@@ -433,15 +437,8 @@ struct PhaseProgressionBannerView: View {
 }
 
 struct PhaseTimerView: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
     let phase: GymSessionLogPhase
-    @State private var timeRemaining: Int = 0
-    @State private var isRunning: Bool = false
-    @State private var timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-
-    init(phase: GymSessionLogPhase) {
-        self.phase = phase
-        _timeRemaining = State(initialValue: phase.durationSeconds)
-    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -452,7 +449,7 @@ struct PhaseTimerView: View {
                         .frame(width: 80, height: 80)
 
                     VStack(spacing: 2) {
-                        Text(formatTime(timeRemaining))
+                        Text(formatTime(active.phaseTimer.secondsRemaining))
                             .font(.system(size: 20, weight: .bold, design: .monospaced))
                         Text(phase.phaseType.shortName)
                             .font(.caption2)
@@ -461,8 +458,12 @@ struct PhaseTimerView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(phase.name)
-                        .font(.headline)
+                    HStack(spacing: 6) {
+                        Image(systemName: PhaseVisualHelper.iconSymbol(for: phase.name, phaseType: phase.phaseType))
+                            .foregroundStyle(phase.phaseType.color)
+                        Text(phase.name)
+                            .font(.headline)
+                    }
                     if !phase.exerciseNames.isEmpty {
                         Text(phase.exerciseNames.joined(separator: " • "))
                             .font(.caption)
@@ -471,28 +472,31 @@ struct PhaseTimerView: View {
 
                     HStack(spacing: 12) {
                         Button {
-                            timeRemaining = max(0, timeRemaining - 60)
+                            active.adjustPhaseTimer(by: -60)
                         } label: {
                             Text("-1m").font(.caption)
                         }
                         .buttonStyle(.bordered)
+                        .disabled(!active.canEdit)
 
                         Button {
-                            isRunning.toggle()
+                            active.togglePhaseTimerPause()
                         } label: {
-                            Image(systemName: isRunning ? "pause.fill" : "play.fill")
+                            Image(systemName: active.phaseTimer.isRunning ? "pause.fill" : "play.fill")
                                 .font(.caption.bold())
                                 .padding(8)
                                 .background(Color.orange, in: Circle())
                                 .foregroundStyle(.white)
                         }
+                        .disabled(!active.canEdit)
 
                         Button {
-                            timeRemaining += 60
+                            active.adjustPhaseTimer(by: 60)
                         } label: {
                             Text("+1m").font(.caption)
                         }
                         .buttonStyle(.bordered)
+                        .disabled(!active.canEdit)
                     }
                 }
                 Spacer()
@@ -511,15 +515,6 @@ struct PhaseTimerView: View {
         .padding(12)
         .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal)
-        .onReceive(timer) { _ in
-            if isRunning && timeRemaining > 0 {
-                timeRemaining -= 1
-            }
-        }
-        .onChange(of: phase.id) { _ in
-            timeRemaining = phase.durationSeconds
-            isRunning = false
-        }
     }
 
     private func formatTime(_ seconds: Int) -> String {

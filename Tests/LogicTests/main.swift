@@ -859,5 +859,19 @@ if let startableData = try? JSONEncoder().encode(startableRoutine),
     failures += 1; print("FAIL WatchStartableWorkout routine JSON round-trip")
 }
 
+expect(PhaseVisualHelper.iconSymbol(for: "Elliptical") == "figure.elliptical", "PhaseVisualHelper resolves Elliptical icon")
+expect(PhaseVisualHelper.iconSymbol(for: "Treadmill Incline") == "figure.run", "PhaseVisualHelper resolves Treadmill icon")
+expect(PhaseVisualHelper.iconSymbol(for: "Sauna") == "flame.fill", "PhaseVisualHelper resolves Sauna icon")
+expect(PhaseVisualHelper.iconSymbol(for: "Steam") == "cloud.fog.fill", "PhaseVisualHelper resolves Steam icon")
+expect(PhaseVisualHelper.iconSymbol(for: "Stair Climber") == "figure.stair.stepper", "PhaseVisualHelper resolves Stair Climber icon")
+
+let timerSnapshot = PhaseTimerSnapshot(endDate: Date().addingTimeInterval(300), totalSeconds: 300)
+if let snapshotData = try? JSONEncoder().encode(timerSnapshot),
+   let decodedSnapshot = try? JSONDecoder().decode(PhaseTimerSnapshot.self, from: snapshotData) {
+    expect(decodedSnapshot.totalSeconds == 300, "PhaseTimerSnapshot JSON encode/decode round-trip")
+} else {
+    failures += 1; print("FAIL PhaseTimerSnapshot JSON encode/decode round-trip")
+}
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

@@ -85,6 +85,12 @@
 		AA00000000000000000000D1 /* GymSessionRoutine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* GymSessionRoutine.swift */; };
 		AA00000000000000000000D2 /* GymSessionRoutine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* GymSessionRoutine.swift */; };
 		AA00000000000000000000D4 /* RoutineComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D3 /* RoutineComposerView.swift */; };
+		AA00000000000000000000E1 /* PhaseTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E0 /* PhaseTimerManager.swift */; };
+		AA00000000000000000000E2 /* PhaseTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E0 /* PhaseTimerManager.swift */; };
+		AA00000000000000000000E4 /* PhaseVisualHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E3 /* PhaseVisualHelper.swift */; };
+		AA00000000000000000000E5 /* PhaseVisualHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E3 /* PhaseVisualHelper.swift */; };
+		AA00000000000000000000E7 /* PhaseTransitionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* PhaseTransitionSheet.swift */; };
+		AA00000000000000000000E9 /* WatchPhaseTransitionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* WatchPhaseTransitionSheet.swift */; };
 		AA000000000000000000003E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001A /* Assets.xcassets */; };
 		AA000000000000000000003F /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001B /* Preview Assets.xcassets */; };
 		AA0000000000000000000040 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001C /* Assets.xcassets */; };
@@ -223,6 +229,10 @@
 		AA0000000000000000000095 /* ActiveWorkoutRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutRepository.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* GymSessionRoutine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymSessionRoutine.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D3 /* RoutineComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineComposerView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000E0 /* PhaseTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkout/PhaseTimerManager.swift; sourceTree = "<group>"; };
+		AA00000000000000000000E3 /* PhaseVisualHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/PhaseVisualHelper.swift; sourceTree = "<group>"; };
+		AA00000000000000000000E6 /* PhaseTransitionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhaseTransitionSheet.swift; sourceTree = "<group>"; };
+		AA00000000000000000000E8 /* WatchPhaseTransitionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPhaseTransitionSheet.swift; sourceTree = "<group>"; };
 		AA0000000000000000000098 /* WorkoutSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSyncCoordinator.swift; sourceTree = "<group>"; };
 		AA000000000000000000009B /* WatchStartableWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStartableWorkout.swift; sourceTree = "<group>"; };
 		AA000000000000000000009C /* WeightFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightFormatter.swift; sourceTree = "<group>"; };
@@ -300,6 +310,7 @@
 				AA000000000000000000007B /* Warmup.swift */,
 				AA000000000000000000007E /* PlateCalculator.swift */,
 				AA0000000000000000000086 /* Records.swift */,
+				AA00000000000000000000E0 /* PhaseTimerManager.swift */,
 			);
 			path = ActiveWorkout;
 			sourceTree = "<group>";
@@ -367,6 +378,7 @@
 				AA0000000000000000000088 /* CalendarView.swift */,
 				AA00000000000000000000B4 /* WorkoutLiveActivityWidget.swift */,
 				AA00000000000000000000D3 /* RoutineComposerView.swift */,
+				AA00000000000000000000E6 /* PhaseTransitionSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -405,6 +417,7 @@
 				AA00000000000000000000B1 /* WorkoutActivityAttributes.swift */,
 				AA00000000000000000000B2 /* WorkoutLiveActivityManager.swift */,
 				AA00000000000000000000B3 /* WorkoutIntents.swift */,
+				AA00000000000000000000E3 /* PhaseVisualHelper.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -417,6 +430,7 @@
 				AA0000000000000000000018 /* WatchSetLogView.swift */,
 				AA0000000000000000000019 /* WatchRestView.swift */,
 				AA00000000000000000000B5 /* WatchWorkoutComplications.swift */,
+				AA00000000000000000000E8 /* WatchPhaseTransitionSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -615,6 +629,9 @@
 				AA00000000000000000000C7 /* WorkoutLiveActivityWidget.swift in Sources */,
 				AA00000000000000000000D1 /* GymSessionRoutine.swift in Sources */,
 				AA00000000000000000000D4 /* RoutineComposerView.swift in Sources */,
+				AA00000000000000000000E1 /* PhaseTimerManager.swift in Sources */,
+				AA00000000000000000000E4 /* PhaseVisualHelper.swift in Sources */,
+				AA00000000000000000000E7 /* PhaseTransitionSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -654,6 +671,9 @@
 				AA00000000000000000000C4 /* WorkoutLiveActivityManager.swift in Sources */,
 				AA00000000000000000000C6 /* WorkoutIntents.swift in Sources */,
 				AA00000000000000000000C8 /* WatchWorkoutComplications.swift in Sources */,
+				AA00000000000000000000E2 /* PhaseTimerManager.swift in Sources */,
+				AA00000000000000000000E5 /* PhaseVisualHelper.swift in Sources */,
+				AA00000000000000000000E9 /* WatchPhaseTransitionSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

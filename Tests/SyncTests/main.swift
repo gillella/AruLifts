@@ -833,6 +833,18 @@ expect(
     "a checkpoint from another ownership epoch is rejected, not adopted"
 )
 
+// Phase timer snapshot replication test:
+let routineForSync = GymSessionRoutine.defaultCompleteGymVisit()
+let routineSessionSync = WorkoutSession.from(routine: routineForSync, templates: [], library: ExerciseLibrary.byID)
+let (pCoord, pWire) = makeCoordinator(.phone, "phaseTimerPhone")
+let (wCoord, wWire) = makeCoordinator(.watch, "phaseTimerWatch")
+pCoord.start(routineSessionSync)
+let phaseTimerSnap = PhaseTimerSnapshot(endDate: Date().addingTimeInterval(900), totalSeconds: 900)
+pCoord.mutate(session: routineSessionSync, currentExerciseIndex: 0, restTimer: nil, isWorkoutPaused: false, phaseTimer: phaseTimerSnap)
+let phaseCheckEnvelope = pWire.last(.checkpoint) ?? pWire.last(.ownershipOffer)!
+expect(wCoord.receive(phaseCheckEnvelope) == .applied, "Watch adopts phase timer checkpoint")
+expect(wCoord.replica?.phaseTimer?.totalSeconds == 900, "Watch replica contains phase timer snapshot")
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)
