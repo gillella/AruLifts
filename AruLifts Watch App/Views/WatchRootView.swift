@@ -56,24 +56,61 @@ struct WatchRootView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.green)
 
-                    ForEach(active.watchPlans) { plan in
-                        Button {
-                            active.startCachedPlan(plan)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(plan.name)
-                                    .font(.headline)
-                                    .lineLimit(1)
-                                Text("\(plan.exercises.count) exercises · Start")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                    let routines = active.watchPlans.filter(\.isRoutine)
+                    let templates = active.watchPlans.filter { !$0.isRoutine }
+
+                    if !routines.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Gym Session Routines")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                            ForEach(routines) { plan in
+                                Button {
+                                    active.startCachedPlan(plan)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(plan.name)
+                                            .font(.headline)
+                                            .lineLimit(1)
+                                        Text("\(plan.phases.count) phases · \(plan.exercises.count) exercises")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(8)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.purple)
+                                .accessibilityHint("Starts this gym routine on your Watch")
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                        .accessibilityHint("Starts this workout on your Watch")
+                    }
+
+                    if !templates.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Workout Templates")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                            ForEach(templates) { plan in
+                                Button {
+                                    active.startCachedPlan(plan)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(plan.name)
+                                            .font(.headline)
+                                            .lineLimit(1)
+                                        Text("\(plan.exercises.count) exercises · Start")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(8)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .accessibilityHint("Starts this workout on your Watch")
+                            }
+                        }
                     }
                 }
 
