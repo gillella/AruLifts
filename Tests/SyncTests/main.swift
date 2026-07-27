@@ -676,6 +676,103 @@ expect(
     "abandoning on the phone leaves the Watch's live workout alone"
 )
 
+// ---------------------------------------------------------------------------
+// A stalled ownership handshake keeps retrying and tells the user.
+//
+// `flushOutbox` used to be driven purely by edges — launch, a local commit,
+// reachability, WCSession activation. A dropped handshake message with no
+// following edge left the Watch in `mirror`/`waitingForPhone` holding a
+// workout it could not log to, with nothing retrying and nothing said.
+// ---------------------------------------------------------------------------
+
+/// Lets the main-actor retry loop actually run inside this synchronous script.
+func pumpMainLoop(seconds: TimeInterval) {
+    RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+}
+
+/// Reads a queued envelope back out of a persisted outbox, which is how the
+/// counterpart would eventually see it once delivery recovers.
+func queuedEnvelope(
+    _ kind: WorkoutMessageKind,
+    in repo: ActiveWorkoutRepository
+) -> WorkoutMessageEnvelope? {
+    repo.load().outbox.lazy
+        .compactMap { try? JSONDecoder().decode(WorkoutMessageEnvelope.self, from: $0.payload) }
+        .first { $0.kind == kind }
+}
+
+let stalledRepository = repository("stalled-handshake-watch")
+
+// Put the Watch in the exact stuck state: it accepted a phone-started workout,
+// persisted the phone-owned replica, and queued the acceptance receipt.
+let (stalledOfferPhone, stalledOfferWire) = makeCoordinator(.phone, "stalled-handshake-phone")
+let stalledSession = makeSession(name: "Stalled Handoff")
+expect(stalledOfferPhone.start(stalledSession), "phone offers the workout")
+
+let stalledSeed = WorkoutSyncCoordinator(
+    localDevice: .watch,
+    repository: stalledRepository
+)
+expect(
+    stalledSeed.receive(stalledOfferWire.last(.ownershipOffer)!) == .applied,
+    "watch accepts the offer"
+)
+expect(!stalledSeed.state.outbox.isEmpty, "acceptance is queued durably")
+expect(!stalledSeed.canEdit, "watch cannot edit until the phone commits")
+
+MainActor.assumeIsolated {
+    // Short intervals keep the suite fast; production uses 10 s / 30 s.
+    let stalledManager = ActiveWorkoutManager(
+        localDevice: .watch,
+        repository: stalledRepository,
+        outboxRetryInterval: .milliseconds(50),
+        handshakeStallThreshold: .milliseconds(200)
+    )
+    expect(
+        stalledManager.session?.id == stalledSession.id,
+        "watch restores the workout it is waiting to own"
+    )
+    expect(!stalledManager.canEdit, "restored watch is still read-only")
+    expect(
+        !stalledManager.isHandshakeStalled,
+        "a handshake is not called stalled immediately"
+    )
+
+    pumpMainLoop(seconds: 0.6)
+    expect(
+        stalledManager.isHandshakeStalled,
+        "an outstanding handshake is surfaced once it passes the threshold"
+    )
+
+    // The retried acceptance finally reaches the phone, which commits. The
+    // outbox drains and the Watch becomes the writer, so the warning must
+    // clear on its own.
+    var commitEnvelope: WorkoutMessageEnvelope?
+    stalledOfferPhone.transmit = { envelope, _ in
+        if envelope.kind == .ownershipCommit { commitEnvelope = envelope }
+    }
+    if let acceptance = queuedEnvelope(.ownershipAcceptance, in: stalledRepository) {
+        expect(
+            stalledOfferPhone.receive(acceptance) == .applied,
+            "phone accepts the retried acceptance"
+        )
+    } else {
+        expect(false, "watch had a queued acceptance to retry")
+    }
+
+    if let commitEnvelope {
+        ConnectivityManager.shared.receivedWorkoutEnvelope = commitEnvelope
+        expect(stalledManager.canEdit, "watch owns the workout after the commit")
+        pumpMainLoop(seconds: 0.3)
+        expect(
+            !stalledManager.isHandshakeStalled,
+            "the warning clears once the handshake completes"
+        )
+    } else {
+        expect(false, "phone produced an ownership commit")
+    }
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)
