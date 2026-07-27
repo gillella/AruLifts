@@ -68,6 +68,18 @@ func makeSession(name: String, sets: Int = 5, startedAt: Date = Date()) -> Worko
     )
 }
 
+// Rest state is mirrored to both devices, but speech must have exactly one
+// physical owner. The phone sends it through the user's selected audio route;
+// the Watch retains haptics without duplicating spoken countdown cues.
+expect(
+    RestTimerManager.spokenAlertsEnabled(for: .phone),
+    "phone owns spoken rest alerts"
+)
+expect(
+    !RestTimerManager.spokenAlertsEnabled(for: .watch),
+    "watch suppresses mirrored spoken rest alerts"
+)
+
 // ---------------------------------------------------------------------------
 // 1. A device with no replica joins a workout already in progress.
 //

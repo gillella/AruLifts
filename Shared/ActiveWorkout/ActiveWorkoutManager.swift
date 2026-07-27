@@ -80,7 +80,7 @@ final class ActiveWorkoutManager: ObservableObject {
     /// Phone configuration cached alongside plans for Watch-owned execution.
     @Published private(set) var watchExecutionSettings = WatchExecutionSettings()
 
-    let restTimer = RestTimerManager()
+    let restTimer: RestTimerManager
 
     private let connectivity = ConnectivityManager.shared
     private let syncCoordinator: WorkoutSyncCoordinator
@@ -119,6 +119,7 @@ final class ActiveWorkoutManager: ObservableObject {
         #else
         let device = localDevice ?? .phone
         #endif
+        restTimer = RestTimerManager(localDevice: device)
         syncCoordinator = WorkoutSyncCoordinator(
             localDevice: device,
             repository: repository

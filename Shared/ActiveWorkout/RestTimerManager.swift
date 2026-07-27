@@ -13,7 +13,7 @@ import WatchKit
 /// A countdown rest timer that survives backgrounding via a scheduled local
 /// notification and fires a haptic when it completes. Used after each set.
 @MainActor
-final class RestTimerManager: ObservableObject {
+final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpeechSynthesizerDelegate {
     @Published private(set) var isRunning = false
     @Published private(set) var isPaused = false
     @Published private(set) var totalSeconds: Int = 0
@@ -26,23 +26,29 @@ final class RestTimerManager: ObservableObject {
     private(set) var alertConfiguration: RestTimerAlertConfiguration = .default
     private var lastSpokenSecond: Int?
     var onStateChange: (() -> Void)?
+    let localDevice: WorkoutDevice
 
     /// Retained for the lifetime of the timer so spoken countdown cues are not
     /// deallocated mid-utterance.
     ///
-    /// On iPhone, speech uses its own system-managed audio session. This keeps
-    /// the user's current output route (including Bluetooth headphones), ducks
-    /// music only while a cue is speaking, and restores the music session
-    /// afterward. AruLifts previously changed and activated the shared app audio
-    /// session for every cue without deactivating it, which could pull speech
-    /// away from the route already playing music.
-    private let speechSynthesizer: AVSpeechSynthesizer = {
-        let synthesizer = AVSpeechSynthesizer()
-        #if os(iOS)
-        synthesizer.usesApplicationAudioSession = false
-        #endif
-        return synthesizer
-    }()
+    /// Only the iPhone speaks. The Watch runs the same mirrored timer and keeps
+    /// its haptics, but allowing both copies to synthesize speech produces
+    /// duplicate, unsynchronized announcements from two physical devices.
+    private let speechSynthesizer = AVSpeechSynthesizer()
+    private var activeUtterance: AVSpeechUtterance?
+    var spokenAlertsEnabled: Bool {
+        Self.spokenAlertsEnabled(for: localDevice)
+    }
+
+    nonisolated static func spokenAlertsEnabled(for device: WorkoutDevice) -> Bool {
+        device == .phone
+    }
+
+    init(localDevice: WorkoutDevice) {
+        self.localDevice = localDevice
+        super.init()
+        speechSynthesizer.delegate = self
+    }
 
     var progress: Double {
         guard totalSeconds > 0 else { return 0 }
@@ -266,18 +272,78 @@ final class RestTimerManager: ObservableObject {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
+        activeUtterance = nil
+        deactivateSpeechAudioSession()
     }
 
     private func speak(_ text: String) {
+        guard spokenAlertsEnabled else { return }
+
         // Drop any delayed phrase before announcing the current cue. This keeps
         // "three, two, one" aligned even if the selected voice starts slowly.
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
+        activateSpeechAudioSession()
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.language.languageCode?.identifier ?? "en-US")
         utterance.rate = 0.55
         utterance.volume = 1
+        activeUtterance = utterance
         speechSynthesizer.speak(utterance)
+    }
+
+    func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didFinish utterance: AVSpeechUtterance
+    ) {
+        finishSpeaking(utterance)
+    }
+
+    func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didCancel utterance: AVSpeechUtterance
+    ) {
+        finishSpeaking(utterance)
+    }
+
+    private func finishSpeaking(_ utterance: AVSpeechUtterance) {
+        guard activeUtterance === utterance else { return }
+        activeUtterance = nil
+        deactivateSpeechAudioSession()
+    }
+
+    private func activateSpeechAudioSession() {
+        #if os(iOS)
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(
+                .playback,
+                mode: .voicePrompt,
+                options: [
+                    .duckOthers,
+                    .interruptSpokenAudioAndMixWithOthers,
+                    .allowBluetoothA2DP
+                ]
+            )
+            try session.setActive(true)
+        } catch {
+            // Speech can still use the current application audio session. A
+            // route/session failure should never stop the workout timer.
+        }
+        #endif
+    }
+
+    private func deactivateSpeechAudioSession() {
+        #if os(iOS)
+        do {
+            try AVAudioSession.sharedInstance().setActive(
+                false,
+                options: .notifyOthersOnDeactivation
+            )
+        } catch {
+            // Another audio client may already have changed the shared session.
+        }
+        #endif
     }
 }
