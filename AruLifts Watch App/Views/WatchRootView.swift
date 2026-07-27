@@ -4,6 +4,7 @@ struct WatchRootView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var connectivity = ConnectivityManager.shared
+    @State private var showingOfflineStart = false
 
     var body: some View {
         NavigationStack {
@@ -37,24 +38,70 @@ struct WatchRootView: View {
         }
     }
 
+    /// Idle leads with the phone-first flow: pick the workout on iPhone and the
+    /// Watch starts tracking it. Starting here is the exception, kept for when
+    /// the phone is dead or in a locker, so it sits behind a deliberate tap.
     private var idle: some View {
         ScrollView {
             VStack(spacing: 10) {
-                Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 32))
+                Image(systemName: "iphone.gen3.radiowaves.left.and.right")
+                    .font(.system(size: 30))
                     .foregroundStyle(.orange)
-                Text("AruLifts")
+                Text("Start on iPhone")
                     .font(.headline)
+                    .multilineTextAlignment(.center)
+
+                Text("Open AruLifts on your iPhone and choose a workout. Tracking begins here automatically.")
+                    .font(.caption2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
 
                 if active.watchPlans.isEmpty {
                     Text("Your workouts will appear here after the iPhone sends them once.")
                         .font(.caption2)
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 } else {
-                    Text("Ready on Watch")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.green)
+                    Button {
+                        showingOfflineStart = true
+                    } label: {
+                        Label("Start without iPhone", systemImage: "iphone.slash")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
+                    .accessibilityHint("Starts a cached workout on Watch alone")
+                }
+
+                HStack(spacing: 6) {
+                    Image(systemName: connectivity.isReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                    Text(connectivity.isReachable ? "iPhone connected" : "Plans saved on Watch")
+                        .font(.caption2)
+                }
+                .foregroundStyle(connectivity.isReachable ? .green : .secondary)
+            }
+            .padding()
+        }
+        .sheet(isPresented: $showingOfflineStart) {
+            WatchOfflineStartView()
+        }
+    }
+}
+
+/// The fallback path: cached plans the Watch can start on its own when the
+/// iPhone is unavailable.
+struct WatchOfflineStartView: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 10) {
+                    Text("Starting here skips the iPhone. Use it only when your phone isn't available.")
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
 
                     let routines = active.watchPlans.filter(\.isRoutine)
                     let templates = active.watchPlans.filter { !$0.isRoutine }
@@ -67,6 +114,7 @@ struct WatchRootView: View {
                             ForEach(routines) { plan in
                                 Button {
                                     active.startCachedPlan(plan)
+                                    dismiss()
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(plan.name)
@@ -94,6 +142,7 @@ struct WatchRootView: View {
                             ForEach(templates) { plan in
                                 Button {
                                     active.startCachedPlan(plan)
+                                    dismiss()
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(plan.name)
@@ -113,15 +162,15 @@ struct WatchRootView: View {
                         }
                     }
                 }
-
-                HStack(spacing: 6) {
-                    Image(systemName: connectivity.isReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
-                    Text(connectivity.isReachable ? "iPhone connected" : "Plans saved on Watch")
-                        .font(.caption2)
-                }
-                .foregroundStyle(connectivity.isReachable ? .green : .secondary)
+                .padding()
             }
-            .padding()
+            .navigationTitle("Start without iPhone")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
     }
 }
