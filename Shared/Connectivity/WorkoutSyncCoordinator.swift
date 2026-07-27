@@ -192,6 +192,61 @@ final class WorkoutSyncCoordinator {
         return commit(next, flush: false)
     }
 
+    /// Locally retires a workout this device mirrors but does not own.
+    ///
+    /// This is the escape hatch behind the failed-takeover message. Without it
+    /// the phone is stranded: `cancel`/`finalize` both require ownership, so a
+    /// mirror whose counterpart has reinstalled, been force-quit, or otherwise
+    /// forgotten the session can neither take it over nor put it down, and the
+    /// stale replica then blocks the next workout until the six-hour
+    /// launch-recovery window expires.
+    ///
+    /// Deliberately local-only: no tombstone is broadcast. A non-owner must not
+    /// be able to end a workout that is still live on the counterpart, and
+    /// `receiveFinalization` rejects tombstones from non-owners anyway.
+    @discardableResult
+    func abandonMirroredSession() -> Bool {
+        guard let current = state.activeReplica,
+              current.owner != localDevice else { return false }
+        var next = state
+        retireHeldSession(in: &next)
+        next.syncStatus = .localOnly
+        return commit(next, flush: false)
+    }
+
+    /// True when an incoming replica describes a strictly newer workout than
+    /// the one held locally. Only one workout can be live across the pair, so a
+    /// counterpart reporting a later `startedAt` means the held one was
+    /// abandoned rather than finished.
+    private func supersedesHeldSession(_ incoming: WorkoutReplica) -> Bool {
+        guard let current = state.activeReplica,
+              current.session.id != incoming.session.id else { return false }
+        return incoming.session.startedAt > current.session.startedAt
+    }
+
+    /// Drops the locally held session so a strictly newer one can take its
+    /// place. Mirrors launch-time recovery: tombstone it as unfinished and
+    /// purge its queued messages so nothing can resurrect it afterwards.
+    private func retireHeldSession(in next: inout WorkoutRuntimeState) {
+        guard let current = next.activeReplica else { return }
+        let sessionID = current.session.id
+        next.terminalSessions[sessionID] = WorkoutTombstone(
+            sessionID: sessionID,
+            finalVersion: current.version,
+            finished: false,
+            createdAt: now()
+        )
+        next.outbox.removeAll { pending in
+            guard let queued = try? decoder.decode(
+                WorkoutMessageEnvelope.self,
+                from: pending.payload
+            ) else { return false }
+            return queued.sessionID == sessionID
+        }
+        next.activeReplica = nil
+        next.authorityState = nil
+    }
+
     /// Publishes a compact, self-contained plan cache. The Watch accepts only
     /// newer revisions and writes it before exposing offline starts.
     @discardableResult
@@ -307,7 +362,11 @@ final class WorkoutSyncCoordinator {
               envelope.sessionID == offer.replica.session.id,
               offer.replica.owner == .phone,
               state.terminalSessions[offer.replica.session.id] == nil else { return .invalid }
-        if let current = state.activeReplica {
+        // A held replica for an *older* workout must not block this one. The
+        // phone only offers a session it just started, so a strictly later
+        // `startedAt` means the workout still on this wrist was abandoned.
+        let supersedesHeld = supersedesHeldSession(offer.replica)
+        if let current = state.activeReplica, !supersedesHeld {
             guard current.session.id == offer.replica.session.id,
                   current.version < offer.replica.version else { return .stale }
         }
@@ -325,6 +384,7 @@ final class WorkoutSyncCoordinator {
                 )
             )
             var next = state
+            if supersedesHeld { retireHeldSession(in: &next) }
             // Persist the offered phone-owned replica and the acceptance
             // receipt atomically, but do not enable Watch editing until the
             // phone commits after becoming read-only.
@@ -476,7 +536,14 @@ final class WorkoutSyncCoordinator {
               checkpoint.replica.session.id == envelope.sessionID,
               state.terminalSessions[checkpoint.replica.session.id] == nil else { return .invalid }
         var next = state
-        if let current = state.activeReplica {
+        // Same rule as `receiveOffer`: a stale replica for an older workout
+        // cannot veto the workout the counterpart is actually running now.
+        // Retiring it here drops through to the age-checked adoption branch
+        // below, so the newer session still has to be plausibly live.
+        if supersedesHeldSession(checkpoint.replica) {
+            retireHeldSession(in: &next)
+        }
+        if let current = next.activeReplica {
             guard current.session.id == checkpoint.replica.session.id,
                   checkpoint.replica.owner == current.owner else { return .stale }
             if checkpoint.replica.version <= current.version {

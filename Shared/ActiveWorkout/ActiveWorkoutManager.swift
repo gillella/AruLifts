@@ -510,6 +510,25 @@ final class ActiveWorkoutManager: ObservableObject {
         #endif
     }
 
+    /// Puts down a workout this device mirrors but cannot take over — the
+    /// action the failed-takeover message offers. Clears the local mirror only;
+    /// a Watch that is still genuinely running the workout keeps it and must be
+    /// finished or discarded there.
+    func discardMirroredWorkout() {
+        guard let sessionID = syncCoordinator.replica?.session.id,
+              syncCoordinator.abandonMirroredSession() else { return }
+        connectivity.clearActiveContext(sessionID)
+        logger.notice(
+            "Discarded stuck mirrored workout \(sessionID.uuidString, privacy: .public)"
+        )
+        currentExerciseIndex = 0
+        clearUndo()
+        session = nil
+        isWorkoutPaused = false
+        isFinalizing = false
+        restTimer.stop()
+    }
+
     #if os(iOS)
     /// Rebuilds the Watch's offline-start cache from the phone's authoritative
     /// templates. Revisions make a delayed old cache harmless.

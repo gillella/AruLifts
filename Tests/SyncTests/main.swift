@@ -529,6 +529,141 @@ expect(
     "Health workout gate reopens only after the original session ends"
 )
 
+// ---------------------------------------------------------------------------
+// A stale replica must not veto the workout the counterpart is running now.
+//
+// Sibling of the no-replica regression above. Adoption was fixed for a device
+// holding nothing, but a device still holding an abandoned session rejected
+// every offer/checkpoint for a newer one as `.stale`, so the pair could not
+// converge until the six-hour launch-recovery window expired.
+// ---------------------------------------------------------------------------
+
+let staleStart = Date().addingTimeInterval(-1800)
+
+let (supersededWatch, _) = makeCoordinator(.watch, "supersede-watch")
+expect(
+    supersededWatch.start(makeSession(name: "Abandoned", startedAt: staleStart)),
+    "watch is left holding an abandoned workout"
+)
+let abandonedOnWatch = supersededWatch.replica?.session.id
+
+let (supersedingPhone, supersedingPhoneWire) = makeCoordinator(.phone, "supersede-phone")
+let newPhoneSession = makeSession(name: "Push Day", startedAt: Date())
+expect(supersedingPhone.start(newPhoneSession), "phone starts a brand-new workout")
+
+if let offer = supersedingPhoneWire.last(.ownershipOffer) {
+    expect(
+        supersededWatch.receive(offer) == .applied,
+        "offer for a newer workout supersedes the abandoned one"
+    )
+    expect(
+        supersededWatch.replica?.session.id == newPhoneSession.id,
+        "watch switches to the workout the phone just started"
+    )
+    if let abandonedOnWatch {
+        expect(
+            supersededWatch.state.terminalSessions[abandonedOnWatch] != nil,
+            "superseded workout is tombstoned, not silently dropped"
+        )
+        expect(
+            !supersededWatch.state.outbox.contains { pending in
+                guard let queued = try? JSONDecoder().decode(
+                    WorkoutMessageEnvelope.self, from: pending.payload
+                ) else { return false }
+                return queued.sessionID == abandonedOnWatch
+            },
+            "superseded workout leaves nothing queued that could resurrect it"
+        )
+    }
+} else {
+    expect(false, "phone emitted an ownership offer")
+}
+
+// Same rule over the plain checkpoint path, in the other direction.
+let (supersededPhone, _) = makeCoordinator(.phone, "supersede-phone-cp")
+expect(
+    supersededPhone.start(makeSession(name: "Abandoned", startedAt: staleStart)),
+    "phone is left holding an abandoned workout"
+)
+let (supersedingWatch, supersedingWatchWire) = makeCoordinator(.watch, "supersede-watch-cp")
+let newWatchSession = makeSession(name: "Pull Day", startedAt: Date())
+expect(supersedingWatch.start(newWatchSession), "watch starts a brand-new workout")
+if let checkpoint = supersedingWatchWire.last(.checkpoint) {
+    expect(
+        supersededPhone.receive(checkpoint) == .applied,
+        "checkpoint for a newer workout supersedes the abandoned one"
+    )
+    expect(
+        supersededPhone.replica?.session.id == newWatchSession.id,
+        "phone switches to the workout the watch just started"
+    )
+} else {
+    expect(false, "watch emitted a checkpoint")
+}
+
+// An *older* session must still lose — a stale sticky application context
+// replaying yesterday's checkpoint cannot displace the live workout.
+let (liveWatch, _) = makeCoordinator(.watch, "supersede-guard-watch")
+expect(
+    liveWatch.start(makeSession(name: "Live", startedAt: Date())),
+    "watch is running the current workout"
+)
+let (oldPhone, oldPhoneWire) = makeCoordinator(.phone, "supersede-guard-phone")
+expect(
+    oldPhone.start(makeSession(name: "Yesterday", startedAt: staleStart)),
+    "phone replays an older workout"
+)
+if let oldOffer = oldPhoneWire.last(.ownershipOffer) {
+    expect(
+        liveWatch.receive(oldOffer) == .stale,
+        "an older workout cannot displace the live one"
+    )
+}
+
+// ---------------------------------------------------------------------------
+// A mirror can put down a workout it is unable to take over.
+//
+// The failed-takeover message tells the user to discard and start fresh;
+// cancel/finalize both require ownership, so without this the phone is stuck.
+// ---------------------------------------------------------------------------
+
+let (stuckPhone, stuckPhoneWire) = makeCoordinator(.phone, "abandon-phone")
+let (stuckWatch, stuckWatchWire) = makeCoordinator(.watch, "abandon-watch")
+let stuckSession = makeSession(name: "Handoff")
+expect(stuckPhone.start(stuckSession), "phone starts and offers the workout")
+
+var pumpIndex = (phone: 0, watch: 0)
+for _ in 0..<12 {
+    while pumpIndex.phone < stuckPhoneWire.sent.count {
+        _ = stuckWatch.receive(stuckPhoneWire.sent[pumpIndex.phone])
+        pumpIndex.phone += 1
+    }
+    while pumpIndex.watch < stuckWatchWire.sent.count {
+        _ = stuckPhone.receive(stuckWatchWire.sent[pumpIndex.watch])
+        pumpIndex.watch += 1
+    }
+}
+expect(stuckPhone.owner == .watch, "watch owns the workout after the handshake")
+expect(!stuckPhone.canEdit, "phone is a read-only mirror")
+expect(
+    !stuckPhone.finalize(session: stuckSession, finished: false, healthSaved: false),
+    "a mirror still cannot finalize a workout it does not own"
+)
+expect(stuckPhone.abandonMirroredSession(), "mirror can abandon the stuck workout")
+expect(stuckPhone.replica == nil, "phone is clear after abandoning")
+expect(
+    stuckPhone.state.terminalSessions[stuckSession.id] != nil,
+    "abandoned workout is tombstoned so a trailing checkpoint cannot revive it"
+)
+expect(
+    !stuckWatch.abandonMirroredSession(),
+    "the owning device cannot abandon its own live workout this way"
+)
+expect(
+    stuckWatch.replica?.session.id == stuckSession.id,
+    "abandoning on the phone leaves the Watch's live workout alone"
+)
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)

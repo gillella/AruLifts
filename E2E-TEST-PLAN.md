@@ -88,9 +88,9 @@ history/Health result.
 
 | # | Requirement | Evidence required | Current status |
 |---|-------------|-------------------|----------------|
-| 2.1 | A phone-started workout is not called synced until the Watch has persisted and acknowledged that exact session | Protocol/state test plus paired-simulator handoff | 🚧 IN PROGRESS |
-| 2.2 | After acknowledgment, phone says the Watch is ready and can be put away | iPhone UI inspection and paired-simulator run | 🚧 IN PROGRESS |
-| 2.3 | Watch owns edits after handoff; phone is a read-only mirror unless takeover is acknowledged | Ownership epoch/revision tests and two-device edit attempt | 🚧 IN PROGRESS |
+| 2.1 | A phone-started workout is not called synced until the Watch has persisted and acknowledged that exact session | Protocol/state test plus paired-simulator handoff | ✅ PASS — 2026-07-27 paired sims: offer→acceptance→commit→ack observed, both sides converge to epoch 1 |
+| 2.2 | After acknowledgment, phone says the Watch is ready and can be put away | iPhone UI inspection and paired-simulator run | ✅ PASS — 2026-07-27 banner reads “Ready on Apple Watch — open AruLifts on your wrist” |
+| 2.3 | Watch owns edits after handoff; phone is a read-only mirror unless takeover is acknowledged | Ownership epoch/revision tests and two-device edit attempt | ✅ PASS — 2026-07-27 phone Cancel/Finish/set rows disabled while Watch owns |
 | 2.4 | Watch current-set screen prominently shows exercise, set, weight, reps and plates with one large completion action | Watch UI inspection, VoiceOver labels, physical glance test | ✅ IMPLEMENTED; runtime validation pending |
 | 2.5 | Completing a set starts rest, advances to the next incomplete set, provides haptic feedback, and offers a five-second Undo | Logic/UI test and Watch simulator run | ✅ IMPLEMENTED; runtime validation pending |
 | 2.6 | Weight/reps are adjustable without crowding the normal completion screen | Watch UI inspection and Digital Crown test | ✅ IMPLEMENTED; physical Crown validation pending |
@@ -98,12 +98,12 @@ history/Health result.
 | 2.8 | Workout can pause/resume safely, and finish warns when sets remain incomplete | Logic/UI tests and simulator interaction | ✅ IMPLEMENTED; runtime validation pending |
 | 2.9 | Watch edits survive disconnection, app termination and relaunch, then synchronize without reverting newer work | Persistence/state tests and paired-simulator offline run | 🚧 IN PROGRESS |
 | 2.10 | Duplicate, stale, reordered and former-owner updates cannot overwrite newer state | Pure protocol injection tests | 🚧 IN PROGRESS |
-| 2.11 | Finish/cancel is durable and a stale application context cannot resurrect the workout | Tombstone tests and relaunch scenario | 🚧 IN PROGRESS |
-| 2.12 | A finished session is inserted into app history and progression exactly once | Pure duplicate-finalization test plus simulator history | ✅ IMPLEMENTED; simulator history pending |
+| 2.11 | Finish/cancel is durable and a stale application context cannot resurrect the workout | Tombstone tests and relaunch scenario | ✅ PASS — 2026-07-27 finish on phone tombstoned both replicas; Watch cleared |
+| 2.12 | A finished session is inserted into app history and progression exactly once | Pure duplicate-finalization test plus simulator history | ✅ PASS — 2026-07-27 Home showed exactly 1 workout after finish |
 | 2.13 | Apple Health receives exactly one workout, tagged by app session ID, even when Watch result delivery is retried/lost | Health query/save code test plus physical Health inspection | ✅ IMPLEMENTED; physical confirmation pending |
 | 2.14 | Latest/today workout plans are cached and startable from Watch without the phone | Cache tests and offline Watch start | ⏳ PENDING |
-| 2.15 | Phone can explicitly take over only through an acknowledged ownership transfer | Protocol tests and paired-simulator takeover | 🚧 IN PROGRESS |
-| 2.16 | Sync UI distinguishes Saved locally, Waiting, Ready on Watch, and Synced rather than equating reachability with receipt | UI state tests and disconnected screenshots | 🚧 IN PROGRESS |
+| 2.15 | Phone can explicitly take over only through an acknowledged ownership transfer | Protocol tests and paired-simulator takeover | ✅ PASS — 2026-07-27 takeoverRequest→acceptance→commit, epoch 2, phone authoritative |
+| 2.16 | Sync UI distinguishes Saved locally, Waiting, Ready on Watch, and Synced rather than equating reachability with receipt | UI state tests and disconnected screenshots | ✅ PASS — 2026-07-27 Waking / Couldn’t wake + Retry / Ready on Watch all rendered |
 | 2.17 | Adaptive rest and previous-performance guidance are configurable and understandable | Logic tests and Watch UI inspection | ⏳ PENDING |
 | 2.18 | Speech, haptics, coaching level, contrast, large targets and VoiceOver are configurable/accessible | Settings inspection, Accessibility Inspector, physical Watch | ⏳ PENDING |
 | 2.19 | Live Activity/Smart Stack is included only if lifecycle tests do not produce stale/lingering workout state | Platform feasibility check and lifecycle tests | ⏳ PENDING |
@@ -282,3 +282,52 @@ workout) — worth knowing when reproducing install-related bugs.
 Environment note: Magnet and Wispr Flow both keep transparent full-screen
 overlays that intercept synthetic clicks on the simulators. Wispr Flow can be
 added to the automation allowlist; Magnet is menu-bar-only and must be quit.
+
+### 2026-07-27 — Phone-start → Watch handoff, paired simulators
+
+Full bidirectional run on iPhone 17 Pro (`EA395468…`) + Apple Watch Series 11
+46mm (`3C021BFC…`), driving both simulator UIs.
+
+1. **Phone start → Watch adoption.** Started *Upper Body* on the phone. Watch
+   received `ownershipOffer`, persisted it, and rendered the session read-only
+   with a "Waiting for iPhone handoff" banner and a disabled completion button.
+2. **Handshake completion.** `ownershipAcceptance` → `ownershipCommit` → ack.
+   End state: phone `mirror`/`synced`/owner `watch`, watch
+   `authoritative`/`synced`/owner `watch`, both at ownership epoch 1, both
+   outboxes empty.
+3. **Watch → phone set logging.** Completed a set on the Watch; phone applied
+   the checkpoint (revision 2), showed the set green, and mirrored the running
+   3:00 rest timer while keeping Cancel/Finish/set rows disabled.
+4. **Takeover.** "Take Over on iPhone" produced
+   `takeoverRequest` → `acceptance` → `commit`, epoch 2, phone authoritative
+   and Watch demoted to mirror.
+5. **Finish.** Finishing on the phone wrote history exactly once (Home showed
+   1 workout) and tombstoned the session on both devices.
+6. **Failed takeover → discard.** With the Watch app terminated, a takeover
+   timed out after 15 s and the new **Discard on iPhone** control cleared the
+   phone's stuck mirror (tombstoned, outbox empty, back to `localOnly`).
+7. **Superseding a stale replica.** With the Watch still holding the abandoned
+   *Lower Body* replica, starting *Arms* on the phone was adopted by the Watch
+   (`ownershipOffer … applied`) and both devices converged on *Arms*. Before
+   the fix in this branch that offer was rejected `.stale` and the pair could
+   not converge until the six-hour recovery window expired.
+
+**Not verifiable on the simulator.** Xcode strips the HealthKit entitlement
+from simulator builds (`codesign -d --entitlements` returns an empty dict), so
+`HKHealthStore.startWatchApp(with:)` and `HKWorkoutSession` both fail with
+"Missing com.apple.developer.healthkit entitlement". The HealthKit wake path,
+the live workout session, and `WKBackgroundModes` behaviour therefore still
+need a physical paired iPhone + Watch. Useful side effect: the guaranteed wake
+failure is a convenient way to exercise the "Couldn't wake Apple Watch" /
+Retry / Discard UI.
+
+`WKBackgroundModes = workout-processing` was confirmed present in the built
+watch app's merged `Info.plist`, so the `INFOPLIST_FILE` +
+`GENERATE_INFOPLIST_FILE` merge in this branch does work.
+
+Watch → phone `transferUserInfo` delivery stalled for several minutes at one
+point while the Watch app was backgrounded, leaving the Watch in
+`mirror`/`waitingForPhone` with a workout it could not log to. It recovered as
+soon as the Watch app was foregrounded. The Watch has no timeout for this
+state (the phone has 20 s wake and 15 s takeover timeouts) — tracked
+separately.

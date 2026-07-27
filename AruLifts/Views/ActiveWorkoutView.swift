@@ -5,6 +5,7 @@ struct ActiveWorkoutView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
     @ObservedObject private var connectivity = ConnectivityManager.shared
     @State private var showingCancelConfirm = false
+    @State private var showingMirrorDiscardConfirm = false
     @State private var showingExercisePicker = false
     @State private var showingNotes = false
     @State private var showingReorder = false
@@ -76,6 +77,18 @@ struct ActiveWorkoutView: View {
                 Button("Discard workout", role: .destructive) { active.cancel() }
                 Button("Keep going", role: .cancel) {}
             }
+            .confirmationDialog(
+                "Discard this workout on iPhone?",
+                isPresented: $showingMirrorDiscardConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Discard on iPhone", role: .destructive) {
+                    active.discardMirroredWorkout()
+                }
+                Button("Keep waiting", role: .cancel) {}
+            } message: {
+                Text("This removes the workout from iPhone only. If Apple Watch is still running it, finish or discard it there too.")
+            }
         }
     }
 
@@ -125,6 +138,15 @@ struct ActiveWorkoutView: View {
                             .font(.caption2)
                             .foregroundStyle(.orange)
                             .multilineTextAlignment(.center)
+
+                        // Without this the message above promises something the
+                        // user cannot do: Cancel/Finish both require ownership,
+                        // so a mirror whose takeover failed has no way out.
+                        Button("Discard on iPhone", role: .destructive) {
+                            showingMirrorDiscardConfirm = true
+                        }
+                        .font(.caption)
+                        .buttonStyle(.bordered)
                     }
                 }
             }
