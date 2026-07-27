@@ -7,6 +7,9 @@ struct WorkoutBuilderView: View {
     @Environment(\.dismiss) private var dismiss
 
     let existing: WorkoutTemplate?
+    /// Called with the persisted template after a successful save, so callers
+    /// (e.g. the routine composer) can link the result to what they were editing.
+    let onSave: ((WorkoutTemplate) -> Void)?
 
     @State private var name: String
     @State private var category: WorkoutCategory
@@ -14,8 +17,9 @@ struct WorkoutBuilderView: View {
     @State private var exercises: [TemplateExercise]
     @State private var showingPicker = false
 
-    init(existing: WorkoutTemplate?) {
+    init(existing: WorkoutTemplate?, onSave: ((WorkoutTemplate) -> Void)? = nil) {
         self.existing = existing
+        self.onSave = onSave
         _name = State(initialValue: existing?.name ?? "")
         _category = State(initialValue: existing?.category ?? .custom)
         _notes = State(initialValue: existing?.notes ?? "")
@@ -100,6 +104,7 @@ struct WorkoutBuilderView: View {
             return normalized
         }
         store.updateTemplate(template)
+        onSave?(template)
         dismiss()
     }
 }

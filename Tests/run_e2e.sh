@@ -3,6 +3,7 @@ set -e
 OUT=$(mktemp -d)/e2e_tests
 swiftc -o "$OUT" \
   Shared/Models/WorkoutTemplate.swift \
+  Shared/Models/GymSessionRoutine.swift \
   Shared/Models/WorkoutSession.swift \
   Shared/Models/WorkoutSyncModels.swift \
   Shared/Models/WatchStartableWorkout.swift \

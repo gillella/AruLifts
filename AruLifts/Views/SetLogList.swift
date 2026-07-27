@@ -18,17 +18,28 @@ struct SetLogList: View {
             VStack(spacing: 14) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(exercise.name).font(.title3.bold())
+                        Button { showingForm = true } label: {
+                            HStack(spacing: 4) {
+                                Text(exercise.name).font(.title3.bold())
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
                         Text("\(exercise.restSeconds / 60):\(String(format: "%02d", exercise.restSeconds % 60)) rest · \(exercise.sets.count) sets")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button { showingForm = true } label: {
-                        Image(systemName: "info.circle").font(.title3)
-                    }
                 }
 
-                plateGuide(exercise)
+                // Everything below the header edits the session, so it is gated
+                // on edit ownership. The exercise-name button above stays live
+                // even when the Watch owns the session — checking form guidance
+                // is read-only, and mid-workout is exactly when it is needed.
+                Group {
+                    plateGuide(exercise)
 
                 // Column headers
                 HStack {
@@ -85,7 +96,9 @@ struct SetLogList: View {
                 .font(.subheadline)
                 .padding(.top, 4)
 
-                navigationButtons
+                    navigationButtons
+                }
+                .disabled(!active.canEdit)
             }
             .sheet(isPresented: $showingForm) {
                 if let ex = store.exercise(for: exercise.exerciseID) {

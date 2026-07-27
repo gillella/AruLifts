@@ -281,7 +281,10 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
 
         for phase in routine.enabledPhases {
             var phaseExercises: [SessionExercise] = []
-            if phase.phaseType == .mainStrength, let templateID = phase.templateID, let template = templates.first(where: { $0.id == templateID }) {
+            // Any phase may link a template, not just main strength — cardio,
+            // warm-up, cool-down and recovery phases are composable too. Core
+            // work falls back to built-in defaults only when nothing is linked.
+            if let templateID = phase.templateID, let template = templates.first(where: { $0.id == templateID }) {
                 let templateSession = WorkoutSession.from(template: template, library: library, settings: settings)
                 phaseExercises = templateSession.exercises
             } else if phase.phaseType == .coreWork {
