@@ -28,9 +28,21 @@ final class RestTimerManager: ObservableObject {
     var onStateChange: (() -> Void)?
 
     /// Retained for the lifetime of the timer so spoken countdown cues are not
-    /// deallocated mid-utterance. AVSpeechSynthesizer routes to connected
-    /// Bluetooth earphones when present and otherwise uses the Watch audio route.
-    private let speechSynthesizer = AVSpeechSynthesizer()
+    /// deallocated mid-utterance.
+    ///
+    /// On iPhone, speech uses its own system-managed audio session. This keeps
+    /// the user's current output route (including Bluetooth headphones), ducks
+    /// music only while a cue is speaking, and restores the music session
+    /// afterward. AruLifts previously changed and activated the shared app audio
+    /// session for every cue without deactivating it, which could pull speech
+    /// away from the route already playing music.
+    private let speechSynthesizer: AVSpeechSynthesizer = {
+        let synthesizer = AVSpeechSynthesizer()
+        #if os(iOS)
+        synthesizer.usesApplicationAudioSession = false
+        #endif
+        return synthesizer
+    }()
 
     var progress: Double {
         guard totalSeconds > 0 else { return 0 }
@@ -262,27 +274,10 @@ final class RestTimerManager: ObservableObject {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
-        configureSpeechAudioSession()
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.language.languageCode?.identifier ?? "en-US")
         utterance.rate = 0.55
         utterance.volume = 1
         speechSynthesizer.speak(utterance)
-    }
-
-    /// Let a spoken cue share the iPhone's existing audio route (including
-    /// Bluetooth headphones) and briefly duck rather than interrupt music or a
-    /// podcast. watchOS manages its own audio session, so this is iOS-only.
-    private func configureSpeechAudioSession() {
-        #if os(iOS)
-        let audioSession = AVAudioSession.sharedInstance()
-        do {
-            try audioSession.setCategory(.ambient, options: [.duckOthers])
-            try audioSession.setActive(true)
-        } catch {
-            // Speech remains best-effort: do not break rest timing if the
-            // system denies a transient audio-session change.
-        }
-        #endif
     }
 }
