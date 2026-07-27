@@ -188,8 +188,7 @@ final class ActiveWorkoutManager: ObservableObject {
         phaseTimer.onCompletion = { [weak self] in
             guard let self else { return }
             self.showingPhaseTransitionModal = true
-            if let current = self.session?.currentPhase {
-                let msg = "Phase \(self.session?.currentPhaseIndex ?? 0 + 1) \(current.name) complete."
+            if let msg = self.phaseCompletionAnnouncement() {
                 self.phaseTimer.speakAnnouncement(msg)
             }
         }
@@ -426,6 +425,13 @@ final class ActiveWorkoutManager: ObservableObject {
     private var phaseCueLeadSeconds: Int {
         guard watchExecutionSettings.phaseCueEnabled else { return 0 }
         return max(0, watchExecutionSettings.phaseCueLeadSeconds)
+    }
+
+    /// Spoken when a timed phase reaches zero. The phase number is 1-based to
+    /// match what both devices display ("Phase 1 of 7"), not the raw index.
+    func phaseCompletionAnnouncement() -> String? {
+        guard let session, let current = session.currentPhase else { return nil }
+        return "Phase \(session.currentPhaseIndex + 1) \(current.name) complete."
     }
 
     /// Text announced at the lead cue: what the user should get ready for.

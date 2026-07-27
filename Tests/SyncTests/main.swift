@@ -1038,6 +1038,34 @@ MainActor.assumeIsolated {
     expect(WatchExecutionSettings().phaseCueLeadSeconds == 30, "phase cue defaults to 30 seconds")
 }
 
+// MARK: - Issue #85: phase-complete announcement uses the displayed 1-based number
+
+MainActor.assumeIsolated {
+    let announceSession = WorkoutSession.from(
+        routine: GymSessionRoutine.defaultCompleteGymVisit(),
+        templates: [],
+        library: ExerciseLibrary.byID
+    )
+    let announcer = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("announce"))
+    )
+    announcer.start(announceSession, broadcast: false)
+
+    let first = announcer.phaseCompletionAnnouncement()
+    expect(first?.hasPrefix("Phase 1 ") == true, "the first phase announces as Phase 1, not Phase 0")
+    expect(
+        first?.contains(announceSession.phases[0].name) == true,
+        "the announcement names the phase that finished"
+    )
+
+    announcer.advancePhase()
+    expect(
+        announcer.phaseCompletionAnnouncement()?.hasPrefix("Phase 2 ") == true,
+        "the announcement tracks the displayed phase number as phases advance"
+    )
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)
