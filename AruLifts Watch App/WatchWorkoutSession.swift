@@ -1,12 +1,13 @@
 import Foundation
 import HealthKit
+import OSLog
 
 /// Runs a real HKWorkoutSession while a workout is active on the watch.
 /// This keeps the app alive through rest periods (so the rest-over haptic
-/// always fires) and earns workout/activity-ring credit. Watch-initiated
-/// workouts only: phone-run workouts are saved to Health by the phone
-/// (`HealthKitManager`), and the `EndEvent.healthSaved` flag keeps the two
-/// devices from writing duplicate Health entries.
+/// always fires) and earns workout/activity-ring credit. The Watch records
+/// both Watch-started workouts and iPhone starts whose ownership is handed to
+/// the Watch; the finalization `healthSaved` flag prevents the phone from
+/// writing a duplicate Health entry.
 @MainActor
 final class WatchWorkoutSession: NSObject, ObservableObject {
     static let shared = WatchWorkoutSession()
@@ -18,6 +19,11 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
     /// Set before authorization starts, so cancel/finish can invalidate an
     /// in-flight start that has not yet created an HKWorkoutSession.
     private var startingSessionID: UUID?
+    private var startGate = WatchWorkoutStartGate()
+    private let logger = Logger(
+        subsystem: "com.arulifts.app.watchkitapp",
+        category: "WorkoutSession"
+    )
 
     /// Latest heart-rate reading from the live session, in beats per minute.
     /// nil when there's no running session, no data yet, or permission was
@@ -28,18 +34,32 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
 
     /// Starts the live session. Failures are logged, never fatal — the
     /// workout itself proceeds regardless of Health availability.
-    func start(sessionID: UUID = UUID()) async {
+    func start(
+        sessionID: UUID = UUID(),
+        configuration: HKWorkoutConfiguration? = nil
+    ) async {
+        guard startGate.claim(sessionID) else {
+            logger.info(
+                "Ignoring duplicate workout start \(sessionID.uuidString, privacy: .public)"
+            )
+            return
+        }
         guard session == nil, startingSessionID == nil,
-              HKHealthStore.isHealthDataAvailable() else { return }
+              HKHealthStore.isHealthDataAvailable() else {
+            startGate.release(sessionID)
+            return
+        }
         startingSessionID = sessionID
         var pendingSession: HKWorkoutSession?
         var pendingBuilder: HKLiveWorkoutBuilder?
         do {
             try await HealthKitManager.shared.requestAuthorization()
 
-            let config = HKWorkoutConfiguration()
-            config.activityType = .traditionalStrengthTraining
-            config.locationType = .indoor
+            let config = configuration ?? HKWorkoutConfiguration()
+            if configuration == nil {
+                config.activityType = .traditionalStrengthTraining
+                config.locationType = .indoor
+            }
 
             let newSession = try HKWorkoutSession(healthStore: store, configuration: config)
             let newBuilder = newSession.associatedWorkoutBuilder()
@@ -59,6 +79,7 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
             guard startingSessionID == sessionID else {
                 newSession.end()
                 newBuilder.discardWorkout()
+                startGate.release(sessionID)
                 return
             }
             session = newSession
@@ -67,13 +88,19 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
             startingSessionID = nil
             pendingSession = nil
             pendingBuilder = nil
+            logger.info(
+                "Started HealthKit workout \(sessionID.uuidString, privacy: .public)"
+            )
         } catch {
             pendingSession?.end()
             pendingBuilder?.discardWorkout()
-            print("WatchWorkoutSession: start failed: \(error.localizedDescription)")
+            logger.error(
+                "HealthKit workout start failed for \(sessionID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
             if startingSessionID == sessionID {
                 startingSessionID = nil
             }
+            startGate.release(sessionID)
         }
     }
 
@@ -83,7 +110,11 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
     func finish() async -> HealthSaveResult {
         // If authorization/collection is still pending, invalidate that start
         // before reporting there is no live workout to finish.
+        let pendingSessionID = startingSessionID
         startingSessionID = nil
+        if let pendingSessionID {
+            startGate.release(pendingSessionID)
+        }
         guard let liveSession = session,
               let liveBuilder = builder,
               let appSessionID = workoutSessionID else {
@@ -97,6 +128,7 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
         workoutSessionID = nil
         heartRateBPM = nil
         liveSession.end()
+        defer { startGate.release(appSessionID) }
         do {
             try await liveBuilder.endCollection(at: Date())
             guard let workout = try await liveBuilder.finishWorkout() else {
@@ -107,7 +139,9 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
             }
             return .saved(sessionID: appSessionID, healthWorkoutID: workout.uuid)
         } catch {
-            print("WatchWorkoutSession: finish failed: \(error.localizedDescription)")
+            logger.error(
+                "HealthKit workout finish failed for \(appSessionID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
             return .failed(sessionID: appSessionID, error: error)
         }
     }
@@ -115,14 +149,22 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
     /// Ends the live session without saving — the workout was cancelled, or
     /// the phone finished it and owns the Health entry.
     func discard() {
+        let pendingSessionID = startingSessionID
         startingSessionID = nil
+        if let pendingSessionID {
+            startGate.release(pendingSessionID)
+        }
         guard let liveSession = session, let liveBuilder = builder else { return }
+        let activeSessionID = workoutSessionID
         session = nil
         builder = nil
         workoutSessionID = nil
         heartRateBPM = nil
         liveSession.end()
         liveBuilder.discardWorkout()
+        if let activeSessionID {
+            startGate.release(activeSessionID)
+        }
     }
 }
 

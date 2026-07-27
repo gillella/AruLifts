@@ -359,12 +359,4 @@ struct WorkoutRuntimeState: Codable, Hashable {
         watchPlanCache = try c.decodeIfPresent(WatchPlanCache.self, forKey: .watchPlanCache)
     }
 
-    func accepts(_ replica: WorkoutReplica) -> Bool {
-        guard terminalSessions[replica.session.id] == nil else { return false }
-        guard let current = activeReplica else { return true }
-        if current.session.id != replica.session.id {
-            return replica.session.startedAt > current.session.startedAt
-        }
-        return replica.version > current.version
-    }
 }

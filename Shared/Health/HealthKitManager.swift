@@ -1,5 +1,65 @@
 import Foundation
 import HealthKit
+import OSLog
+
+#if os(iOS)
+/// Production implementation of the Watch workout wake path.
+@MainActor
+final class HealthKitWatchWorkoutLauncher: WatchWorkoutLaunching {
+    private let store: HKHealthStore
+    private let logger = Logger(
+        subsystem: "com.arulifts.app",
+        category: "WatchLaunch"
+    )
+
+    init(store: HKHealthStore = HKHealthStore()) {
+        self.store = store
+    }
+
+    func launchWorkoutOnWatch(
+        completion: @escaping @MainActor (Result<Void, Error>) -> Void
+    ) {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            completion(.failure(WatchWorkoutLaunchError.healthDataUnavailable))
+            return
+        }
+
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .traditionalStrengthTraining
+        configuration.locationType = .indoor
+
+        logger.info("Requesting companion Watch workout launch")
+        store.startWatchApp(with: configuration) { [logger] success, error in
+            Task { @MainActor in
+                if success {
+                    logger.info("Companion Watch workout launch accepted")
+                    completion(.success(()))
+                } else {
+                    let resolvedError = error ?? WatchWorkoutLaunchError.rejected
+                    logger.error(
+                        "Companion Watch workout launch failed: \(resolvedError.localizedDescription, privacy: .public)"
+                    )
+                    completion(.failure(resolvedError))
+                }
+            }
+        }
+    }
+}
+
+private enum WatchWorkoutLaunchError: LocalizedError {
+    case healthDataUnavailable
+    case rejected
+
+    var errorDescription: String? {
+        switch self {
+        case .healthDataUnavailable:
+            return "Health data is unavailable on this iPhone."
+        case .rejected:
+            return "Apple Watch did not accept the workout launch request."
+        }
+    }
+}
+#endif
 
 /// The durable outcome of attempting to save one app workout to HealthKit.
 /// `saved` and `alreadySaved` are the only states that verify an HKWorkout

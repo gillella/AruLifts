@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+OUT=$(mktemp -d)/e2e_tests
+swiftc -o "$OUT" \
+  Shared/Models/WorkoutTemplate.swift \
+  Shared/Models/WorkoutSession.swift \
+  Shared/Models/WorkoutSyncModels.swift \
+  Shared/Models/WatchStartableWorkout.swift \
+  Shared/Models/Exercise.swift \
+  Shared/Models/ExerciseLibrary.swift \
+  Shared/Models/ProgressSeries.swift \
+  Shared/Store/WorkoutStore.swift \
+  Shared/Store/Backup.swift \
+  Shared/Store/ActiveWorkoutRepository.swift \
+  Shared/Connectivity/WorkoutSyncCoordinator.swift \
+  Shared/ActiveWorkout/Progression.swift \
+  Shared/ActiveWorkout/Warmup.swift \
+  Shared/ActiveWorkout/PlateCalculator.swift \
+  Shared/ActiveWorkout/Records.swift \
+  Tests/E2ETests/main.swift
+exec "$OUT"

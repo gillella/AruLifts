@@ -5,27 +5,29 @@ struct ActiveWorkoutView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
     @ObservedObject private var connectivity = ConnectivityManager.shared
     @State private var showingCancelConfirm = false
+    @State private var showingMirrorDiscardConfirm = false
     @State private var showingExercisePicker = false
     @State private var showingNotes = false
     @State private var showingReorder = false
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
+            ZStack {
                 if let session = active.session {
                     content(for: session)
                 } else {
                     Color(.systemGroupedBackground).ignoresSafeArea()
                 }
-
-                if active.restTimer.isRunning {
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if isRestPresented {
                     RestTimerBar(timer: active.restTimer)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.spring(duration: 0.35), value: active.restTimer.isRunning)
+            .animation(.spring(duration: 0.35), value: isRestPresented)
             .navigationTitle(active.session?.name ?? "Workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -76,6 +78,18 @@ struct ActiveWorkoutView: View {
                 Button("Discard workout", role: .destructive) { active.cancel() }
                 Button("Keep going", role: .cancel) {}
             }
+            .confirmationDialog(
+                "Discard this workout on iPhone?",
+                isPresented: $showingMirrorDiscardConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Discard on iPhone", role: .destructive) {
+                    active.discardMirroredWorkout()
+                }
+                Button("Keep waiting", role: .cancel) {}
+            } message: {
+                Text("This removes the workout from iPhone only. If Apple Watch is still running it, finish or discard it there too.")
+            }
         }
     }
 
@@ -90,7 +104,7 @@ struct ActiveWorkoutView: View {
                 if let idx = currentIndex(in: session) {
                     SetLogList(exerciseIndex: idx)
                         .padding()
-                        .padding(.bottom, active.restTimer.isRunning ? 90 : 16)
+                        .padding(.bottom, 16)
                         .disabled(!active.canEdit)
                         .opacity(active.canEdit ? 1 : 0.72)
                 }
@@ -119,6 +133,38 @@ struct ActiveWorkoutView: View {
                     .buttonStyle(.bordered)
                     .tint(.orange)
                     .disabled(active.syncStatus == .waitingForWatch)
+
+                    if let error = active.takeoverError {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+
+                        // Without this the message above promises something the
+                        // user cannot do: Cancel/Finish both require ownership,
+                        // so a mirror whose takeover failed has no way out.
+                        Button("Discard on iPhone", role: .destructive) {
+                            showingMirrorDiscardConfirm = true
+                        }
+                        .font(.caption)
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+
+            if active.watchLaunchState == .failed {
+                Button("Retry Apple Watch") {
+                    active.retryWatchLaunch()
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .tint(.orange)
+
+                if let error = active.watchLaunchError {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
             }
         }
@@ -130,13 +176,20 @@ struct ActiveWorkoutView: View {
     private var syncMessage: String {
         switch active.syncStatus {
         case .waitingForWatch:
-            return "Sending workout to Apple Watch…"
+            switch active.watchLaunchState {
+            case .waking:
+                return "Waking Apple Watch…"
+            case .failed:
+                return "Couldn’t wake Apple Watch"
+            default:
+                return "Waiting for Apple Watch…"
+            }
         case .savedOnWatch:
             return "Saved on Watch — waiting for iPhone"
         case .waitingForPhone:
             return "Watch handoff in progress…"
         case .synced where active.owner == .watch:
-            return "Ready on Apple Watch — you can put your phone down"
+            return "Ready on Apple Watch — open AruLifts on your wrist"
         case .synced:
             return "Workout synchronized"
         case .needsResync:
@@ -165,6 +218,10 @@ struct ActiveWorkoutView: View {
     private func currentIndex(in session: WorkoutSession) -> Int? {
         guard session.exercises.indices.contains(active.currentExerciseIndex) else { return nil }
         return active.currentExerciseIndex
+    }
+
+    private var isRestPresented: Bool {
+        active.restTimer.isRunning || active.restTimer.isPaused
     }
 }
 

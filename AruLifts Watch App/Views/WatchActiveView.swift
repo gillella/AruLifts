@@ -27,9 +27,29 @@ struct WatchActiveView: View {
                 header(exercise)
 
                 if !active.canEdit {
-                    Label("Waiting for iPhone handoff", systemImage: "iphone.slash")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    // A stalled handshake looks identical to a brief one, so
+                    // say which it is: the retry is still running underneath,
+                    // but the user needs to know why the button is dead and
+                    // that logging on iPhone still works.
+                    if active.isHandshakeStalled {
+                        VStack(spacing: 2) {
+                            Label(
+                                "Still syncing with iPhone",
+                                systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+                            )
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            Text("Keep AruLifts open, or log this set on iPhone.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .accessibilityElement(children: .combine)
+                    } else {
+                        Label("Waiting for iPhone handoff", systemImage: "iphone.slash")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if active.isWorkoutPaused {

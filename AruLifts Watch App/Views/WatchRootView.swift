@@ -2,14 +2,37 @@ import SwiftUI
 
 struct WatchRootView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var connectivity = ConnectivityManager.shared
 
     var body: some View {
         NavigationStack {
             if active.isActive {
                 WatchActiveView()
+                    // SwiftUI also creates this view during a background wake.
+                    // Clear the alert only when the person is actually looking
+                    // at AruLifts, not merely because the session arrived.
+                    .onAppear {
+                        if scenePhase == .active {
+                            WatchWorkoutNotifier.clear()
+                        }
+                    }
             } else {
                 idle
+            }
+        }
+        .task {
+            if scenePhase == .active {
+                await WatchWorkoutNotifier.requestAuthorizationIfNeeded()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            if active.isActive {
+                WatchWorkoutNotifier.clear()
+            }
+            Task {
+                await WatchWorkoutNotifier.requestAuthorizationIfNeeded()
             }
         }
     }
