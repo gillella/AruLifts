@@ -75,6 +75,10 @@ final class ActiveWorkoutManager: ObservableObject {
     @Published private(set) var watchLaunchState: WatchLaunchState = .idle
     @Published private(set) var watchLaunchError: String?
     @Published private(set) var takeoverError: String?
+    /// True when an ownership handshake this device cannot edit through has
+    /// been outstanding long enough to be worth telling the user about. The
+    /// retry keeps running underneath; this only drives the explanation.
+    @Published private(set) var isHandshakeStalled = false
     /// Plans persisted on the Watch for an offline workout start.
     @Published private(set) var watchPlans: [WatchStartableWorkout] = []
     /// Phone configuration cached alongside plans for Watch-owned execution.
@@ -93,6 +97,12 @@ final class ActiveWorkoutManager: ObservableObject {
     private var watchLaunchTimeoutTask: Task<Void, Never>?
     private var takeoverTimeoutTask: Task<Void, Never>?
     private var takeoverErrorSessionID: UUID?
+    private var outboxRetryTask: Task<Void, Never>?
+    /// How often a non-empty durable outbox is re-flushed, and how long a
+    /// non-editable handshake may stay outstanding before the UI says so.
+    /// Injectable so tests do not have to wait in real time.
+    private let outboxRetryInterval: Duration
+    private let handshakeStallThreshold: Duration
     private var cancellables = Set<AnyCancellable>()
     /// Suppresses re-broadcasting while we apply a sync from the other device.
     private var applyingRemote = false
@@ -112,8 +122,12 @@ final class ActiveWorkoutManager: ObservableObject {
     init(
         localDevice: WorkoutDevice? = nil,
         repository: ActiveWorkoutRepository = ActiveWorkoutRepository(),
-        watchLauncher: WatchWorkoutLaunching? = nil
+        watchLauncher: WatchWorkoutLaunching? = nil,
+        outboxRetryInterval: Duration = .seconds(10),
+        handshakeStallThreshold: Duration = .seconds(30)
     ) {
+        self.outboxRetryInterval = outboxRetryInterval
+        self.handshakeStallThreshold = handshakeStallThreshold
         #if os(watchOS)
         let device = localDevice ?? .watch
         #else
@@ -637,6 +651,7 @@ final class ActiveWorkoutManager: ObservableObject {
         owner = state.activeReplica?.owner
         canEdit = syncCoordinator.canEdit
         syncStatus = state.syncStatus
+        syncOutboxRetry(for: state)
         watchPlans = state.watchPlanCache?.workouts ?? []
         if let cachedSettings = state.watchPlanCache?.executionSettings {
             watchExecutionSettings = cachedSettings
@@ -722,6 +737,68 @@ final class ActiveWorkoutManager: ObservableObject {
             }
         }
         #endif
+    }
+
+    /// Keeps a retry running for exactly as long as the durable outbox has
+    /// something in it.
+    ///
+    /// `flushOutbox` was previously driven only by edges — launch, a local
+    /// commit, reachability becoming true, WCSession activation. None of those
+    /// is guaranteed to happen again while the user is mid-workout with the
+    /// phone in a locker, so a single dropped handshake message could leave
+    /// this device waiting forever in a state it cannot edit through.
+    ///
+    /// Retrying is safe at any cadence: every envelope carries a stable id,
+    /// receivers dedupe on `processedMessageIDs`, and `ConnectivityManager`
+    /// skips a transfer that is already outstanding.
+    private func syncOutboxRetry(for state: WorkoutRuntimeState) {
+        guard !state.outbox.isEmpty else {
+            outboxRetryTask?.cancel()
+            outboxRetryTask = nil
+            isHandshakeStalled = false
+            return
+        }
+        // Already retrying; the running loop re-reads the live state each pass.
+        guard outboxRetryTask == nil else { return }
+
+        // `self` is deliberately re-acquired inside the loop rather than
+        // unwrapped once up front: holding it across the sleep would keep the
+        // manager alive through its own task for as long as the outbox has
+        // anything in it, which is exactly the long-lived case.
+        let clock = ContinuousClock()
+        let retryStartedAt = clock.now
+        outboxRetryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let interval = self?.outboxRetryInterval else { return }
+                do {
+                    try await Task.sleep(for: interval)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, let self else { return }
+                guard !self.syncCoordinator.state.outbox.isEmpty else {
+                    self.outboxRetryTask = nil
+                    self.isHandshakeStalled = false
+                    return
+                }
+                self.syncCoordinator.flushOutbox()
+
+                // Only nag about a handshake the user is actually blocked by.
+                // A queued checkpoint while this device is happily editing is
+                // normal background catch-up, not something to surface.
+                let waited = retryStartedAt.duration(to: clock.now)
+                let blocked = self.session != nil && !self.canEdit
+                let stalled = blocked && waited >= self.handshakeStallThreshold
+                if stalled != self.isHandshakeStalled {
+                    self.isHandshakeStalled = stalled
+                    if stalled {
+                        self.logger.error(
+                            "Ownership handshake still pending after \(waited.components.seconds, privacy: .public)s; retrying"
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private func beginWatchLaunch(for sessionID: UUID, force: Bool = false) {
