@@ -6,81 +6,175 @@ struct WatchRestView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
     @ObservedObject var timer: RestTimerManager
     @ObservedObject private var liveSession = WatchWorkoutSession.shared
+    @State private var showingRestOptions = false
 
     var body: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 6) {
-                Text("REST")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
-                WatchActiveView.WatchHeartRateChip(bpm: liveSession.heartRateBPM)
-            }
+        ScrollView {
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Text("REST")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.orange)
+                    Spacer(minLength: 0)
+                    WatchActiveView.WatchHeartRateChip(
+                        bpm: liveSession.heartRateBPM
+                    )
+                }
 
-            ZStack {
-                Circle()
-                    .stroke(Color.gray.opacity(0.25), lineWidth: 8)
-                Circle()
-                    .trim(from: 0, to: timer.progress)
-                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.5), value: timer.progress)
-                Text(timer.formattedRemaining)
-                    .font(.title.monospacedDigit().bold())
-            }
-            .frame(width: 100, height: 100)
+                ZStack {
+                    Circle()
+                        .stroke(Color.orange.opacity(0.16), lineWidth: 9)
+                    Circle()
+                        .trim(from: 0, to: timer.progress)
+                        .stroke(
+                            Color.orange.gradient,
+                            style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .animation(
+                            .linear(duration: 0.5),
+                            value: timer.progress
+                        )
+                    VStack(spacing: 0) {
+                        Text(timer.formattedRemaining)
+                            .font(.system(.title2, design: .rounded).bold())
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        if timer.isPaused {
+                            Text("PAUSED")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(width: 108, height: 108)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "\(timer.isPaused ? "Rest paused" : "Resting"), \(timer.formattedRemaining) remaining"
+                )
 
-            if let nextSetDescription {
-                Text("Next: \(nextSetDescription)")
-                    .font(.caption2.weight(.medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .accessibilityLabel("Next set \(nextSetDescription)")
-            }
+                if let nextSet {
+                    VStack(spacing: 1) {
+                        Text("UP NEXT")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.orange)
+                        Text(nextSet.exercise)
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                        Text(nextSet.details)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 5)
+                    .background(
+                        .thinMaterial,
+                        in: RoundedRectangle(cornerRadius: 9)
+                    )
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "Up next, \(nextSet.exercise), \(nextSet.details)"
+                    )
+                }
 
-            if active.canUndoLastSetCompletion {
+                HStack(spacing: 6) {
+                    Button { active.addRest(seconds: 30) } label: {
+                        Text("+30")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
+                    .disabled(!active.canEdit || active.isWorkoutPaused)
+                    .accessibilityLabel("Add 30 seconds")
+
+                    Button { active.skipRest() } label: {
+                        Text("Skip")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(!active.canEdit || active.isWorkoutPaused)
+
+                    Button {
+                        showingRestOptions = true
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
+                    .disabled(!active.canEdit || active.isWorkoutPaused)
+                    .accessibilityLabel("More rest timer controls")
+                }
+            }
+            .padding(.horizontal, 6)
+        }
+        .sheet(isPresented: $showingRestOptions) {
+            restOptions
+        }
+    }
+
+    private struct NextSet {
+        let exercise: String
+        let details: String
+    }
+
+    private var restOptions: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                Text("Rest Options")
+                    .font(.headline)
+
                 Button {
-                    active.undoLastSetCompletion()
+                    active.toggleRestPause()
+                    showingRestOptions = false
                 } label: {
-                    Label("Undo completion", systemImage: "arrow.uturn.backward")
-                        .font(.caption2)
-                }
-                .buttonStyle(.bordered)
-                .tint(.yellow)
-                .disabled(!active.canEdit)
-            }
-
-            HStack(spacing: 8) {
-                Button { active.toggleRestPause() } label: {
-                    Text(timer.isPaused ? "Resume" : "Pause").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!active.canEdit || active.isWorkoutPaused)
-
-                Button { active.resetRest() } label: {
-                    Image(systemName: "arrow.counterclockwise").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Reset rest timer")
-                .disabled(!active.canEdit || active.isWorkoutPaused)
-
-                Button { active.addRest(seconds: 30) } label: {
-                    Text("+30s").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!active.canEdit || active.isWorkoutPaused)
-
-                Button { active.skipRest() } label: {
-                    Text("Skip").frame(maxWidth: .infinity)
+                    Label(
+                        timer.isPaused ? "Resume Rest" : "Pause Rest",
+                        systemImage: timer.isPaused ? "play.fill" : "pause.fill"
+                    )
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
-                .disabled(!active.canEdit || active.isWorkoutPaused)
+
+                Button {
+                    active.resetRest()
+                    showingRestOptions = false
+                } label: {
+                    Label(
+                        "Reset Timer",
+                        systemImage: "arrow.counterclockwise"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                if active.canUndoLastSetCompletion {
+                    Button {
+                        active.undoLastSetCompletion()
+                        showingRestOptions = false
+                    } label: {
+                        Label(
+                            "Undo Set",
+                            systemImage: "arrow.uturn.backward"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.yellow)
+                }
             }
+            .padding(.horizontal, 8)
         }
-        .padding(.horizontal, 6)
     }
 
-    private var nextSetDescription: String? {
+    private var nextSet: NextSet? {
         guard let exercise = active.currentExercise,
               let index = exercise.sets.firstIndex(where: { !$0.isCompleted }) else {
             return nil
@@ -90,8 +184,14 @@ struct WatchRestView: View {
         if exercise.usesWeight {
             let weight = WeightFormatter.number(set.weight)
             let load = exercise.loadingMode == .bodyweight ? " +\(weight)" : " \(weight)"
-            return "\(exercise.name) · Set \(number) ·\(load) × \(set.reps)"
+            return NextSet(
+                exercise: exercise.name,
+                details: "Set \(number) ·\(load) × \(set.reps)"
+            )
         }
-        return "\(exercise.name) · Set \(number) · \(set.reps) reps"
+        return NextSet(
+            exercise: exercise.name,
+            details: "Set \(number) · \(set.reps) reps"
+        )
     }
 }
