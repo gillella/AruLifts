@@ -738,10 +738,14 @@ MainActor.assumeIsolated {
         "a handshake is not called stalled immediately"
     )
 
-    pumpMainLoop(seconds: 0.6)
+    // Simulate a suspended Watch/main actor. Counting scheduled retry
+    // intervals would record only 50 ms after this resumes; a monotonic clock
+    // correctly sees that the 200 ms stall threshold has already passed.
+    Thread.sleep(forTimeInterval: 0.3)
+    pumpMainLoop(seconds: 0.1)
     expect(
         stalledManager.isHandshakeStalled,
-        "an outstanding handshake is surfaced once it passes the threshold"
+        "suspension time counts toward the handshake stall threshold"
     )
 
     // The retried acceptance finally reaches the phone, which commits. The

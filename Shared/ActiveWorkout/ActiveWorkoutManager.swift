@@ -765,8 +765,9 @@ final class ActiveWorkoutManager: ObservableObject {
         // unwrapped once up front: holding it across the sleep would keep the
         // manager alive through its own task for as long as the outbox has
         // anything in it, which is exactly the long-lived case.
+        let clock = ContinuousClock()
+        let retryStartedAt = clock.now
         outboxRetryTask = Task { [weak self] in
-            var waited = Duration.zero
             while !Task.isCancelled {
                 guard let interval = self?.outboxRetryInterval else { return }
                 do {
@@ -780,12 +781,12 @@ final class ActiveWorkoutManager: ObservableObject {
                     self.isHandshakeStalled = false
                     return
                 }
-                waited += interval
                 self.syncCoordinator.flushOutbox()
 
                 // Only nag about a handshake the user is actually blocked by.
                 // A queued checkpoint while this device is happily editing is
                 // normal background catch-up, not something to surface.
+                let waited = retryStartedAt.duration(to: clock.now)
                 let blocked = self.session != nil && !self.canEdit
                 let stalled = blocked && waited >= self.handshakeStallThreshold
                 if stalled != self.isHandshakeStalled {
