@@ -207,6 +207,23 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         exerciseIndices(inPhase: phaseIndex).map { exercises[$0] }
     }
 
+    /// How a phase should be tracked in Health. Exercises pulled from a linked
+    /// template identify the machine more reliably than the routine's declared
+    /// names, so they are consulted first.
+    func activityKind(forPhase phaseIndex: Int) -> PhaseActivityKind {
+        guard phases.indices.contains(phaseIndex) else { return .traditionalStrengthTraining }
+        let phase = phases[phaseIndex]
+        let names = exercises(inPhase: phaseIndex).map(\.name) + phase.exerciseNames
+        return PhaseActivityKind.resolve(phaseType: phase.phaseType, exerciseNames: names)
+    }
+
+    /// Activity kind for the phase currently in progress, or plain strength
+    /// training for a single-template session.
+    var currentActivityKind: PhaseActivityKind {
+        guard isMultiPhase else { return .traditionalStrengthTraining }
+        return activityKind(forPhase: currentPhaseIndex)
+    }
+
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var completedSets: Int { exercises.reduce(0) { $0 + $1.completedSets } }
     var totalVolume: Double { exercises.reduce(0) { $0 + $1.volume } }

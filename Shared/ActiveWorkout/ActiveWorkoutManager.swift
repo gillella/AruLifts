@@ -279,7 +279,21 @@ final class ActiveWorkoutManager: ObservableObject {
         #if os(watchOS)
         // Watch-initiated workout: run a real HKWorkoutSession so the app
         // stays alive through rest and the workout earns activity-ring credit.
-        Task { await WatchWorkoutSession.shared.start(sessionID: newSession.id) }
+        // A routine opens directly on its first phase's activity so the session
+        // isn't started as strength training only to be swapped immediately.
+        if newSession.isMultiPhase {
+            let kind = newSession.currentActivityKind
+            let phaseName = newSession.currentPhase?.name ?? newSession.name
+            Task {
+                await WatchWorkoutSession.shared.start(
+                    sessionID: newSession.id,
+                    activityKind: kind,
+                    phaseName: phaseName
+                )
+            }
+        } else {
+            Task { await WatchWorkoutSession.shared.start(sessionID: newSession.id) }
+        }
         #endif
     }
 
@@ -366,6 +380,25 @@ final class ActiveWorkoutManager: ObservableObject {
     /// Moves the live exercise to the newly current phase's first unfinished
     /// exercise. Without this the pager keeps showing the previous phase's work
     /// after advancing, so the Watch never "recognises" the new phase.
+    /// Retunes the live Health session to the activity the current phase needs.
+    /// `HKWorkoutSession` cannot change activity type in place, so this ends the
+    /// current workout and starts another — see #84 for the accepted trade-off.
+    private func syncHealthActivityToPhase() {
+        #if os(watchOS)
+        guard let session, session.isMultiPhase, let phase = session.currentPhase else { return }
+        let kind = session.currentActivityKind
+        let sessionID = session.id
+        let phaseName = phase.name
+        Task {
+            await WatchWorkoutSession.shared.switchActivity(
+                to: kind,
+                phaseName: phaseName,
+                sessionID: sessionID
+            )
+        }
+        #endif
+    }
+
     private func moveToCurrentPhaseExercise() {
         guard let session, session.isMultiPhase else { return }
         if let landing = session.landingExerciseIndex(forPhase: session.currentPhaseIndex) {
@@ -421,6 +454,7 @@ final class ActiveWorkoutManager: ObservableObject {
             currentPhaseStartedAt = Date()
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
+            syncHealthActivityToPhase()
             broadcast()
         } else {
             session = current
@@ -438,6 +472,7 @@ final class ActiveWorkoutManager: ObservableObject {
             currentPhaseStartedAt = Date()
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
+            syncHealthActivityToPhase()
             broadcast()
         }
     }
@@ -450,6 +485,7 @@ final class ActiveWorkoutManager: ObservableObject {
         currentPhaseStartedAt = Date()
         moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
+        syncHealthActivityToPhase()
         broadcast()
     }
 

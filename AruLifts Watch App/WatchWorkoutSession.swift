@@ -32,11 +32,18 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
 
     var isRunning: Bool { session != nil }
 
+    /// Activity the live session was configured with. `HKWorkoutSession` fixes
+    /// its activity type at creation, so changing it means ending this session
+    /// and starting another.
+    private(set) var currentActivityKind: PhaseActivityKind?
+
     /// Starts the live session. Failures are logged, never fatal — the
     /// workout itself proceeds regardless of Health availability.
     func start(
         sessionID: UUID = UUID(),
-        configuration: HKWorkoutConfiguration? = nil
+        configuration: HKWorkoutConfiguration? = nil,
+        activityKind: PhaseActivityKind? = nil,
+        phaseName: String? = nil
     ) async {
         guard startGate.claim(sessionID) else {
             logger.info(
@@ -71,9 +78,19 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
             let startDate = Date()
             newSession.startActivity(with: startDate)
             try await newBuilder.beginCollection(at: startDate)
-            try await newBuilder.addMetadata([
-                HKMetadataKeyExternalUUID: sessionID.uuidString
-            ])
+            // One gym visit can produce several workouts (one per phase
+            // activity). Every phase of a visit shares the app's session id, so
+            // that doubles as the grouping key, while each fragment keeps a
+            // distinct external id so Health sees them as separate entries.
+            var metadata: [String: Any] = [
+                HKMetadataKeyExternalUUID: "\(sessionID.uuidString)-\(phaseName ?? "session")",
+                Self.visitGroupingMetadataKey: sessionID.uuidString
+            ]
+            if let phaseName {
+                metadata[Self.phaseNameMetadataKey] = phaseName
+                metadata[HKMetadataKeyWorkoutBrandName] = phaseName
+            }
+            try await newBuilder.addMetadata(metadata)
             // Cancellation may have happened while Health authorization or
             // collection setup was awaiting. Do not leak a live session.
             guard startingSessionID == sessionID else {
@@ -85,6 +102,7 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
             session = newSession
             builder = newBuilder
             workoutSessionID = sessionID
+            currentActivityKind = activityKind
             startingSessionID = nil
             pendingSession = nil
             pendingBuilder = nil
@@ -126,6 +144,7 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
         session = nil
         builder = nil
         workoutSessionID = nil
+        currentActivityKind = nil
         heartRateBPM = nil
         liveSession.end()
         defer { startGate.release(appSessionID) }
@@ -159,12 +178,82 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
         session = nil
         builder = nil
         workoutSessionID = nil
+        currentActivityKind = nil
         heartRateBPM = nil
         liveSession.end()
         liveBuilder.discardWorkout()
         if let activeSessionID {
             startGate.release(activeSessionID)
         }
+    }
+}
+
+extension PhaseActivityKind {
+    /// The HealthKit activity this phase should be recorded as.
+    var hkActivityType: HKWorkoutActivityType {
+        switch self {
+        case .stairClimbing: return .stairClimbing
+        case .elliptical: return .elliptical
+        case .running: return .running
+        case .cycling: return .cycling
+        case .rowing: return .rowing
+        case .mixedCardio: return .mixedCardio
+        case .traditionalStrengthTraining: return .traditionalStrengthTraining
+        case .flexibility: return .flexibility
+        case .coreTraining: return .coreTraining
+        case .preparationAndRecovery: return .preparationAndRecovery
+        }
+    }
+}
+
+extension WatchWorkoutSession {
+    /// Custom metadata key tying one gym visit's per-phase workouts together.
+    static let visitGroupingMetadataKey = "com.arulifts.gymVisitID"
+    static let phaseNameMetadataKey = "com.arulifts.phaseName"
+
+    /// Switches the live HealthKit session to the activity a new phase needs.
+    ///
+    /// `HKWorkoutSession.activityType` is immutable, so this saves the current
+    /// workout and opens a new one. That is the accepted cost of per-phase
+    /// accuracy: one gym visit appears in Health as several workouts, sharing a
+    /// grouping id in metadata, with a short heart-rate gap at each boundary.
+    /// No-ops when the activity is unchanged, so consecutive phases of the same
+    /// kind (sauna then steam) stay one continuous session.
+    func switchActivity(
+        to kind: PhaseActivityKind,
+        phaseName: String,
+        sessionID: UUID
+    ) async {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard currentActivityKind != kind else { return }
+        guard isRunning else {
+            // Nothing live yet (start may have failed or been skipped); begin
+            // one for this phase rather than silently tracking nothing.
+            await start(sessionID: sessionID, activityKind: kind, phaseName: phaseName)
+            return
+        }
+        logger.info(
+            "Switching Health activity to \(kind.rawValue, privacy: .public) for phase \(phaseName, privacy: .public)"
+        )
+        _ = await finish()
+        await start(sessionID: sessionID, activityKind: kind, phaseName: phaseName)
+    }
+
+    /// Starts a live session already configured for a specific phase.
+    func start(
+        sessionID: UUID,
+        activityKind: PhaseActivityKind,
+        phaseName: String
+    ) async {
+        let config = HKWorkoutConfiguration()
+        config.activityType = activityKind.hkActivityType
+        config.locationType = .indoor
+        await start(
+            sessionID: sessionID,
+            configuration: config,
+            activityKind: activityKind,
+            phaseName: phaseName
+        )
     }
 }
 
