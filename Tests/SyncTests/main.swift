@@ -1066,6 +1066,102 @@ MainActor.assumeIsolated {
     )
 }
 
+// MARK: - Issue #86: a freshly started phase timer must not be blanked
+
+MainActor.assumeIsolated {
+    let startSession = WorkoutSession.from(
+        routine: GymSessionRoutine.defaultCompleteGymVisit(),
+        templates: [],
+        library: ExerciseLibrary.byID
+    )
+    let starter = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("timerStart"))
+    )
+    starter.start(startSession, broadcast: false)
+
+    // Starting a routine must arm the first timed phase at its full duration.
+    let firstPhase = startSession.phases[0]
+    expect(firstPhase.phaseType.isTimed, "the default routine opens on a timed phase")
+    expect(
+        starter.phaseTimer.totalSeconds == firstPhase.durationSeconds,
+        "starting a routine arms the phase timer at the phase duration"
+    )
+    expect(
+        starter.phaseTimer.secondsRemaining > firstPhase.durationSeconds - 5,
+        "the armed timer starts counting down from the full duration, not 00:00"
+    )
+    expect(starter.phaseTimer.isRunning, "the phase timer is running after start")
+
+    // The reported symptom: an incoming replica carrying no phase-timer
+    // snapshot must not wipe the timer this device just started.
+    let emptySnapshotState = WorkoutRuntimeState(
+        activeReplica: WorkoutReplica(
+            session: startSession,
+            owner: .watch,
+            version: SessionVersion(ownershipEpoch: 1, revision: 1),
+            phaseTimer: nil
+        ),
+        syncStatus: .synced
+    )
+    starter.applyRuntimeStateForTesting(emptySnapshotState)
+    expect(
+        starter.phaseTimer.totalSeconds == firstPhase.durationSeconds,
+        "a replica with no phase-timer snapshot does not blank a running phase timer"
+    )
+    expect(
+        starter.phaseTimer.secondsRemaining > 0,
+        "the phase timer still shows time remaining after an empty snapshot arrives"
+    )
+
+    // But a genuine stop still applies: moving to an untimed phase clears it.
+    if let strengthIdx = startSession.phases.firstIndex(where: { !$0.phaseType.isTimed }) {
+        var untimed = startSession
+        untimed.currentPhaseIndex = strengthIdx
+        starter.applyRuntimeStateForTesting(
+            WorkoutRuntimeState(
+                activeReplica: WorkoutReplica(
+                    session: untimed,
+                    owner: .watch,
+                    version: SessionVersion(ownershipEpoch: 1, revision: 2),
+                    phaseTimer: nil
+                ),
+                syncStatus: .synced
+            )
+        )
+        expect(
+            !starter.phaseTimer.isRunning,
+            "moving to an untimed phase still stops the phase timer"
+        )
+    }
+
+    // And an overtime snapshot must survive the replica path rather than being
+    // filtered into the stop branch.
+    let overtimeStarter = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("timerOvertime"))
+    )
+    overtimeStarter.start(startSession, broadcast: false)
+    overtimeStarter.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: startSession,
+                owner: .watch,
+                version: SessionVersion(ownershipEpoch: 1, revision: 3),
+                phaseTimer: PhaseTimerSnapshot(
+                    endDate: Date().addingTimeInterval(-30),
+                    totalSeconds: firstPhase.durationSeconds
+                )
+            ),
+            syncStatus: .synced
+        )
+    )
+    expect(
+        overtimeStarter.phaseTimer.isOvertime,
+        "an overtime phase-timer snapshot replicates as overtime, not as stopped"
+    )
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)

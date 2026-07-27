@@ -966,6 +966,12 @@ final class ActiveWorkoutManager: ObservableObject {
     /// already-persisted state. It looks identical to a workout arriving from
     /// the counterpart, but the user is opening the app right now, so it must
     /// not trigger the "a workout appeared" wrist notification.
+    /// Applies a remote runtime state directly. Exists so tests can drive the
+    /// replica-adoption path without standing up a full two-device transport.
+    func applyRuntimeStateForTesting(_ state: WorkoutRuntimeState) {
+        applyV2State(state)
+    }
+
     private func applyV2State(_ state: WorkoutRuntimeState, isInitialRestore: Bool = false) {
         owner = state.activeReplica?.owner
         canEdit = syncCoordinator.canEdit
@@ -1015,6 +1021,7 @@ final class ActiveWorkoutManager: ObservableObject {
         }
 
         let wasNil = session == nil
+        let previousPhaseIndex = session?.currentPhaseIndex
         applyingRemote = true
         session = replica.session
         currentExerciseIndex = replica.session.exercises.indices.contains(
@@ -1037,8 +1044,18 @@ final class ActiveWorkoutManager: ObservableObject {
                 remainingSeconds: pausedRemaining,
                 totalSeconds: timer.totalSeconds
             )
-        } else if let timer = replica.phaseTimer, timer.endDate > Date() {
+        } else if let timer = replica.phaseTimer {
+            // A past end date is the owner running in overtime, not a finished
+            // phase — `sync` adopts either. Filtering on `endDate > Date()` here
+            // would drop every overtime snapshot into the stop branch below.
             phaseTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds)
+        } else if (phaseTimer.isRunning || phaseTimer.isPaused),
+                  previousPhaseIndex == replica.session.currentPhaseIndex,
+                  replica.session.currentPhase?.phaseType.isTimed == true {
+            // The peer has no phase-timer snapshot yet — it may not have armed
+            // one, or its checkpoint predates ours. Keep the timer this device
+            // already started for the same phase rather than blanking it to
+            // 00:00, which is what made a freshly started routine show no time.
         } else {
             phaseTimer.stop()
         }
