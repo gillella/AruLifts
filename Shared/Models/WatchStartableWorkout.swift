@@ -126,31 +126,56 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
     }
 }
 
-/// A complete workout that the Watch can start without consulting the phone.
+/// A complete workout or gym routine that the Watch can start without consulting the phone.
 ///
 /// The template identifier remains stable so a finished session can still be
-/// associated with (and progress) its originating phone template.
+/// associated with (and progress) its originating phone template or routine.
 struct WatchStartableWorkout: Identifiable, Codable, Hashable {
     var templateID: UUID
+    var routineID: UUID?
     var name: String
     var category: WorkoutCategory
     var exercises: [WatchStartableExercise]
+    var phases: [GymSessionLogPhase]
     var notes: String
+    var isRoutine: Bool
 
-    var id: UUID { templateID }
+    var id: UUID { routineID ?? templateID }
 
     init(
         templateID: UUID,
+        routineID: UUID? = nil,
         name: String,
         category: WorkoutCategory,
         exercises: [WatchStartableExercise],
-        notes: String = ""
+        phases: [GymSessionLogPhase] = [],
+        notes: String = "",
+        isRoutine: Bool = false
     ) {
         self.templateID = templateID
+        self.routineID = routineID
         self.name = name
         self.category = category
         self.exercises = exercises
+        self.phases = phases
         self.notes = notes
+        self.isRoutine = isRoutine
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case templateID, routineID, name, category, exercises, phases, notes, isRoutine
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        templateID = try c.decode(UUID.self, forKey: .templateID)
+        routineID = try c.decodeIfPresent(UUID.self, forKey: .routineID)
+        name = try c.decode(String.self, forKey: .name)
+        category = try c.decode(WorkoutCategory.self, forKey: .category)
+        exercises = try c.decode([WatchStartableExercise].self, forKey: .exercises)
+        phases = try c.decodeIfPresent([GymSessionLogPhase].self, forKey: .phases) ?? []
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        isRoutine = try c.decodeIfPresent(Bool.self, forKey: .isRoutine) ?? false
     }
 
     /// Snapshots a template and every setting needed to start it offline.
@@ -160,9 +185,12 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
         settings: AppSettings
     ) {
         templateID = template.id
+        routineID = nil
         name = template.name
         category = template.category
         notes = template.notes
+        phases = []
+        isRoutine = false
         exercises = template.exercises.map { templateExercise in
             if templateExercise.isTimed {
                 return WatchStartableExercise(
@@ -220,6 +248,41 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
         }
     }
 
+    /// Snapshots a GymSessionRoutine and its exercises for offline Watch starts.
+    init(
+        routine: GymSessionRoutine,
+        templates: [WorkoutTemplate],
+        library: [UUID: Exercise],
+        settings: AppSettings
+    ) {
+        let session = WorkoutSession.from(
+            routine: routine,
+            templates: templates,
+            library: library,
+            settings: settings
+        )
+        templateID = routine.id
+        routineID = routine.id
+        name = routine.name
+        category = session.category
+        notes = routine.notes
+        phases = session.phases
+        isRoutine = true
+        exercises = session.exercises.map { sessionEx in
+            WatchStartableExercise(
+                id: sessionEx.id,
+                exerciseID: sessionEx.exerciseID,
+                name: sessionEx.name,
+                sets: sessionEx.sets.map { set in
+                    WatchStartableSet(id: set.id, reps: set.reps, weight: set.weight, isWarmup: set.isWarmup)
+                },
+                restSeconds: sessionEx.restSeconds,
+                usesWeight: sessionEx.usesWeight,
+                loadingMode: sessionEx.loadingMode
+            )
+        }
+    }
+
     static func from(
         template: WorkoutTemplate,
         library: [UUID: Exercise],
@@ -232,6 +295,20 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
         )
     }
 
+    static func from(
+        routine: GymSessionRoutine,
+        templates: [WorkoutTemplate],
+        library: [UUID: Exercise],
+        settings: AppSettings
+    ) -> WatchStartableWorkout {
+        WatchStartableWorkout(
+            routine: routine,
+            templates: templates,
+            library: library,
+            settings: settings
+        )
+    }
+
     /// Creates a distinct workout attempt from the cached plan.
     ///
     /// All transient identifiers are regenerated so starting the same cached
@@ -239,7 +316,8 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
     func makeFreshSession(at startedAt: Date = Date()) -> WorkoutSession {
         WorkoutSession(
             id: UUID(),
-            templateID: templateID,
+            templateID: isRoutine ? nil : templateID,
+            routineID: isRoutine ? (routineID ?? templateID) : nil,
             name: name,
             category: category,
             exercises: exercises.map { cachedExercise in
@@ -261,9 +339,23 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                     loadingMode: cachedExercise.loadingMode
                 )
             },
+            phases: phases.map { phase in
+                GymSessionLogPhase(
+                    id: UUID(),
+                    phaseType: phase.phaseType,
+                    name: phase.name,
+                    durationSeconds: phase.durationSeconds,
+                    actualDurationSeconds: nil,
+                    isCompleted: false,
+                    exerciseNames: phase.exerciseNames,
+                    exercises: phase.exercises,
+                    notes: phase.notes
+                )
+            },
+            currentPhaseIndex: 0,
             startedAt: startedAt,
             finishedAt: nil,
-            notes: ""
+            notes: notes
         )
     }
 }

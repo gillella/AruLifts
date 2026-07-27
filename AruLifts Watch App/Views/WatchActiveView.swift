@@ -85,6 +85,8 @@ struct WatchActiveView: View {
 
                 progressDots(exercise)
                 exerciseNavigation
+            } else if let session = active.session, session.isMultiPhase {
+                multiPhaseCard(session)
             }
         }
         .padding(.horizontal, 4)
@@ -493,6 +495,56 @@ struct WatchActiveView: View {
         return result.platesPerSide
             .map { $0 == $0.rounded() ? String(Int($0)) : String(format: "%.2g", $0) }
             .joined(separator: " + ") + " per side"
+    }
+
+    private func multiPhaseCard(_ session: WorkoutSession) -> some View {
+        VStack(spacing: 8) {
+            if let phase = session.currentPhase {
+                VStack(spacing: 4) {
+                    Image(systemName: phase.phaseType.iconSymbol)
+                        .font(.title2)
+                        .foregroundStyle(phase.phaseType.color)
+                    Text(phase.name)
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                    if phase.durationSeconds > 0 {
+                        Text("\(phase.durationSeconds / 60) min target")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    if !phase.notes.isEmpty {
+                        Text(phase.notes)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    active.previousPhase()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(session.currentPhaseIndex == 0)
+
+                Button {
+                    active.advancePhase()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(session.currentPhaseIndex == session.phases.count - 1 ? "Finish Phase" : "Next Phase")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.caption2.bold())
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+        }
+        .padding(8)
     }
 
     /// Live heart rate from the Watch workout session; hidden until HealthKit

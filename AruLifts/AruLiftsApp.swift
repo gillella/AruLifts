@@ -36,6 +36,7 @@ struct AruLiftsApp: App {
                     updateWatchPlanCache()
                 }
                 .onChange(of: store.templates) { _, _ in updateWatchPlanCache() }
+                .onChange(of: store.gymRoutines) { _, _ in updateWatchPlanCache() }
                 .onChange(of: store.customExercises) { _, _ in updateWatchPlanCache() }
                 .onChange(of: store.settings) { _, _ in updateWatchPlanCache() }
         }
@@ -44,6 +45,7 @@ struct AruLiftsApp: App {
     private func updateWatchPlanCache() {
         active.updateWatchPlanCache(
             templates: store.templates,
+            gymRoutines: store.gymRoutines,
             library: store.exerciseIndex,
             settings: store.settings
         )

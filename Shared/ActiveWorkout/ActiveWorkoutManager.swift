@@ -596,14 +596,18 @@ final class ActiveWorkoutManager: ObservableObject {
 
     #if os(iOS)
     /// Rebuilds the Watch's offline-start cache from the phone's authoritative
-    /// templates. Revisions make a delayed old cache harmless.
+    /// templates and routines. Revisions make a delayed old cache harmless.
     func updateWatchPlanCache(
         templates: [WorkoutTemplate],
+        gymRoutines: [GymSessionRoutine] = [],
         library: [UUID: Exercise],
         settings: AppSettings
     ) {
-        let workouts = templates.map {
+        var workouts = templates.map {
             WatchStartableWorkout(template: $0, library: library, settings: settings)
+        }
+        workouts += gymRoutines.map {
+            WatchStartableWorkout(routine: $0, templates: templates, library: library, settings: settings)
         }
         let cache = (syncCoordinator.watchPlanCache ?? WatchPlanCache()).advanced(
             workouts: workouts,

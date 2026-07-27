@@ -838,5 +838,26 @@ if let routineData = try? JSONEncoder().encode(defaultRoutine),
     failures += 1; print("FAIL GymSessionRoutine JSON encode/decode")
 }
 
+let startableRoutine = WatchStartableWorkout.from(
+    routine: defaultRoutine,
+    templates: defaultTemplates,
+    library: ExerciseLibrary.byID,
+    settings: AppSettings()
+)
+expect(startableRoutine.isRoutine, "WatchStartableWorkout accurately flags isRoutine")
+expect(startableRoutine.phases.count == 7, "WatchStartableWorkout retains 7 routine phases")
+
+let freshWatchSession = startableRoutine.makeFreshSession()
+expect(freshWatchSession.isMultiPhase, "freshWatchSession created from routine is multi-phase")
+expect(freshWatchSession.routineID == defaultRoutine.id, "freshWatchSession retains routineID")
+expect(freshWatchSession.currentPhaseIndex == 0, "freshWatchSession starts at phase 0")
+
+if let startableData = try? JSONEncoder().encode(startableRoutine),
+   let decodedStartable = try? JSONDecoder().decode(WatchStartableWorkout.self, from: startableData) {
+    expect(decodedStartable.isRoutine && decodedStartable.phases.count == 7, "WatchStartableWorkout routine JSON round-trip")
+} else {
+    failures += 1; print("FAIL WatchStartableWorkout routine JSON round-trip")
+}
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
