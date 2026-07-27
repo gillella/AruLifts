@@ -3,11 +3,14 @@ import Foundation
 /// Persistence-first state machine for single-writer workout replication.
 final class WorkoutSyncCoordinator {
     enum ReceiveResult: Equatable {
-        case applied, duplicate, stale, gap, ignored, invalid
+        case applied, duplicate, stale, ignored, invalid
     }
 
     private(set) var state: WorkoutRuntimeState
     let localDevice: WorkoutDevice
+    /// Set when launch-time recovery discarded an abandoned active replica.
+    /// The manager uses this to clear the matching sticky application context.
+    private(set) var discardedStaleSessionID: UUID?
     var onStateChange: ((WorkoutRuntimeState) -> Void)?
     var transmit: ((WorkoutMessageEnvelope, WorkoutMessageTransport) -> Void)?
 
@@ -15,16 +18,56 @@ final class WorkoutSyncCoordinator {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private let processedIDLimit = 256
+    /// Oldest workout a device with no local replica will adopt from an
+    /// incoming checkpoint. No real gym session runs this long, so anything
+    /// older is a stale snapshot retained in the sticky application context,
+    /// never a live workout worth joining. Injectable so tests can exercise
+    /// the boundary without waiting.
+    private let maxAdoptableSessionAge: TimeInterval
+    /// Clock seam for tests; production always reads the real clock.
+    private let now: () -> Date
 
     init(
         localDevice: WorkoutDevice,
         repository: ActiveWorkoutRepository = ActiveWorkoutRepository(),
+        maxAdoptableSessionAge: TimeInterval = 6 * 60 * 60,
+        now: @escaping () -> Date = Date.init,
         transmit: ((WorkoutMessageEnvelope, WorkoutMessageTransport) -> Void)? = nil
     ) {
         self.localDevice = localDevice
         self.repository = repository
+        self.maxAdoptableSessionAge = maxAdoptableSessionAge
+        self.now = now
         self.transmit = transmit
-        state = repository.load()
+        let restored = repository.load()
+        if let replica = restored.activeReplica,
+           now().timeIntervalSince(replica.session.startedAt) >
+             maxAdoptableSessionAge {
+            var recovered = restored
+            let sessionID = replica.session.id
+            recovered.activeReplica = nil
+            recovered.authorityState = nil
+            recovered.syncStatus = .localOnly
+            recovered.terminalSessions[sessionID] = WorkoutTombstone(
+                sessionID: sessionID,
+                finalVersion: replica.version,
+                finished: false,
+                createdAt: now()
+            )
+            let decoder = JSONDecoder()
+            recovered.outbox.removeAll { pending in
+                guard let queued = try? decoder.decode(
+                    WorkoutMessageEnvelope.self,
+                    from: pending.payload
+                ) else { return false }
+                return queued.sessionID == sessionID
+            }
+            state = recovered
+            discardedStaleSessionID = sessionID
+            _ = repository.save(recovered)
+        } else {
+            state = restored
+        }
     }
 
     var replica: WorkoutReplica? { state.activeReplica }
@@ -126,6 +169,27 @@ final class WorkoutSyncCoordinator {
             append(envelope, to: &next)
             return commit(next, flush: true)
         } catch { return false }
+    }
+
+    /// Returns a timed-out takeover to a stable mirror state and removes its
+    /// now-invalid requests so a later retry starts one fresh handshake.
+    @discardableResult
+    func cancelTakeoverRequest() -> Bool {
+        guard let replica = state.activeReplica,
+              replica.owner != localDevice,
+              state.authorityState == .requestingTakeover else { return false }
+        var next = state
+        next.authorityState = .mirror
+        next.syncStatus = .synced
+        next.outbox.removeAll { pending in
+            guard let queued = try? decoder.decode(
+                WorkoutMessageEnvelope.self,
+                from: pending.payload
+            ) else { return false }
+            return queued.kind == .takeoverRequest &&
+                queued.sessionID == replica.session.id
+        }
+        return commit(next, flush: false)
     }
 
     /// Publishes a compact, self-contained plan cache. The Watch accepts only
@@ -430,7 +494,25 @@ final class WorkoutSyncCoordinator {
                 return .stale
             }
         } else {
-            guard checkpoint.replica.version == .initial else { return .gap }
+            // A checkpoint is a complete snapshot, not a delta, so a device
+            // holding no replica can adopt any revision. This is the path a
+            // device takes to (re)join a workout already in progress: freshly
+            // installed, force-quit and relaunched, or simply not running when
+            // the counterpart started logging.
+            //
+            // This previously required `version == .initial` and returned
+            // `.gap` otherwise. Nothing ever handled `.gap` — there is no
+            // resync request in the protocol — so a device that missed the
+            // first checkpoint rejected every subsequent one and stayed blank
+            // for the rest of the workout, permanently.
+            //
+            // The age check is what `.initial` was implicitly buying: the
+            // application context is sticky and survives termination, so
+            // without it a cold launch could adopt a long-dead workout out of
+            // the retained context. Keep this aligned with the six-hour
+            // cold-start adoption window described by the transport layer.
+            guard now().timeIntervalSince(checkpoint.replica.session.startedAt)
+                    <= maxAdoptableSessionAge else { return .stale }
         }
         next.activeReplica = checkpoint.replica
         next.authorityState = .mirror
@@ -466,13 +548,26 @@ final class WorkoutSyncCoordinator {
             sendAcknowledgment(for: envelope)
             return .duplicate
         }
-        guard let current = state.activeReplica,
-              current.session.id == finalization.tombstone.sessionID,
-              current.owner == envelope.sender,
-              finalization.tombstone.finalVersion >= current.version else { return .stale }
+        // A device that is not tracking this session still records the
+        // tombstone. It has nothing to tear down, but the tombstone is what
+        // stops `receiveCheckpoint` from later adopting the finished workout:
+        // the tombstone and any trailing checkpoint travel on transports with
+        // no ordering guarantee, and `transferUserInfo` is a durable FIFO
+        // queue that can deliver a backlog after a reinstall. Dropping it here
+        // (the old behaviour) was safe only while adoption required
+        // `version == .initial`; now that a replica-less device adopts any
+        // revision, discarding the tombstone would resurrect finished work.
+        let tracksSession =
+            state.activeReplica?.session.id == finalization.tombstone.sessionID
+        if tracksSession, let current = state.activeReplica {
+            guard current.owner == envelope.sender,
+                  finalization.tombstone.finalVersion >= current.version else { return .stale }
+        }
         var next = state
-        next.activeReplica = nil
-        next.authorityState = nil
+        if tracksSession {
+            next.activeReplica = nil
+            next.authorityState = nil
+        }
         next.syncStatus = .synced
         next.terminalSessions[finalization.tombstone.sessionID] = finalization.tombstone
         markProcessed(envelope.id, in: &next)
@@ -493,6 +588,32 @@ final class WorkoutSyncCoordinator {
 
     private func append(_ envelope: WorkoutMessageEnvelope, to state: inout WorkoutRuntimeState) {
         guard let data = try? encoder.encode(envelope) else { return }
+        // Checkpoints and offers carry the complete replica, while a takeover
+        // request carries the requester's latest known version. A newer one
+        // fully supersedes any still-pending older one for the same session.
+        // Without this collapse every logged set appended a fresh entry while
+        // `commit(flush: true)` re-transmitted the entire outbox, making
+        // delivery volume quadratic in the number of sets (30 sets produced
+        // ~500 sends) and flooding the finite, persistent `transferUserInfo`
+        // queue whenever the counterpart was unreachable.
+        //
+        // Deliberately same-kind only. An `ownershipOffer` is what drives the
+        // Watch to accept ownership, so a `checkpoint` must never stand in for
+        // one. Transfer-handshake receipts (acceptance/commit) and tombstones
+        // are never collapsed either — `receiveCommit` and the
+        // acknowledgment path match them by id out of this outbox, and a
+        // dropped tombstone would strand a finished workout.
+        if envelope.kind == .checkpoint ||
+            envelope.kind == .ownershipOffer ||
+            envelope.kind == .takeoverRequest {
+            state.outbox.removeAll { pending in
+                guard let queued = try? decoder.decode(
+                    WorkoutMessageEnvelope.self, from: pending.payload
+                ) else { return false }
+                return queued.kind == envelope.kind &&
+                    queued.sessionID == envelope.sessionID
+            }
+        }
         state.outbox.append(PendingWorkoutMessage(id: envelope.id, payload: data))
     }
 

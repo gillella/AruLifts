@@ -123,12 +123,45 @@ history/Health result.
 9. Duplicate finalization produces one history entry and one progression update.
 10. Cached workout construction generates fresh session, exercise and set IDs.
 
+### Rejoin and delivery-volume tests (`Tests/run_sync.sh`)
+
+Added 2026-07-24 after a sync outage that all three prior suites missed. This
+suite is the only one that compiles `ConnectivityManager`, `ActiveWorkoutManager`
+and `RestTimerManager`; the others cover pure logic only.
+
+11. A device holding no replica adopts an in-progress checkpoint at any
+    revision, and keeps converging afterwards. **Regression guard** — this
+    previously required `version == .initial`, returned an unhandled `.gap`
+    otherwise, and left the device blank for the rest of the workout.
+12. A reinstalled phone re-attaches mid-workout and recovers the sets logged
+    while it was gone.
+13. Adoption is bounded by a staleness window, so a sticky application context
+    cannot resurrect an abandoned workout on cold launch; an already-joined
+    mirror keeps updating past that window.
+14. A tombstone is recorded even by a device that never tracked the session, so
+    a later checkpoint cannot resurrect finished work; an unrelated tombstone
+    does not blank an active workout.
+15. Superseded checkpoints collapse in the outbox: 31 edits produce ≤62 sends
+    (was 496) and one pending snapshot. Handshake messages and tombstones are
+    never collapsed.
+16. `ActiveWorkoutManager` publishes an adopted replica to the UI with the
+    correct owner and read-only state.
+
+### Test suites
+
+| Suite | Command | Covers |
+|-------|---------|--------|
+| Logic | `Tests/run.sh` | Models, store, progression, plate/warmup math, coordinator state machine |
+| E2E | `Tests/run_e2e.sh` | Goal-level assertions across the four product goals |
+| Sync | `Tests/run_sync.sh` | Replication seam incl. connectivity + active-workout managers |
+
 ### Paired-simulator E2E procedure
 
 1. Launch clean paired iPhone and Watch simulators.
 2. Start a workout on iPhone; verify the phone displays a waiting state.
-3. Verify Watch receives/persists it, becomes owner, and the phone changes to
-   **Ready on Apple Watch — you can put your phone down**.
+3. Verify HealthKit wakes the Watch app, Watch receives/persists the matching
+   session, becomes owner, and the phone changes to **Ready on Apple Watch —
+   open AruLifts on your wrist**.
 4. Complete a Watch set; verify phone mirrors it and rest begins with next-set
    context. Undo within five seconds and confirm both devices revert.
 5. Adjust weight/reps, complete again, use +30 and Skip, and navigate exercises.
@@ -150,17 +183,43 @@ history/Health result.
 
 1. Verify both counterpart apps are installed before treating a failure as a
    synchronization defect.
-2. Start on iPhone and wait for the exact-session Watch-ready acknowledgment.
-3. Lock/put down the phone and complete at least three sets from Watch.
-4. Confirm Digital Crown adjustment, target sizes, screen readability during
+2. Open AruLifts on Watch once while visible and grant notification permission.
+   Confirm Watch app notification settings are **Allow Notifications**, not
+   notification-center-only or off.
+3. Finish/cancel any existing session, return to the Watch face, lower the
+   wrist, and start a fresh workout on iPhone.
+4. Confirm the iPhone progresses through **Waking Apple Watch…** and
+   **Waiting for Apple Watch…**, then reaches **Ready on Apple Watch** only
+   after the exact-session ownership acknowledgment.
+5. Physically observe the wrist alert. Tap it and verify AruLifts opens the
+   exact session, exercise, and set state that was started on iPhone. A build,
+   log line, queued notification, or Ready status is not proof of this step.
+6. Repeat with Watch notifications denied. The workout must still wake/sync,
+   the iPhone must not claim a notification exists, and manually opening
+   AruLifts must reveal the exact live session.
+7. Repeat with Watch offline. Confirm a truthful failure/waiting state, restore
+   connectivity, use **Retry Apple Watch**, and verify the original workout
+   continues without a duplicate ownership offer or Health workout.
+8. Force-quit/relaunch the iPhone while waiting. Confirm the persisted workout
+   is restored and one new wake retry occurs without creating a new session.
+9. With the workout ready, lock/put down the phone and complete at least three
+   sets from Watch.
+10. Confirm Digital Crown adjustment, target sizes, screen readability during
    exertion, VoiceOver labels, haptics, Watch speaker and Bluetooth-earphone
    speech at 10/3/2/1/Go.
-5. Background the Watch through a full rest interval and confirm the live
-   `HKWorkoutSession` keeps timer/heart-rate collection alive.
-6. Complete an offline Watch-started workout, reconnect, and verify explicit
-   phone receipt.
-7. Inspect Fitness/Health and confirm exactly one workout with duration,
-   heart-rate/energy data and the matching external session UUID.
+11. Background the Watch through a full rest interval and confirm the live
+    HealthKit session keeps it executing and the rest alert fires.
+12. Finish on Watch. Verify exactly one app-history entry and exactly one
+    Health workout with the AruLifts session external UUID.
+
+### iPhone-to-Watch wake regression checks (`Tests/run_sync.sh`)
+
+17. A phone start persists its active replica and durable ownership offer
+    before invoking the injected Watch launcher.
+18. One new workout start invokes one wake request.
+19. Wake failure is visible, Retry invokes one additional wake, and Retry
+    reuses the original ownership offer.
+20. Relaunch with a restored pending ownership offer performs one wake retry.
 
 ## Goal 3 — Food / nutrition capture (TBD)
 
@@ -195,3 +254,31 @@ Later, per Aravind.
 | Date | Goal | Result | Notes |
 |------|------|--------|-------|
 | 2026-07-21 | Goal 1 — workout creation | Core creation/edit/persistence PASS; suggestions (1.2), cardio (1.5), stretching (1.6), recovery (1.7) FAIL; watch live-sync bug found | See checklist + bugs above |
+| 2026-07-24 | Goal 2 — Watch-start → phone rejoin | **PASS** on paired sims (iPhone 17 Pro iOS 26.3 + Series 11 46mm watchOS 26.1) | See below |
+
+### 2026-07-24 — Watch-start rejoin, paired simulators
+
+Verifying the `.gap` adoption fix on real WatchConnectivity, not just in the
+script suites.
+
+1. Plan cache replicated phone → watch (revision 2, 4 workouts); watch showed
+   "Ready on Watch".
+2. Phone app terminated. Started **Upper Body** on the watch and logged 3 sets
+   with the phone app not running. Watch reached `revision 9`, owner `watch`,
+   authority `authoritative`.
+3. Deleted the phone's `active_workout_runtime.json` so it provably held **no
+   replica** — the precondition that used to be unrecoverable.
+4. Launched the phone. It adopted the checkpoint at **revision 9**, session id
+   matching, owner `watch`, authority `mirror`, 3 completed sets, and rendered
+   the live workout read-only with "Take Over on iPhone" and the mirrored rest
+   timer. Under the old `guard version == .initial` this path returned `.gap`
+   and the phone stayed blank for the rest of the workout.
+
+Also observed: iOS background-wakes the companion app for WatchConnectivity
+delivery, so the phone converges even before the user opens it. Deleting the
+iPhone app also removes the paired watch app (and with it any in-progress
+workout) — worth knowing when reproducing install-related bugs.
+
+Environment note: Magnet and Wispr Flow both keep transparent full-screen
+overlays that intercept synthetic clicks on the simulators. Wispr Flow can be
+added to the automation allowlist; Magnet is menu-bar-only and must be quit.

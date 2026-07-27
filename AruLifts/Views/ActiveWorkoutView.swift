@@ -119,6 +119,29 @@ struct ActiveWorkoutView: View {
                     .buttonStyle(.bordered)
                     .tint(.orange)
                     .disabled(active.syncStatus == .waitingForWatch)
+
+                    if let error = active.takeoverError {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            }
+
+            if active.watchLaunchState == .failed {
+                Button("Retry Apple Watch") {
+                    active.retryWatchLaunch()
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .tint(.orange)
+
+                if let error = active.watchLaunchError {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
             }
         }
@@ -130,13 +153,20 @@ struct ActiveWorkoutView: View {
     private var syncMessage: String {
         switch active.syncStatus {
         case .waitingForWatch:
-            return "Sending workout to Apple Watch…"
+            switch active.watchLaunchState {
+            case .waking:
+                return "Waking Apple Watch…"
+            case .failed:
+                return "Couldn’t wake Apple Watch"
+            default:
+                return "Waiting for Apple Watch…"
+            }
         case .savedOnWatch:
             return "Saved on Watch — waiting for iPhone"
         case .waitingForPhone:
             return "Watch handoff in progress…"
         case .synced where active.owner == .watch:
-            return "Ready on Apple Watch — you can put your phone down"
+            return "Ready on Apple Watch — open AruLifts on your wrist"
         case .synced:
             return "Workout synchronized"
         case .needsResync:

@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import OSLog
 
 #if os(iOS)
 import UIKit
@@ -7,11 +8,47 @@ import UIKit
 import WatchKit
 #endif
 
+/// Injectable seam around the iPhone-only HealthKit API that launches or
+/// wakes the companion Watch app. Kept free of HealthKit so host tests can
+/// verify persistence-before-wake ordering.
+@MainActor
+protocol WatchWorkoutLaunching: AnyObject {
+    func launchWorkoutOnWatch(
+        completion: @escaping @MainActor (Result<Void, Error>) -> Void
+    )
+}
+
+/// Pure, testable guard used by the real Watch HealthKit session runner.
+/// Holding one claim across both asynchronous startup and the live session
+/// prevents duplicate Health workouts from repeated wake deliveries.
+struct WatchWorkoutStartGate {
+    private(set) var claimedSessionID: UUID?
+
+    mutating func claim(_ sessionID: UUID) -> Bool {
+        guard claimedSessionID == nil else { return false }
+        claimedSessionID = sessionID
+        return true
+    }
+
+    mutating func release(_ sessionID: UUID) {
+        guard claimedSessionID == sessionID else { return }
+        claimedSessionID = nil
+    }
+}
+
 /// Drives a live workout: which exercise/set is current, completing sets,
 /// the rest timer, and keeping the counterpart device in sync. Instantiated on
 /// both the phone and the watch.
 @MainActor
 final class ActiveWorkoutManager: ObservableObject {
+    enum WatchLaunchState: Equatable {
+        case idle
+        case waking
+        case waitingForWatch
+        case ready
+        case failed
+    }
+
     private struct LastSetCompletion {
         let sessionID: UUID
         let exerciseIndex: Int
@@ -33,6 +70,11 @@ final class ActiveWorkoutManager: ObservableObject {
     @Published private(set) var owner: WorkoutDevice?
     @Published private(set) var canEdit = false
     @Published private(set) var syncStatus: WorkoutSyncStatus = .localOnly
+    /// iPhone-only presentation state for the HealthKit wake request. The
+    /// replication state remains authoritative for ownership and readiness.
+    @Published private(set) var watchLaunchState: WatchLaunchState = .idle
+    @Published private(set) var watchLaunchError: String?
+    @Published private(set) var takeoverError: String?
     /// Plans persisted on the Watch for an offline workout start.
     @Published private(set) var watchPlans: [WatchStartableWorkout] = []
     /// Phone configuration cached alongside plans for Watch-owned execution.
@@ -42,14 +84,18 @@ final class ActiveWorkoutManager: ObservableObject {
 
     private let connectivity = ConnectivityManager.shared
     private let syncCoordinator: WorkoutSyncCoordinator
+    private let watchLauncher: WatchWorkoutLaunching?
+    private let logger = Logger(
+        subsystem: "com.arulifts.app",
+        category: "ActiveWorkout"
+    )
+    private var watchLaunchSessionID: UUID?
+    private var watchLaunchTimeoutTask: Task<Void, Never>?
+    private var takeoverTimeoutTask: Task<Void, Never>?
+    private var takeoverErrorSessionID: UUID?
     private var cancellables = Set<AnyCancellable>()
     /// Suppresses re-broadcasting while we apply a sync from the other device.
     private var applyingRemote = false
-    /// Ids of sessions this device has ended (finished/cancelled or received a
-    /// remote end for). A late "sync" for one of these — one that raced past
-    /// its own "end" across the two transports — must not resurrect it. Session
-    /// ids are fresh UUIDs, so a tombstoned id never legitimately returns.
-    private var endedSessionIDs: Set<UUID> = []
     private var lastSetCompletion: LastSetCompletion?
 
     /// Called on the phone when a session finishes, so it can be stored.
@@ -59,11 +105,28 @@ final class ActiveWorkoutManager: ObservableObject {
 
     var isActive: Bool { session != nil }
 
-    init() {
+    /// `localDevice` and `repository` exist so tests can stand up an isolated
+    /// manager for either side of the pair. Production always uses the
+    /// defaults: the role follows the platform, and state lands in the real
+    /// Application Support store.
+    init(
+        localDevice: WorkoutDevice? = nil,
+        repository: ActiveWorkoutRepository = ActiveWorkoutRepository(),
+        watchLauncher: WatchWorkoutLaunching? = nil
+    ) {
         #if os(watchOS)
-        syncCoordinator = WorkoutSyncCoordinator(localDevice: .watch)
+        let device = localDevice ?? .watch
         #else
-        syncCoordinator = WorkoutSyncCoordinator(localDevice: .phone)
+        let device = localDevice ?? .phone
+        #endif
+        syncCoordinator = WorkoutSyncCoordinator(
+            localDevice: device,
+            repository: repository
+        )
+        #if os(iOS)
+        self.watchLauncher = watchLauncher ?? HealthKitWatchWorkoutLauncher()
+        #else
+        self.watchLauncher = watchLauncher
         #endif
 
         syncCoordinator.transmit = { [weak self] envelope, transport in
@@ -84,20 +147,9 @@ final class ActiveWorkoutManager: ObservableObject {
             self.broadcast()
         }
 
-        // Receive sessions/ends pushed from the counterpart device.
-        connectivity.$receivedSession
-            .compactMap { $0 }
-            .sink { [weak self] incoming in self?.applyRemote(incoming) }
-            .store(in: &cancellables)
-
         connectivity.$receivedWorkoutEnvelope
             .compactMap { $0 }
             .sink { [weak self] envelope in self?.handleV2(envelope) }
-            .store(in: &cancellables)
-
-        connectivity.$endEvent
-            .compactMap { $0 }
-            .sink { [weak self] event in self?.handleRemoteEnd(event) }
             .store(in: &cancellables)
 
         connectivity.$isReachable
@@ -108,56 +160,33 @@ final class ActiveWorkoutManager: ObservableObject {
 
         connectivity.$activationGeneration
             .dropFirst()
-            .sink { [weak self] _ in self?.syncCoordinator.flushOutbox() }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.syncCoordinator.flushOutbox()
+                if let staleID = self.syncCoordinator.discardedStaleSessionID {
+                    self.connectivity.clearActiveContext(staleID)
+                }
+            }
             .store(in: &cancellables)
 
-        applyV2State(syncCoordinator.state)
+        applyV2State(syncCoordinator.state, isInitialRestore: true)
         syncCoordinator.flushOutbox()
-    }
-
-    private func handleRemoteEnd(_ event: EndEvent) {
-        // Legacy decoding remains available for an old counterpart, but once a
-        // v2 runtime exists it cannot bypass ownership/epoch/tombstone checks.
-        guard syncCoordinator.replica == nil else { return }
-        // Tombstone our own outgoing application context for this session id,
-        // unconditionally and before the match check below. Application context
-        // is per-direction (see ConnectivityManager.clearActiveContext): the
-        // sender ending ITS context does nothing to the context THIS device is
-        // broadcasting outward. Our last "sync"/"start" push may still be
-        // sitting in our own outgoing context; if left there, a cold launch of
-        // THIS device (its `activationDidCompleteWith` bootstrap read) would
-        // replay it and resurrect the very session we just ended. Run this even
-        // when `event.id` doesn't match our local session (the early-return
-        // path below) — an end for a session we never applied locally (arrived
-        // out of order, or this side was never active) must still clear our
-        // own context, so a late/offline end can never leave a stale snapshot
-        // that resurrects the session on a future relaunch.
-        connectivity.clearActiveContext(event.id)
-        endedSessionIDs.insert(event.id)
-
-        guard session?.id == event.id else { return }
-        if event.finished, let current = session {
-            // Prefer the sender's embedded final snapshot (see EndEvent.session)
-            // over our own local copy: "end" (message/userInfo transport) and the
-            // last "sync" (application-context transport) have no ordering
-            // guarantee relative to each other, so our local copy may be missing
-            // an edit the sender made right before finishing (e.g. a last-second
-            // rep-count tap before tapping Finish). Only fall back to the local
-            // copy if the sender's snapshot failed to encode/decode.
-            var finished = event.session ?? current
-            // The sender already stamped `finishedAt` on its snapshot before
-            // sending; only stamp it ourselves in the fallback case where we're
-            // using our own (never-finished) local copy.
-            if finished.finishedAt == nil { finished.finishedAt = Date() }
-            onFinish?(finished, event.healthSaved)   // only the phone sets onFinish, so it records.
+        if let staleID = syncCoordinator.discardedStaleSessionID {
+            logger.notice(
+                "Discarded abandoned workout \(staleID.uuidString, privacy: .public)"
+            )
+            connectivity.clearActiveContext(staleID)
         }
-        #if os(watchOS)
-        // The phone ended the workout and owns the Health entry; drop any
-        // live session without saving so Health doesn't get a duplicate.
-        WatchWorkoutSession.shared.discard()
-        #endif
-        session = nil
-        restTimer.stop()
+
+        // A force-quit/relaunch while an ownership offer is pending must retry
+        // the wake request. The durable outbox is already restored and flushed
+        // above, so ordering remains persistence first.
+        if watchLauncher != nil,
+           let replica = syncCoordinator.replica,
+           replica.owner == .phone,
+           syncCoordinator.state.syncStatus == .waitingForWatch {
+            beginWatchLaunch(for: replica.session.id)
+        }
     }
 
     // MARK: - Lifecycle
@@ -172,7 +201,20 @@ final class ActiveWorkoutManager: ObservableObject {
         restTimer.stop()
         applyingRemote = false
         if broadcast {
-            _ = syncCoordinator.start(newSession)
+            let persisted = syncCoordinator.start(newSession)
+            if persisted {
+                logger.info(
+                    "Persisted workout start \(newSession.id.uuidString, privacy: .public)"
+                )
+                if syncCoordinator.localDevice == .phone,
+                   watchLauncher != nil {
+                    beginWatchLaunch(for: newSession.id)
+                }
+            } else {
+                logger.error(
+                    "Failed to persist workout start \(newSession.id.uuidString, privacy: .public)"
+                )
+            }
         } else {
             // Used by previews/tests and legacy callers that explicitly opt out
             // of counterpart sync.
@@ -187,9 +229,18 @@ final class ActiveWorkoutManager: ObservableObject {
         #endif
     }
 
+    /// Retries the iPhone-to-Watch wake without creating a second workout or
+    /// ownership offer. The existing durable outbox is flushed first.
+    func retryWatchLaunch() {
+        guard let replica = syncCoordinator.replica,
+              replica.owner == .phone,
+              syncCoordinator.state.syncStatus == .waitingForWatch else { return }
+        syncCoordinator.flushOutbox()
+        beginWatchLaunch(for: replica.session.id, force: true)
+    }
+
     func cancel() {
         guard canEdit, let current = session else { return }
-        endedSessionIDs.insert(current.id)
         guard syncCoordinator.finalize(
             session: current,
             finished: false,
@@ -209,7 +260,6 @@ final class ActiveWorkoutManager: ObservableObject {
     func finish() {
         guard canEdit, !isFinalizing, var finished = session else { return }
         finished.finishedAt = Date()
-        endedSessionIDs.insert(finished.id)
         #if os(watchOS)
         // Do not optimistically claim Health was saved just because a live
         // session exists. Wait for HealthKit to return the persisted workout,
@@ -434,7 +484,29 @@ final class ActiveWorkoutManager: ObservableObject {
     /// this explicit ownership transfer.
     func requestPhoneTakeover() {
         #if os(iOS)
-        _ = syncCoordinator.requestTakeover()
+        guard syncCoordinator.requestTakeover(),
+              let sessionID = syncCoordinator.replica?.session.id else { return }
+        takeoverError = nil
+        takeoverErrorSessionID = nil
+        takeoverTimeoutTask?.cancel()
+        takeoverTimeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(15))
+            } catch {
+                return
+            }
+            guard let self,
+                  self.syncCoordinator.replica?.session.id == sessionID,
+                  self.syncCoordinator.state.authorityState ==
+                    .requestingTakeover else { return }
+            guard self.syncCoordinator.cancelTakeoverRequest() else { return }
+            self.takeoverError =
+                "Apple Watch did not recognize this workout. You can retry or discard it and start a fresh workout."
+            self.takeoverErrorSessionID = sessionID
+            self.logger.error(
+                "Watch takeover timed out for \(sessionID.uuidString, privacy: .public)"
+            )
+        }
         #endif
     }
 
@@ -492,83 +564,36 @@ final class ActiveWorkoutManager: ObservableObject {
         )
     }
 
-    private func applyRemote(_ incoming: WorkoutSession) {
-        // Once v2 has durable state, legacy snapshots remain decodable but
-        // cannot bypass v2 ownership and revision checks.
-        guard syncCoordinator.replica == nil else { return }
-        // A "sync" for a session we already ended must never bring it back
-        // (see endedSessionIDs) — this is the watch "revert to a discarded
-        // workout" bug: an in-flight sync landing just after the end.
-        guard !endedSessionIDs.contains(incoming.id) else { return }
-        applyingRemote = true
-        // Adopt the incoming session when it's an update to the one we're
-        // showing, the first session we've seen, OR a *newer* session than our
-        // current one. The newer-wins rule lets a freshly started workout take
-        // over a device still displaying an older session (e.g. the phone
-        // starts a new workout while the watch lingers on a previous one),
-        // while an out-of-order sync for an older session can't stomp a newer
-        // active one.
-        let supersedes = incoming.startedAt > (session?.startedAt ?? .distantPast)
-        if session?.id == incoming.id || session == nil || supersedes {
-            #if os(watchOS)
-            let wasNil = (session == nil)
-            #endif
-
-            // Reset currentExerciseIndex to 0 if starting a new session (was nil or different id)
-            if session?.id != incoming.id {
-                currentExerciseIndex = 0
-                isWorkoutPaused = false
-            }
-
-            // Sync exercise index if present in connectivity
-            if let remoteIndex = connectivity.receivedExerciseIndex,
-               incoming.exercises.indices.contains(remoteIndex) {
-                currentExerciseIndex = remoteIndex
-            }
-
-            // Sync rest timer state
-            if let newEndDate = connectivity.receivedRestTimerEndDate,
-               let total = connectivity.receivedRestTimerTotalSeconds {
-                let remaining = Int(ceil(newEndDate.timeIntervalSinceNow))
-                if remaining > 0 {
-                    if restTimer.endDate != newEndDate {
-                restTimer.sync(endDate: newEndDate, totalSeconds: total)
-                    }
-                } else {
-                    restTimer.stop()
-                }
-            } else {
-                restTimer.stop()
-            }
-
-            session = incoming
-            clearUndo()
-            if currentExerciseIndex >= incoming.exercises.count {
-                currentExerciseIndex = max(0, incoming.exercises.count - 1)
-            }
-            #if os(watchOS)
-            if wasNil {
-                // Phone-initiated workout mirrored on watch: run HKWorkoutSession
-                // so watch app stays alive, reads heart rate, and plays haptics.
-                Task { await WatchWorkoutSession.shared.start(sessionID: incoming.id) }
-            }
-            #endif
-        }
-        applyingRemote = false
-    }
-
     private func handleV2(_ envelope: WorkoutMessageEnvelope) {
         let finalization = envelope.kind == .tombstone
             ? try? envelope.decodePayload(WorkoutFinalization.self)
             : nil
         let result = syncCoordinator.receive(envelope)
+        logger.info(
+            "Received \(envelope.kind.rawValue, privacy: .public) for \(envelope.sessionID?.uuidString ?? "none", privacy: .public): \(String(describing: result), privacy: .public)"
+        )
         guard result == .applied, let finalization else { return }
 
-        endedSessionIDs.insert(finalization.tombstone.sessionID)
         connectivity.clearActiveContext(finalization.tombstone.sessionID)
+        #if os(watchOS)
+        // Runs before the "is this our session?" guard below: a banner may be
+        // sitting on the wrist for a workout this device never displayed, and
+        // it must not outlive the workout it points at.
+        WatchWorkoutNotifier.clear()
+        #endif
         if finalization.tombstone.finished {
+            // Fires even when this device never mirrored the workout — e.g. a
+            // Watch session logged entirely while the phone app was gone. The
+            // history store de-duplicates by session id, so recording here is
+            // safe and is how such a workout reaches the phone at all.
             onFinish?(finalization.finalSession, finalization.healthSaved)
         }
+
+        // Only tear down live UI state when the tombstone is for the workout
+        // this device is actually showing. The coordinator now accepts (and
+        // records) tombstones for sessions it never tracked, so an unrelated
+        // finalization must not blank out an active workout.
+        guard session?.id == finalization.tombstone.sessionID else { return }
         #if os(watchOS)
         if envelope.sender == .phone {
             WatchWorkoutSession.shared.discard()
@@ -583,7 +608,12 @@ final class ActiveWorkoutManager: ObservableObject {
 
     /// Publishes a single accepted/persisted replica to the UI. This is the
     /// only v2 path that changes session/index/timer state.
-    private func applyV2State(_ state: WorkoutRuntimeState) {
+    ///
+    /// `isInitialRestore` marks the one call made from `init` that republishes
+    /// already-persisted state. It looks identical to a workout arriving from
+    /// the counterpart, but the user is opening the app right now, so it must
+    /// not trigger the "a workout appeared" wrist notification.
+    private func applyV2State(_ state: WorkoutRuntimeState, isInitialRestore: Bool = false) {
         owner = state.activeReplica?.owner
         canEdit = syncCoordinator.canEdit
         syncStatus = state.syncStatus
@@ -591,7 +621,44 @@ final class ActiveWorkoutManager: ObservableObject {
         if let cachedSettings = state.watchPlanCache?.executionSettings {
             watchExecutionSettings = cachedSettings
         }
-        guard let replica = state.activeReplica else { return }
+        guard let replica = state.activeReplica else {
+            watchLaunchTimeoutTask?.cancel()
+            watchLaunchTimeoutTask = nil
+            takeoverTimeoutTask?.cancel()
+            takeoverTimeoutTask = nil
+            watchLaunchSessionID = nil
+            watchLaunchState = .idle
+            watchLaunchError = nil
+            takeoverError = nil
+            takeoverErrorSessionID = nil
+            return
+        }
+
+        if let errorSessionID = takeoverErrorSessionID,
+           errorSessionID != replica.session.id {
+            takeoverError = nil
+            takeoverErrorSessionID = nil
+        }
+        if state.authorityState != .requestingTakeover {
+            takeoverTimeoutTask?.cancel()
+            takeoverTimeoutTask = nil
+            if replica.owner == syncCoordinator.localDevice {
+                takeoverError = nil
+                takeoverErrorSessionID = nil
+            }
+        }
+
+        if replica.owner == .watch, state.syncStatus == .synced {
+            watchLaunchTimeoutTask?.cancel()
+            watchLaunchTimeoutTask = nil
+            watchLaunchSessionID = replica.session.id
+            watchLaunchState = .ready
+            watchLaunchError = nil
+        } else if replica.owner == .phone,
+                  state.syncStatus == .waitingForWatch,
+                  watchLaunchState == .idle {
+            watchLaunchState = .waitingForWatch
+        }
 
         let wasNil = session == nil
         applyingRemote = true
@@ -616,9 +683,89 @@ final class ActiveWorkoutManager: ObservableObject {
 
         #if os(watchOS)
         if wasNil {
-            Task { await WatchWorkoutSession.shared.start(sessionID: replica.session.id) }
+            let configuration = WatchLaunchContext.shared.consumeConfiguration()
+            Task {
+                await WatchWorkoutSession.shared.start(
+                    sessionID: replica.session.id,
+                    configuration: configuration
+                )
+            }
+            // HealthKit wakes the app; this local notification is a secondary
+            // presentation step for a workout that is already persisted.
+            if !isInitialRestore {
+                Task {
+                    await WatchWorkoutNotifier.workoutDidArrive(
+                        named: replica.session.name,
+                        sessionID: replica.session.id
+                    )
+                }
+            }
         }
         #endif
+    }
+
+    private func beginWatchLaunch(for sessionID: UUID, force: Bool = false) {
+        guard let watchLauncher else {
+            watchLaunchState = .failed
+            watchLaunchError = "Watch launching is unavailable."
+            return
+        }
+        guard force || watchLaunchSessionID != sessionID ||
+                watchLaunchState == .failed else { return }
+
+        watchLaunchSessionID = sessionID
+        watchLaunchTimeoutTask?.cancel()
+        watchLaunchTimeoutTask = nil
+        watchLaunchState = .waking
+        watchLaunchError = nil
+        logger.info(
+            "Waking Watch for workout \(sessionID.uuidString, privacy: .public)"
+        )
+        scheduleWatchLaunchTimeout(for: sessionID)
+
+        watchLauncher.launchWorkoutOnWatch { [weak self] result in
+            guard let self,
+                  self.session?.id == sessionID,
+                  self.watchLaunchSessionID == sessionID else { return }
+            switch result {
+            case .success:
+                // The ownership acknowledgment may beat this callback.
+                if self.watchLaunchState != .ready {
+                    self.watchLaunchState = .waitingForWatch
+                }
+            case .failure(let error):
+                // Likewise, never regress a handshake that already completed.
+                guard self.watchLaunchState != .ready else { return }
+                self.watchLaunchTimeoutTask?.cancel()
+                self.watchLaunchTimeoutTask = nil
+                self.watchLaunchState = .failed
+                self.watchLaunchError = error.localizedDescription
+            }
+        }
+    }
+
+    private func scheduleWatchLaunchTimeout(for sessionID: UUID) {
+        watchLaunchTimeoutTask?.cancel()
+        watchLaunchTimeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(20))
+            } catch {
+                return
+            }
+            guard let self,
+                  self.session?.id == sessionID,
+                  self.watchLaunchSessionID == sessionID,
+                  self.watchLaunchState == .waking ||
+                    self.watchLaunchState == .waitingForWatch else { return }
+            let timedOutWhileWaking = self.watchLaunchState == .waking
+            self.watchLaunchState = .failed
+            self.watchLaunchError = timedOutWhileWaking
+                ? "Apple Watch did not respond to the wake request."
+                : "Apple Watch woke, but the workout handshake did not finish."
+            self.logger.error(
+                "Watch handshake timed out for \(sessionID.uuidString, privacy: .public)"
+            )
+        }
     }
 
     private func clearUndo() {

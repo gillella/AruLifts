@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Required for HKWorkoutSession to keep running once the wrist drops.
+	  Without it the session is foreground-only, so a mirrored phone workout
+	  dies on the next screen-off and the rest-over haptic never fires.
+
+	  This lives in a real Info.plist rather than an INFOPLIST_KEY_* build
+	  setting: WKBackgroundModes has no INFOPLIST_KEY_ equivalent, and Xcode
+	  silently drops the setting instead of failing the build. Every other key
+	  still comes from GENERATE_INFOPLIST_FILE and is merged into this file.
+	-->
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
+</dict>
+</plist>
