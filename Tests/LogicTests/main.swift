@@ -803,5 +803,12 @@ if let restored = try? JSONDecoder().decode(RestTimerSnapshot.self, from: JSONEn
     expect(restored.alertConfiguration.style == .vibrationOnly && restored.alertConfiguration.earlyCueLeadSeconds == 15, "rest snapshot retains configured cue")
 } else { failures += 1; print("FAIL configured rest snapshot did not decode") }
 
+let defaultTemplates = ExerciseLibrary.defaultTemplates()
+expect(defaultTemplates.count == 8, "8 default templates present including 4-Day Upper/Lower split")
+expect(defaultTemplates.contains { $0.name == "Upper Body A (Strength)" }, "Upper Body A (Strength) template present")
+expect(defaultTemplates.contains { $0.name == "Lower Body A (Strength)" }, "Lower Body A (Strength) template present")
+expect(defaultTemplates.contains { $0.name == "Upper Body B (Hypertrophy)" }, "Upper Body B (Hypertrophy) template present")
+expect(defaultTemplates.contains { $0.name == "Lower Body B (Hypertrophy)" }, "Lower Body B (Hypertrophy) template present")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
