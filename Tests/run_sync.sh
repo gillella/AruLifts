@@ -45,5 +45,7 @@ swiftc -o "$APP/Contents/MacOS/AruLiftsSyncTests" \
   Shared/ActiveWorkout/Records.swift \
   Shared/ActiveWorkout/RestTimerManager.swift \
   Shared/ActiveWorkout/ActiveWorkoutManager.swift \
+  Shared/LiveActivity/WorkoutActivityAttributes.swift \
+  Shared/LiveActivity/WorkoutLiveActivityManager.swift \
   Tests/SyncTests/main.swift
 exec "$APP/Contents/MacOS/AruLiftsSyncTests"

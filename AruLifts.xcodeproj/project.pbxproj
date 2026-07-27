@@ -74,6 +74,14 @@
 		AA000000000000000000003B /* WatchActiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000017 /* WatchActiveView.swift */; };
 		AA000000000000000000003C /* WatchSetLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000018 /* WatchSetLogView.swift */; };
 		AA000000000000000000003D /* WatchRestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000019 /* WatchRestView.swift */; };
+		AA00000000000000000000C1 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B1 /* WorkoutActivityAttributes.swift */; };
+		AA00000000000000000000C2 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B1 /* WorkoutActivityAttributes.swift */; };
+		AA00000000000000000000C3 /* WorkoutLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B2 /* WorkoutLiveActivityManager.swift */; };
+		AA00000000000000000000C4 /* WorkoutLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B2 /* WorkoutLiveActivityManager.swift */; };
+		AA00000000000000000000C5 /* WorkoutIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B3 /* WorkoutIntents.swift */; };
+		AA00000000000000000000C6 /* WorkoutIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B3 /* WorkoutIntents.swift */; };
+		AA00000000000000000000C7 /* WorkoutLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B4 /* WorkoutLiveActivityWidget.swift */; };
+		AA00000000000000000000C8 /* WatchWorkoutComplications.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B5 /* WatchWorkoutComplications.swift */; };
 		AA000000000000000000003E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001A /* Assets.xcassets */; };
 		AA000000000000000000003F /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001B /* Preview Assets.xcassets */; };
 		AA0000000000000000000040 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001C /* Assets.xcassets */; };
@@ -213,6 +221,11 @@
 		AA0000000000000000000098 /* WorkoutSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSyncCoordinator.swift; sourceTree = "<group>"; };
 		AA000000000000000000009B /* WatchStartableWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStartableWorkout.swift; sourceTree = "<group>"; };
 		AA000000000000000000009C /* WeightFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightFormatter.swift; sourceTree = "<group>"; };
+		AA00000000000000000000B1 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivity/WorkoutActivityAttributes.swift; sourceTree = "<group>"; };
+		AA00000000000000000000B2 /* WorkoutLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivity/WorkoutLiveActivityManager.swift; sourceTree = "<group>"; };
+		AA00000000000000000000B3 /* WorkoutIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Intents/WorkoutIntents.swift; sourceTree = "<group>"; };
+		AA00000000000000000000B4 /* WorkoutLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivity/WorkoutLiveActivityWidget.swift; sourceTree = "<group>"; };
+		AA00000000000000000000B5 /* WatchWorkoutComplications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWorkoutComplications.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -347,6 +360,7 @@
 				AA0000000000000000000014 /* SettingsView.swift */,
 				AA0000000000000000000082 /* ProgressChartsView.swift */,
 				AA0000000000000000000088 /* CalendarView.swift */,
+				AA00000000000000000000B4 /* WorkoutLiveActivityWidget.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -381,6 +395,9 @@
 				AA0000000000000000000073 /* Health */,
 				AA0000000000000000000060 /* Models */,
 				AA0000000000000000000064 /* Store */,
+				AA00000000000000000000B1 /* WorkoutActivityAttributes.swift */,
+				AA00000000000000000000B2 /* WorkoutLiveActivityManager.swift */,
+				AA00000000000000000000B3 /* WorkoutIntents.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -392,6 +409,7 @@
 				AA0000000000000000000017 /* WatchActiveView.swift */,
 				AA0000000000000000000018 /* WatchSetLogView.swift */,
 				AA0000000000000000000019 /* WatchRestView.swift */,
+				AA00000000000000000000B5 /* WatchWorkoutComplications.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -584,6 +602,10 @@
 				AA0000000000000000000036 /* SetLogList.swift in Sources */,
 				AA0000000000000000000037 /* HistoryView.swift in Sources */,
 				AA0000000000000000000038 /* SettingsView.swift in Sources */,
+				AA00000000000000000000C1 /* WorkoutActivityAttributes.swift in Sources */,
+				AA00000000000000000000C3 /* WorkoutLiveActivityManager.swift in Sources */,
+				AA00000000000000000000C5 /* WorkoutIntents.swift in Sources */,
+				AA00000000000000000000C7 /* WorkoutLiveActivityWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -618,6 +640,10 @@
 				AA000000000000000000003B /* WatchActiveView.swift in Sources */,
 				AA000000000000000000003C /* WatchSetLogView.swift in Sources */,
 				AA000000000000000000003D /* WatchRestView.swift in Sources */,
+				AA00000000000000000000C2 /* WorkoutActivityAttributes.swift in Sources */,
+				AA00000000000000000000C4 /* WorkoutLiveActivityManager.swift in Sources */,
+				AA00000000000000000000C6 /* WorkoutIntents.swift in Sources */,
+				AA00000000000000000000C8 /* WatchWorkoutComplications.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -741,6 +767,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "AruLifts reads nothing yet; sharing is requested so future features can show your Health data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AruLifts saves your finished workouts, estimated calories, and body weight to Apple Health.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -774,6 +801,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "AruLifts reads nothing yet; sharing is requested so future features can show your Health data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AruLifts saves your finished workouts, estimated calories, and body weight to Apple Health.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

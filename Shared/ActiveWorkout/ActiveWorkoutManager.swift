@@ -41,6 +41,10 @@ struct WatchWorkoutStartGate {
 /// both the phone and the watch.
 @MainActor
 final class ActiveWorkoutManager: ObservableObject {
+    #if os(iOS)
+    public static private(set) weak var shared: ActiveWorkoutManager?
+    #endif
+
     enum WatchLaunchState: Equatable {
         case idle
         case waking
@@ -167,6 +171,10 @@ final class ActiveWorkoutManager: ObservableObject {
             .sink { [weak self] envelope in self?.handleV2(envelope) }
             .store(in: &cancellables)
 
+        #if os(iOS)
+        Self.shared = self
+        #endif
+
         connectivity.$isReachable
             .dropFirst()
             .filter { $0 }
@@ -265,6 +273,9 @@ final class ActiveWorkoutManager: ObservableObject {
         #if os(watchOS)
         WatchWorkoutSession.shared.discard()
         #endif
+        #if os(iOS)
+        WorkoutLiveActivityManager.shared.endActivity()
+        #endif
         currentExerciseIndex = 0
         clearUndo()
         session = nil
@@ -307,6 +318,9 @@ final class ActiveWorkoutManager: ObservableObject {
         ) else { return }
         onFinish?(finished, false)
         connectivity.clearActiveContext(finished.id)
+        #if os(iOS)
+        WorkoutLiveActivityManager.shared.endActivity()
+        #endif
         currentExerciseIndex = 0
         clearUndo()
         restTimer.stop()
@@ -596,7 +610,54 @@ final class ActiveWorkoutManager: ObservableObject {
             restTimer: rest,
             isWorkoutPaused: isWorkoutPaused
         )
+        #if os(iOS)
+        updateLiveActivity()
+        #endif
     }
+
+    #if os(iOS)
+    private func updateLiveActivity() {
+        guard let session = session else {
+            WorkoutLiveActivityManager.shared.endActivity()
+            return
+        }
+        let restEndDate: Date?
+        let restDuration: TimeInterval?
+        let isResting: Bool
+        if let endDate = restTimer.endDate {
+            restEndDate = endDate
+            restDuration = TimeInterval(restTimer.totalSeconds)
+            isResting = true
+        } else {
+            restEndDate = nil
+            restDuration = nil
+            isResting = false
+        }
+
+        WorkoutLiveActivityManager.shared.updateActivity(
+            session: session,
+            exerciseIndex: currentExerciseIndex,
+            restTimerEndDate: restEndDate,
+            restTimerDuration: restDuration,
+            isResting: isResting,
+            isWorkoutPaused: isWorkoutPaused
+        )
+    }
+
+    func completeCurrentSet() {
+        guard let session = session,
+              session.exercises.indices.contains(currentExerciseIndex) else { return }
+        let exercise = session.exercises[currentExerciseIndex]
+        let completedCount = exercise.completedSets
+        let nextSetIndex = min(completedCount, max(0, exercise.sets.count - 1))
+        completeSet(
+            exerciseIndex: currentExerciseIndex,
+            setIndex: nextSetIndex,
+            autoStartRest: true,
+            restAlerts: true
+        )
+    }
+    #endif
 
     private func handleV2(_ envelope: WorkoutMessageEnvelope) {
         let finalization = envelope.kind == .tombstone
