@@ -520,7 +520,7 @@ struct WatchActiveView: View {
                     if phase.phaseType.isTimed {
                         Text(formatTime(active.phaseTimer.secondsRemaining))
                             .font(.system(size: 24, weight: .bold, design: .monospaced))
-                            .foregroundStyle(active.phaseTimer.isPaused ? .secondary : .orange)
+                            .foregroundStyle(active.phaseTimer.isPaused ? Color.secondary : Color.orange)
 
                         HStack(spacing: 6) {
                             Button {

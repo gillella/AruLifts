@@ -229,7 +229,7 @@
 		AA0000000000000000000095 /* ActiveWorkoutRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutRepository.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* GymSessionRoutine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymSessionRoutine.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D3 /* RoutineComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineComposerView.swift; sourceTree = "<group>"; };
-		AA00000000000000000000E0 /* PhaseTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkout/PhaseTimerManager.swift; sourceTree = "<group>"; };
+		AA00000000000000000000E0 /* PhaseTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhaseTimerManager.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E3 /* PhaseVisualHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/PhaseVisualHelper.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E6 /* PhaseTransitionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhaseTransitionSheet.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E8 /* WatchPhaseTransitionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPhaseTransitionSheet.swift; sourceTree = "<group>"; };
