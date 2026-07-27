@@ -615,6 +615,55 @@ enum ExerciseLibrary {
 
         return [
             WorkoutTemplate(
+                name: "Upper Body A (Strength)",
+                category: .upperBody,
+                exercises: [
+                    te(1, "Barbell Bench Press", sets: 4, reps: 7, weight: 60),
+                    te(13, "Lat Pulldown", sets: 4, reps: 9, weight: 45),
+                    te(20, "Overhead Press", sets: 3, reps: 9, weight: 35),
+                    te(11, "Barbell Row", sets: 3, reps: 10, weight: 50),
+                    te(30, "Barbell Curl", sets: 3, reps: 10, weight: 25, rest: 120),
+                    te(40, "Triceps Pushdown", sets: 3, reps: 10, weight: 25, rest: 120),
+                    timed(70, "Plank", seconds: 60)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Lower Body A (Strength)",
+                category: .lowerBody,
+                exercises: [
+                    te(50, "Back Squat", sets: 4, reps: 7, weight: 80),
+                    te(51, "Romanian Deadlift", sets: 4, reps: 8, weight: 70),
+                    te(53, "Walking Lunge", sets: 3, reps: 12, weight: 20),
+                    te(54, "Standing Calf Raise", sets: 4, reps: 15, weight: 40, rest: 90),
+                    te(71, "Hanging Leg Raise", sets: 3, reps: 15, rest: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Upper Body B (Hypertrophy)",
+                category: .upperBody,
+                exercises: [
+                    te(2, "Incline Dumbbell Press", sets: 4, reps: 10, weight: 22),
+                    te(11, "Barbell Row", sets: 4, reps: 10, weight: 45),
+                    te(21, "Dumbbell Lateral Raise", sets: 4, reps: 15, weight: 10, rest: 90),
+                    te(13, "Lat Pulldown", sets: 3, reps: 15, weight: 35, rest: 90),
+                    te(31, "Dumbbell Hammer Curl", sets: 3, reps: 12, weight: 12, rest: 90),
+                    te(40, "Triceps Pushdown", sets: 3, reps: 12, weight: 20, rest: 90),
+                    te(72, "Cable Crunch", sets: 3, reps: 15, weight: 30, rest: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Lower Body B (Hypertrophy)",
+                category: .lowerBody,
+                exercises: [
+                    te(52, "Leg Press", sets: 4, reps: 12, weight: 120),
+                    te(51, "Romanian Deadlift", sets: 4, reps: 12, weight: 60),
+                    te(60, "Hip Thrust", sets: 4, reps: 10, weight: 80),
+                    te(53, "Walking Lunge", sets: 3, reps: 10, weight: 24),
+                    te(54, "Standing Calf Raise", sets: 4, reps: 18, weight: 35, rest: 90),
+                    timed(70, "Plank", seconds: 60)
+                ]
+            ),
+            WorkoutTemplate(
                 name: "Upper Body",
                 category: .upperBody,
                 exercises: [
