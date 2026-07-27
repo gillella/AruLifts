@@ -82,6 +82,9 @@
 		AA00000000000000000000C6 /* WorkoutIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B3 /* WorkoutIntents.swift */; };
 		AA00000000000000000000C7 /* WorkoutLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B4 /* WorkoutLiveActivityWidget.swift */; };
 		AA00000000000000000000C8 /* WatchWorkoutComplications.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000B5 /* WatchWorkoutComplications.swift */; };
+		AA00000000000000000000D1 /* GymSessionRoutine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* GymSessionRoutine.swift */; };
+		AA00000000000000000000D2 /* GymSessionRoutine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* GymSessionRoutine.swift */; };
+		AA00000000000000000000D4 /* RoutineComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D3 /* RoutineComposerView.swift */; };
 		AA000000000000000000003E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001A /* Assets.xcassets */; };
 		AA000000000000000000003F /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001B /* Preview Assets.xcassets */; };
 		AA0000000000000000000040 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001C /* Assets.xcassets */; };
@@ -218,6 +221,8 @@
 		AA000000000000000000008B /* Backup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backup.swift; sourceTree = "<group>"; };
 		AA0000000000000000000094 /* WorkoutSyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSyncModels.swift; sourceTree = "<group>"; };
 		AA0000000000000000000095 /* ActiveWorkoutRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutRepository.swift; sourceTree = "<group>"; };
+		AA00000000000000000000D0 /* GymSessionRoutine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymSessionRoutine.swift; sourceTree = "<group>"; };
+		AA00000000000000000000D3 /* RoutineComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineComposerView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000098 /* WorkoutSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSyncCoordinator.swift; sourceTree = "<group>"; };
 		AA000000000000000000009B /* WatchStartableWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStartableWorkout.swift; sourceTree = "<group>"; };
 		AA000000000000000000009C /* WeightFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightFormatter.swift; sourceTree = "<group>"; };
@@ -361,6 +366,7 @@
 				AA0000000000000000000082 /* ProgressChartsView.swift */,
 				AA0000000000000000000088 /* CalendarView.swift */,
 				AA00000000000000000000B4 /* WorkoutLiveActivityWidget.swift */,
+				AA00000000000000000000D3 /* RoutineComposerView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -375,6 +381,7 @@
 				AA000000000000000000007F /* ProgressSeries.swift */,
 				AA0000000000000000000094 /* WorkoutSyncModels.swift */,
 				AA000000000000000000009B /* WatchStartableWorkout.swift */,
+				AA00000000000000000000D0 /* GymSessionRoutine.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -606,6 +613,8 @@
 				AA00000000000000000000C3 /* WorkoutLiveActivityManager.swift in Sources */,
 				AA00000000000000000000C5 /* WorkoutIntents.swift in Sources */,
 				AA00000000000000000000C7 /* WorkoutLiveActivityWidget.swift in Sources */,
+				AA00000000000000000000D1 /* GymSessionRoutine.swift in Sources */,
+				AA00000000000000000000D4 /* RoutineComposerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -641,6 +650,7 @@
 				AA000000000000000000003C /* WatchSetLogView.swift in Sources */,
 				AA000000000000000000003D /* WatchRestView.swift in Sources */,
 				AA00000000000000000000C2 /* WorkoutActivityAttributes.swift in Sources */,
+				AA00000000000000000000D2 /* GymSessionRoutine.swift in Sources */,
 				AA00000000000000000000C4 /* WorkoutLiveActivityManager.swift in Sources */,
 				AA00000000000000000000C6 /* WorkoutIntents.swift in Sources */,
 				AA00000000000000000000C8 /* WatchWorkoutComplications.swift in Sources */,

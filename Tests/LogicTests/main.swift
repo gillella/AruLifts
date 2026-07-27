@@ -814,6 +814,28 @@ MainActor.assumeIsolated {
     let migrationStore = WorkoutStore()
     migrationStore.ensureDefaultTemplatesExist()
     expect(migrationStore.templates.count == 8, "ensureDefaultTemplatesExist populates missing starter templates on existing stores")
+    expect(!migrationStore.gymRoutines.isEmpty, "default GymSessionRoutine is auto-created on launch")
+}
+
+let defaultRoutine = GymSessionRoutine.defaultCompleteGymVisit()
+expect(defaultRoutine.phases.count == 7, "default routine contains 7 phases")
+expect(defaultRoutine.enabledPhases.count == 7, "all 7 default phases are enabled")
+
+let routineSession = WorkoutSession.from(
+    routine: defaultRoutine,
+    templates: defaultTemplates,
+    library: ExerciseLibrary.byID
+)
+expect(routineSession.isMultiPhase, "multi-phase routine produces a multi-phase session")
+expect(routineSession.phases.count == 7, "multi-phase session retains 7 phase logs")
+expect(routineSession.currentPhaseIndex == 0, "session starts at phase 0")
+expect(routineSession.currentPhase?.phaseType == .preCardio, "first phase is pre-workout cardio")
+
+if let routineData = try? JSONEncoder().encode(defaultRoutine),
+   let decodedRoutine = try? JSONDecoder().decode(GymSessionRoutine.self, from: routineData) {
+    expect(decodedRoutine.name == defaultRoutine.name && decodedRoutine.phases.count == 7, "GymSessionRoutine JSON encode/decode round-trip")
+} else {
+    failures += 1; print("FAIL GymSessionRoutine JSON encode/decode")
 }
 
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")

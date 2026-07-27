@@ -70,6 +70,7 @@ struct AppSettings: Codable, Equatable {
 @MainActor
 final class WorkoutStore: ObservableObject {
     @Published var templates: [WorkoutTemplate] = []
+    @Published var gymRoutines: [GymSessionRoutine] = []
     @Published var history: [WorkoutSession] = []
     @Published var customExercises: [Exercise] = []
     /// IDs of library exercises the user has starred for quick access.
@@ -93,6 +94,7 @@ final class WorkoutStore: ObservableObject {
     }
 
     private let templatesFile = "templates.json"
+    private let gymRoutinesFile = "gym_routines.json"
     private let historyFile = "history.json"
     private let exercisesFile = "custom_exercises.json"
     private let favoritesFile = "favorite_exercises.json"
@@ -118,7 +120,7 @@ final class WorkoutStore: ObservableObject {
     #endif
 
     private var allFiles: [String] {
-        [templatesFile, historyFile, exercisesFile, favoritesFile, settingsFile, bodyWeightFile]
+        [templatesFile, gymRoutinesFile, historyFile, exercisesFile, favoritesFile, settingsFile, bodyWeightFile]
     }
 
     init() {
@@ -237,6 +239,7 @@ final class WorkoutStore: ObservableObject {
     func backupData() -> Data? {
         try? Backup.encode(BackupPayload(
             templates: templates,
+            gymRoutines: gymRoutines,
             history: history,
             customExercises: customExercises,
             favoriteExerciseIDs: favoriteExerciseIDs,
@@ -249,12 +252,13 @@ final class WorkoutStore: ObservableObject {
     func restore(from data: Data) throws {
         let payload = try Backup.decode(data)
         templates = payload.templates
+        gymRoutines = payload.gymRoutines
         history = payload.history
         customExercises = payload.customExercises
         favoriteExerciseIDs = payload.favoriteExerciseIDs
         bodyWeights = payload.bodyWeights
         settings = payload.settings
-        saveTemplates(); saveHistory(); saveExercises(); saveFavorites(); saveBodyWeights()
+        saveTemplates(); saveGymRoutines(); saveHistory(); saveExercises(); saveFavorites(); saveBodyWeights()
         // settings saves via didSet
     }
 
@@ -341,6 +345,31 @@ final class WorkoutStore: ObservableObject {
     func deleteTemplates(at offsets: IndexSet) {
         templates.remove(atOffsets: offsets)
         saveTemplates()
+    }
+
+    // MARK: - Gym Session Routines
+
+    func addGymRoutine(_ routine: GymSessionRoutine) {
+        gymRoutines.append(routine)
+        saveGymRoutines()
+    }
+
+    func updateGymRoutine(_ routine: GymSessionRoutine) {
+        guard let idx = gymRoutines.firstIndex(where: { $0.id == routine.id }) else {
+            addGymRoutine(routine); return
+        }
+        gymRoutines[idx] = routine
+        saveGymRoutines()
+    }
+
+    func deleteGymRoutine(_ routine: GymSessionRoutine) {
+        gymRoutines.removeAll { $0.id == routine.id }
+        saveGymRoutines()
+    }
+
+    func deleteGymRoutines(at offsets: IndexSet) {
+        gymRoutines.remove(atOffsets: offsets)
+        saveGymRoutines()
     }
 
     // MARK: - Custom exercises
@@ -486,6 +515,7 @@ final class WorkoutStore: ObservableObject {
         isLoadingFromDisk = true
         defer { isLoadingFromDisk = false }
         templates = decode([WorkoutTemplate].self, from: templatesFile) ?? []
+        gymRoutines = decode([GymSessionRoutine].self, from: gymRoutinesFile) ?? []
         customExercises = decode([Exercise].self, from: exercisesFile) ?? []
         favoriteExerciseIDs = Set(decode([UUID].self, from: favoritesFile) ?? [])
         settings = decode(AppSettings.self, from: settingsFile) ?? AppSettings()
@@ -498,6 +528,11 @@ final class WorkoutStore: ObservableObject {
             saveTemplates()
         } else {
             ensureDefaultTemplatesExist()
+        }
+
+        if gymRoutines.isEmpty {
+            gymRoutines = [GymSessionRoutine.defaultCompleteGymVisit(templates: templates)]
+            saveGymRoutines()
         }
     }
 
@@ -565,6 +600,7 @@ final class WorkoutStore: ObservableObject {
     }
 
     private func saveTemplates() { encode(templates, to: templatesFile) }
+    func saveGymRoutines() { encode(gymRoutines, to: gymRoutinesFile) }
     private func saveHistory() { encode(history, to: historyFile) }
     private func saveExercises() { encode(customExercises, to: exercisesFile) }
     private func saveFavorites() { encode(favoriteExerciseIDs.sorted { $0.uuidString < $1.uuidString }, to: favoritesFile) }

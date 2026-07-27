@@ -6,24 +6,82 @@ struct MyWorkoutsView: View {
     @State private var editingTemplate: WorkoutTemplate?
     @State private var showingBuilder = false
     @State private var showingPresetPicker = false
+    @State private var editingRoutine: GymSessionRoutine?
+    @State private var showingRoutineComposer = false
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(store.templates) { template in
-                    NavigationLink {
-                        TemplateDetailView(template: template)
+                Section(header: Text("Gym Session Routines (7-Phase)").font(.subheadline).bold()) {
+                    ForEach(store.gymRoutines) { routine in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(Color.orange.opacity(0.18)).frame(width: 40, height: 40)
+                                Image(systemName: "flame.fill").foregroundStyle(.orange)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(routine.name).font(.headline)
+                                Text("~\(routine.estimatedTotalMinutes) min · \(routine.enabledPhases.count) phases")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+
+                            Button {
+                                let session = WorkoutSession.from(
+                                    routine: routine,
+                                    templates: store.templates,
+                                    library: store.exerciseIndex,
+                                    settings: store.settings
+                                )
+                                active.start(session)
+                            } label: {
+                                Image(systemName: "play.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.orange)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            editingRoutine = routine
+                            showingRoutineComposer = true
+                        }
+                    }
+                    .onDelete(perform: store.deleteGymRoutines)
+
+                    Button {
+                        editingRoutine = nil
+                        showingRoutineComposer = true
                     } label: {
-                        templateRow(template)
+                        Label("Compose New Gym Routine", systemImage: "plus.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
                     }
                 }
-                .onDelete(perform: store.deleteTemplates)
+
+                Section(header: Text("Workout Templates").font(.subheadline).bold()) {
+                    ForEach(store.templates) { template in
+                        NavigationLink {
+                            TemplateDetailView(template: template)
+                        } label: {
+                            templateRow(template)
+                        }
+                    }
+                    .onDelete(perform: store.deleteTemplates)
+                }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("My Workouts")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button {
+                            editingRoutine = nil
+                            showingRoutineComposer = true
+                        } label: {
+                            Label("Compose 7-Phase Routine", systemImage: "flame.fill")
+                        }
+
                         Button {
                             editingTemplate = nil
                             showingBuilder = true
@@ -46,6 +104,9 @@ struct MyWorkoutsView: View {
                         Image(systemName: "plus")
                     }
                 }
+            }
+            .sheet(isPresented: $showingRoutineComposer) {
+                RoutineComposerView(routine: editingRoutine)
             }
             .overlay {
                 if store.templates.isEmpty {
