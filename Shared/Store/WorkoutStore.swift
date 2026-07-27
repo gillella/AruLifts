@@ -496,6 +496,23 @@ final class WorkoutStore: ObservableObject {
         if templates.isEmpty {
             templates = ExerciseLibrary.defaultTemplates()
             saveTemplates()
+        } else {
+            ensureDefaultTemplatesExist()
+        }
+    }
+
+    func ensureDefaultTemplatesExist() {
+        let defaults = ExerciseLibrary.defaultTemplates()
+        let existingNames = Set(templates.map(\.name))
+        var addedAny = false
+        for def in defaults {
+            if !existingNames.contains(def.name) {
+                templates.append(def)
+                addedAny = true
+            }
+        }
+        if addedAny {
+            saveTemplates()
         }
     }
 
