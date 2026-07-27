@@ -88,6 +88,9 @@ final class ActiveWorkoutManager: ObservableObject {
     /// Phone configuration cached alongside plans for Watch-owned execution.
     @Published private(set) var watchExecutionSettings = WatchExecutionSettings()
     @Published var showingPhaseTransitionModal = false
+    /// When the phase in progress began, so a phase records the time actually
+    /// spent in it — including any overtime — rather than the whole session.
+    private var currentPhaseStartedAt = Date()
 
     let restTimer: RestTimerManager
     let phaseTimer: PhaseTimerManager
@@ -243,6 +246,7 @@ final class ActiveWorkoutManager: ObservableObject {
         isFinalizing = false
         currentExerciseIndex = 0
         restTimer.stop()
+        currentPhaseStartedAt = Date()
         moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
         applyingRemote = false
@@ -382,13 +386,14 @@ final class ActiveWorkoutManager: ObservableObject {
         let currentIndex = current.currentPhaseIndex
         if current.phases.indices.contains(currentIndex) {
             current.phases[currentIndex].isCompleted = true
-            let elapsed = Int(Date().timeIntervalSince(current.startedAt))
-            current.phases[currentIndex].actualDurationSeconds = elapsed
+            let elapsed = Int(Date().timeIntervalSince(currentPhaseStartedAt))
+            current.phases[currentIndex].actualDurationSeconds = max(0, elapsed)
         }
         if currentIndex + 1 < current.phases.count {
             current.currentPhaseIndex += 1
             session = current
             showingPhaseTransitionModal = false
+            currentPhaseStartedAt = Date()
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
             broadcast()
@@ -405,6 +410,7 @@ final class ActiveWorkoutManager: ObservableObject {
             current.currentPhaseIndex -= 1
             session = current
             showingPhaseTransitionModal = false
+            currentPhaseStartedAt = Date()
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
             broadcast()
@@ -416,6 +422,7 @@ final class ActiveWorkoutManager: ObservableObject {
         current.currentPhaseIndex = index
         session = current
         showingPhaseTransitionModal = false
+        currentPhaseStartedAt = Date()
         moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
         broadcast()
@@ -760,12 +767,13 @@ final class ActiveWorkoutManager: ObservableObject {
         let rest: RestTimerSnapshot?
         if let endDate = restTimer.endDate {
             rest = RestTimerSnapshot(endDate: endDate, totalSeconds: restTimer.totalSeconds, alertConfiguration: restTimer.alertConfiguration)
-        } else if restTimer.isPaused, restTimer.secondsRemaining > 0 {
+        } else if restTimer.isPaused, restTimer.secondsRemaining > 0 || restTimer.isOvertime {
             // `endDate` is retained for wire compatibility only while paused;
             // receivers use pausedRemainingSeconds rather than this value.
+            // A negative value encodes paused-in-overtime.
             rest = RestTimerSnapshot(
                 endDate: Date(), totalSeconds: restTimer.totalSeconds,
-                pausedRemainingSeconds: restTimer.secondsRemaining,
+                pausedRemainingSeconds: restTimer.isOvertime ? -restTimer.overtimeSeconds : restTimer.secondsRemaining,
                 alertConfiguration: restTimer.alertConfiguration
             )
         } else {
@@ -774,10 +782,10 @@ final class ActiveWorkoutManager: ObservableObject {
         let pTimer: PhaseTimerSnapshot?
         if let endDate = phaseTimer.endDate {
             pTimer = PhaseTimerSnapshot(endDate: endDate, totalSeconds: phaseTimer.totalSeconds)
-        } else if phaseTimer.isPaused, phaseTimer.secondsRemaining > 0 {
+        } else if phaseTimer.isPaused, phaseTimer.secondsRemaining > 0 || phaseTimer.isOvertime {
             pTimer = PhaseTimerSnapshot(
                 endDate: Date(), totalSeconds: phaseTimer.totalSeconds,
-                pausedRemainingSeconds: phaseTimer.secondsRemaining
+                pausedRemainingSeconds: phaseTimer.isOvertime ? -phaseTimer.overtimeSeconds : phaseTimer.secondsRemaining
             )
         } else {
             pTimer = nil

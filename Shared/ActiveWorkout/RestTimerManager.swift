@@ -18,6 +18,12 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
     @Published private(set) var isPaused = false
     @Published private(set) var totalSeconds: Int = 0
     @Published private(set) var secondsRemaining: Int = 0
+    /// Seconds elapsed past the target. The timer alerts on reaching zero and
+    /// then keeps counting rather than stopping — resting longer is the user's
+    /// decision, and the extra time should be visible, not hidden.
+    @Published private(set) var overtimeSeconds: Int = 0
+
+    var isOvertime: Bool { overtimeSeconds > 0 }
 
     private(set) var endDate: Date?
     private var ticker: Timer?
@@ -25,6 +31,9 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
     private var alertsEnabled = true
     private(set) var alertConfiguration: RestTimerAlertConfiguration = .default
     private var lastSpokenSecond: Int?
+    /// Latches at the zero crossing so the completion alert fires exactly once
+    /// per run instead of on every tick through overtime.
+    private var hasReachedZero = false
     var onStateChange: (() -> Void)?
     let localDevice: WorkoutDevice
 
@@ -56,6 +65,9 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
     }
 
     var formattedRemaining: String {
+        if isOvertime {
+            return String(format: "+%d:%02d", overtimeSeconds / 60, overtimeSeconds % 60)
+        }
         let s = max(0, secondsRemaining)
         return String(format: "%d:%02d", s / 60, s % 60)
     }
@@ -69,6 +81,8 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         alertConfiguration = configuration
         alertsEnabled = configuration.alertsEnabled
         lastSpokenSecond = nil
+        hasReachedZero = false
+        overtimeSeconds = 0
         totalSeconds = seconds
         secondsRemaining = seconds
         isPaused = false
@@ -80,6 +94,13 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
     }
 
     func add(seconds: Int) {
+        // Extending from overtime returns the timer to a normal countdown and
+        // re-arms the completion alert for the new target.
+        if isOvertime {
+            overtimeSeconds = 0
+            hasReachedZero = false
+            lastSpokenSecond = nil
+        }
         if isPaused {
             secondsRemaining = max(1, secondsRemaining + seconds)
             totalSeconds = max(totalSeconds + seconds, 1)
@@ -106,7 +127,10 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         guard isRunning else { return }
         tick()
         isRunning = false
-        isPaused = secondsRemaining > 0
+        // Overtime is a legitimate paused state: the rest is over but the user
+        // has not moved on yet, so freeze the elapsed overtime rather than
+        // treating it as "nothing left to resume".
+        isPaused = secondsRemaining > 0 || isOvertime
         endDate = nil
         ticker?.invalidate()
         ticker = nil
@@ -116,10 +140,13 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
     }
 
     func resume() {
-        guard isPaused, secondsRemaining > 0 else { return }
+        guard isPaused, secondsRemaining > 0 || isOvertime else { return }
         isPaused = false
         isRunning = true
-        endDate = Date().addingTimeInterval(TimeInterval(secondsRemaining))
+        // Rewind the end date so ticking resumes exactly where overtime paused.
+        endDate = isOvertime
+            ? Date().addingTimeInterval(-TimeInterval(overtimeSeconds))
+            : Date().addingTimeInterval(TimeInterval(secondsRemaining))
         startTicker()
         if alertsEnabled, alertConfiguration.style == .soundAndHaptic { scheduleNotification(after: secondsRemaining) }
         onStateChange?()
@@ -130,6 +157,8 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         isPaused = false
         endDate = nil
         secondsRemaining = 0
+        overtimeSeconds = 0
+        hasReachedZero = false
         ticker?.invalidate()
         ticker = nil
         cancelNotification()
@@ -141,6 +170,8 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         guard totalSeconds > 0 else { return }
         stopSpokenAlert()
         lastSpokenSecond = nil
+        hasReachedZero = false
+        overtimeSeconds = 0
         secondsRemaining = totalSeconds
         isPaused = false
         isRunning = true
@@ -157,7 +188,13 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         lastSpokenSecond = nil
         self.totalSeconds = totalSeconds
         self.endDate = endDate
-        self.secondsRemaining = max(0, Int(ceil(endDate.timeIntervalSinceNow)))
+        let remaining = Int(ceil(endDate.timeIntervalSinceNow))
+        self.secondsRemaining = max(0, remaining)
+        // A past end date means the owner is already in overtime. Adopt that
+        // state instead of coercing it to "finished", and latch the alert so
+        // this device doesn't replay a completion the owner already announced.
+        self.overtimeSeconds = remaining < 0 ? -remaining : 0
+        self.hasReachedZero = remaining <= 0
         self.isRunning = true
         self.isPaused = false
         startTicker()
@@ -171,9 +208,12 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         alertsEnabled = configuration.alertsEnabled
         self.totalSeconds = max(totalSeconds, remainingSeconds)
         self.secondsRemaining = max(0, remainingSeconds)
+        // Negative remaining encodes paused-in-overtime on the wire.
+        self.overtimeSeconds = remainingSeconds < 0 ? -remainingSeconds : 0
+        self.hasReachedZero = remainingSeconds <= 0
         self.endDate = nil
         self.isRunning = false
-        self.isPaused = remainingSeconds > 0
+        self.isPaused = remainingSeconds != 0
         ticker?.invalidate()
         ticker = nil
         cancelNotification()
@@ -198,9 +238,20 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         if alertsEnabled {
             playCountdownCueIfNeeded(secondsRemaining)
         }
-        if remaining <= 0 {
-            finish(playHaptic: true)
+        guard remaining <= 0 else {
+            overtimeSeconds = 0
+            return
         }
+        // Reaching zero alerts once and then keeps counting. The timer never
+        // ends the rest itself and never moves to the next exercise — only the
+        // user does that, by logging the next set or navigating.
+        if !hasReachedZero {
+            hasReachedZero = true
+            cancelNotification()
+            playCompletionAlert()
+            onStateChange?()
+        }
+        overtimeSeconds = -remaining
     }
 
     private func finish(playHaptic: Bool) {
@@ -208,6 +259,8 @@ final class RestTimerManager: NSObject, ObservableObject, @preconcurrency AVSpee
         isPaused = false
         endDate = nil
         secondsRemaining = 0
+        overtimeSeconds = 0
+        hasReachedZero = false
         ticker?.invalidate()
         ticker = nil
         cancelNotification()

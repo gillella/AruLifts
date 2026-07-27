@@ -913,6 +913,78 @@ MainActor.assumeIsolated {
     expect(!manager.hasPreviousExerciseInPhase || phase0.count > 1, "phase-relative Previous is consistent")
 }
 
+// MARK: - Issue #81: timers keep counting past zero and never auto-advance
+
+MainActor.assumeIsolated {
+    // Phase timer already 3 seconds past its target.
+    let phaseTimer = PhaseTimerManager()
+    phaseTimer.sync(endDate: Date().addingTimeInterval(-3), totalSeconds: 600)
+    expect(phaseTimer.isOvertime, "a past end date syncs as overtime, not as stopped")
+    expect(phaseTimer.overtimeSeconds >= 2, "overtime reflects how far past zero the phase is")
+    expect(phaseTimer.isRunning, "a phase in overtime keeps running")
+    expect(phaseTimer.totalSeconds == 600, "overtime sync retains the phase target")
+    expect(phaseTimer.formattedRemaining.hasPrefix("+"), "overtime formats with a leading +")
+
+    // Extending pulls it back into a normal countdown.
+    phaseTimer.add(seconds: 300)
+    expect(!phaseTimer.isOvertime, "extending from overtime returns to a countdown")
+    expect(!phaseTimer.hasCompleted, "extending re-arms the completion alert")
+
+    // Paused overtime survives as overtime rather than collapsing to zero.
+    let pausedPhase = PhaseTimerManager()
+    pausedPhase.syncPaused(remainingSeconds: -45, totalSeconds: 900)
+    expect(pausedPhase.isOvertime, "negative paused remaining decodes as overtime")
+    expect(pausedPhase.overtimeSeconds == 45, "paused overtime retains its elapsed value")
+
+    // Rest timer: same rule.
+    let rest = RestTimerManager(localDevice: .watch)
+    rest.sync(endDate: Date().addingTimeInterval(-4), totalSeconds: 180)
+    expect(rest.isOvertime, "rest timer syncs a past end date as overtime")
+    expect(rest.isRunning, "a rest timer in overtime keeps running")
+    expect(rest.formattedRemaining.hasPrefix("+"), "rest overtime formats with a leading +")
+
+    rest.syncPaused(remainingSeconds: -20, totalSeconds: 180)
+    expect(rest.isOvertime && rest.overtimeSeconds == 20, "rest paused overtime replicates")
+
+    // The rule: reaching zero must never advance anything by itself.
+    let templates = ExerciseLibrary.defaultTemplates()
+    var overtimeRoutine = GymSessionRoutine.defaultCompleteGymVisit(templates: templates)
+    if let cardio = overtimeRoutine.phases.firstIndex(where: { $0.phaseType == .preCardio }),
+       let firstTemplate = templates.first(where: { !$0.exercises.isEmpty }) {
+        overtimeRoutine.phases[cardio].templateID = firstTemplate.id
+    }
+    let overtimeSession = WorkoutSession.from(
+        routine: overtimeRoutine,
+        templates: templates,
+        library: ExerciseLibrary.byID
+    )
+    let mgr = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("overtime"))
+    )
+    mgr.start(overtimeSession, broadcast: false)
+    let phaseBefore = mgr.session?.currentPhaseIndex
+    let exerciseBefore = mgr.currentExerciseIndex
+
+    // Drive the phase timer past zero.
+    mgr.phaseTimer.sync(endDate: Date().addingTimeInterval(-1), totalSeconds: 900)
+    expect(
+        mgr.session?.currentPhaseIndex == phaseBefore,
+        "a phase timer reaching zero does not advance the phase"
+    )
+    expect(
+        mgr.currentExerciseIndex == exerciseBefore,
+        "a phase timer reaching zero does not move the exercise"
+    )
+
+    // And an expired rest timer must not skip to the next exercise.
+    mgr.restTimer.sync(endDate: Date().addingTimeInterval(-1), totalSeconds: 120)
+    expect(
+        mgr.currentExerciseIndex == exerciseBefore,
+        "a rest timer reaching zero does not advance the exercise"
+    )
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)

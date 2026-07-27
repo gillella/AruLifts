@@ -368,12 +368,12 @@ struct RestTimerBar: View {
                         .frame(width: 42, height: 42)
 
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(timer.isPaused ? "Rest paused" : "Resting")
+                            Text(timer.isOvertime ? "Rest over" : (timer.isPaused ? "Rest paused" : "Resting"))
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(timer.isOvertime ? Color.green : Color.secondary)
                             Text(timer.formattedRemaining)
                                 .font(.title2.monospacedDigit().bold())
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(timer.isOvertime ? Color.green : Color.primary)
                                 .contentTransition(.numericText())
                         }
                     }
@@ -381,7 +381,9 @@ struct RestTimerBar: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(
-                    "\(timer.isPaused ? "Rest paused" : "Resting"), \(timer.formattedRemaining) remaining"
+                    timer.isOvertime
+                        ? "Rest over by \(timer.formattedRemaining.dropFirst())"
+                        : "\(timer.isPaused ? "Rest paused" : "Resting"), \(timer.formattedRemaining) remaining"
                 )
                 .accessibilityHint("Opens the focused rest timer")
 
@@ -532,7 +534,8 @@ private struct FocusedRestTimerView: View {
                             .font(.system(size: 64, weight: .bold, design: .rounded))
                             .monospacedDigit()
                             .contentTransition(.numericText())
-                        Text("remaining")
+                            .foregroundStyle(timer.isOvertime ? Color.green : Color.primary)
+                        Text(timer.isOvertime ? "over" : "remaining")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }

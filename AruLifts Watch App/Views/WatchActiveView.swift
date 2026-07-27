@@ -526,9 +526,14 @@ struct WatchActiveView: View {
                         .multilineTextAlignment(.center)
 
                     if phase.phaseType.isTimed {
-                        Text(formatTime(active.phaseTimer.secondsRemaining))
+                        Text(active.phaseTimer.formattedRemaining)
                             .font(.system(size: 24, weight: .bold, design: .monospaced))
-                            .foregroundStyle(active.phaseTimer.isPaused ? Color.secondary : Color.orange)
+                            // Green marks overtime, distinct from the orange countdown.
+                            .foregroundStyle(
+                                active.phaseTimer.isOvertime
+                                    ? Color.green
+                                    : (active.phaseTimer.isPaused ? Color.secondary : Color.orange)
+                            )
 
                         HStack(spacing: 6) {
                             Button {

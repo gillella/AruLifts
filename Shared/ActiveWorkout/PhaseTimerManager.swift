@@ -22,6 +22,21 @@ final class PhaseTimerManager: ObservableObject {
     @Published private(set) var isPaused: Bool = false
     @Published private(set) var endDate: Date?
     @Published private(set) var hasCompleted: Bool = false
+    /// Seconds elapsed past the phase's target duration. The phase alerts on
+    /// reaching zero and then keeps counting — deciding to spend five more
+    /// minutes on the machine is the user's call, and that time is real.
+    @Published private(set) var overtimeSeconds: Int = 0
+
+    var isOvertime: Bool { overtimeSeconds > 0 }
+
+    /// Formatted for display: `12:34` while counting down, `+2:05` in overtime.
+    var formattedRemaining: String {
+        if isOvertime {
+            return String(format: "+%d:%02d", overtimeSeconds / 60, overtimeSeconds % 60)
+        }
+        let s = max(0, secondsRemaining)
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
 
     var onStateChange: (() -> Void)?
     var onCompletion: (() -> Void)?
@@ -45,6 +60,7 @@ final class PhaseTimerManager: ObservableObject {
         isRunning = true
         isPaused = false
         hasCompleted = false
+        overtimeSeconds = 0
 
         startTicker()
         onStateChange?()
@@ -52,8 +68,10 @@ final class PhaseTimerManager: ObservableObject {
 
     func pause() {
         guard isRunning, let endDate else { return }
-        let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
-        secondsRemaining = remaining
+        let raw = Int(endDate.timeIntervalSinceNow.rounded())
+        secondsRemaining = max(0, raw)
+        // Freeze accumulated overtime rather than discarding it.
+        overtimeSeconds = raw < 0 ? -raw : 0
         self.endDate = nil
         isRunning = false
         isPaused = true
@@ -62,8 +80,10 @@ final class PhaseTimerManager: ObservableObject {
     }
 
     func resume() {
-        guard isPaused || (!isRunning && secondsRemaining > 0) else { return }
-        endDate = Date().addingTimeInterval(TimeInterval(secondsRemaining))
+        guard isPaused || (!isRunning && (secondsRemaining > 0 || isOvertime)) else { return }
+        endDate = isOvertime
+            ? Date().addingTimeInterval(-TimeInterval(overtimeSeconds))
+            : Date().addingTimeInterval(TimeInterval(secondsRemaining))
         isRunning = true
         isPaused = false
         startTicker()
@@ -82,6 +102,9 @@ final class PhaseTimerManager: ObservableObject {
             secondsRemaining = newRemaining
             totalSeconds = max(totalSeconds, newRemaining)
         }
+        // Extending from overtime pulls the phase back into a normal countdown,
+        // and re-arms the completion alert for the new target.
+        overtimeSeconds = 0
         hasCompleted = false
         onStateChange?()
     }
@@ -94,31 +117,34 @@ final class PhaseTimerManager: ObservableObject {
         isRunning = false
         isPaused = false
         hasCompleted = false
+        overtimeSeconds = 0
     }
 
     func sync(endDate: Date, totalSeconds: Int) {
         let remaining = Int(endDate.timeIntervalSinceNow.rounded())
-        guard remaining > 0 else {
-            stop()
-            return
-        }
         self.totalSeconds = totalSeconds
         self.endDate = endDate
-        self.secondsRemaining = remaining
+        self.secondsRemaining = max(0, remaining)
+        // A past end date is the owner running in overtime, not a finished
+        // phase. Adopting it as overtime keeps both devices showing the same
+        // elapsed time; stopping here would blank the peer's timer instead.
+        self.overtimeSeconds = remaining < 0 ? -remaining : 0
         self.isRunning = true
         self.isPaused = false
-        self.hasCompleted = false
+        self.hasCompleted = remaining <= 0
         startTicker()
     }
 
     func syncPaused(remainingSeconds: Int, totalSeconds: Int) {
         stopTicker()
         self.totalSeconds = totalSeconds
-        self.secondsRemaining = remainingSeconds
+        self.secondsRemaining = max(0, remainingSeconds)
+        // Negative remaining encodes paused-in-overtime on the wire.
+        self.overtimeSeconds = remainingSeconds < 0 ? -remainingSeconds : 0
         self.endDate = nil
         self.isRunning = false
         self.isPaused = true
-        self.hasCompleted = false
+        self.hasCompleted = remainingSeconds <= 0
     }
 
     private func startTicker() {
@@ -138,18 +164,22 @@ final class PhaseTimerManager: ObservableObject {
     private func tick() {
         guard isRunning, let endDate else { return }
         let remaining = Int(endDate.timeIntervalSinceNow.rounded())
-        if remaining <= 0 {
-            secondsRemaining = 0
-            stopTicker()
-            isRunning = false
-            isPaused = false
+        guard remaining <= 0 else {
+            secondsRemaining = remaining
+            overtimeSeconds = 0
+            return
+        }
+        secondsRemaining = 0
+        // Reaching zero alerts once and then keeps running into overtime. The
+        // phase never ends itself and never advances — only the user does, via
+        // the transition sheet or the phase controls.
+        if !hasCompleted {
             hasCompleted = true
             triggerCompletionAlerts()
             onCompletion?()
             onStateChange?()
-        } else {
-            secondsRemaining = remaining
         }
+        overtimeSeconds = -remaining
     }
 
     func triggerCompletionAlerts(message: String? = nil) {

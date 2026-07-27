@@ -451,9 +451,12 @@ struct PhaseTimerView: View {
                         .frame(width: 80, height: 80)
 
                     VStack(spacing: 2) {
-                        Text(formatTime(active.phaseTimer.secondsRemaining))
+                        Text(active.phaseTimer.formattedRemaining)
                             .font(.system(size: 20, weight: .bold, design: .monospaced))
-                        Text(phase.phaseType.shortName)
+                            // Overtime reads green so a leading "+" can't be
+                            // mistaken for time still remaining.
+                            .foregroundStyle(active.phaseTimer.isOvertime ? Color.green : Color.primary)
+                        Text(active.phaseTimer.isOvertime ? "over" : phase.phaseType.shortName)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
