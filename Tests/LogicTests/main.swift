@@ -810,5 +810,11 @@ expect(defaultTemplates.contains { $0.name == "Lower Body A (Strength)" }, "Lowe
 expect(defaultTemplates.contains { $0.name == "Upper Body B (Hypertrophy)" }, "Upper Body B (Hypertrophy) template present")
 expect(defaultTemplates.contains { $0.name == "Lower Body B (Hypertrophy)" }, "Lower Body B (Hypertrophy) template present")
 
+MainActor.assumeIsolated {
+    let migrationStore = WorkoutStore()
+    migrationStore.ensureDefaultTemplatesExist()
+    expect(migrationStore.templates.count == 8, "ensureDefaultTemplatesExist populates missing starter templates on existing stores")
+}
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

@@ -5,6 +5,7 @@ struct MyWorkoutsView: View {
     @EnvironmentObject private var active: ActiveWorkoutManager
     @State private var editingTemplate: WorkoutTemplate?
     @State private var showingBuilder = false
+    @State private var showingPresetPicker = false
 
     var body: some View {
         NavigationStack {
@@ -22,9 +23,25 @@ struct MyWorkoutsView: View {
             .navigationTitle("My Workouts")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        editingTemplate = nil
-                        showingBuilder = true
+                    Menu {
+                        Button {
+                            editingTemplate = nil
+                            showingBuilder = true
+                        } label: {
+                            Label("Create Blank Workout", systemImage: "plus.square")
+                        }
+
+                        Button {
+                            showingPresetPicker = true
+                        } label: {
+                            Label("Start from Starter Preset", systemImage: "sparkles")
+                        }
+
+                        Button {
+                            store.ensureDefaultTemplatesExist()
+                        } label: {
+                            Label("Restore Starter Presets", systemImage: "arrow.triangle.2.circlepath")
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -32,15 +49,37 @@ struct MyWorkoutsView: View {
             }
             .overlay {
                 if store.templates.isEmpty {
-                    ContentUnavailableView(
-                        "No Workouts",
-                        systemImage: "square.grid.2x2",
-                        description: Text("Tap + to build your first workout.")
-                    )
+                    ContentUnavailableView {
+                        Label("No Workouts", systemImage: "square.grid.2x2")
+                    } description: {
+                        Text("Tap + to choose a starter preset or build your first custom workout.")
+                    } actions: {
+                        Button("Choose Starter Preset") {
+                            showingPresetPicker = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                    }
                 }
             }
             .sheet(isPresented: $showingBuilder) {
                 WorkoutBuilderView(existing: editingTemplate)
+            }
+            .sheet(isPresented: $showingPresetPicker) {
+                PresetTemplatePickerView { preset in
+                    let draft = WorkoutTemplate(
+                        name: preset.name,
+                        category: preset.category,
+                        exercises: preset.exercises.map { ex in
+                            var newEx = ex
+                            newEx.id = UUID()
+                            return newEx
+                        },
+                        notes: preset.notes
+                    )
+                    editingTemplate = draft
+                    showingBuilder = true
+                }
             }
         }
     }
@@ -66,7 +105,68 @@ struct MyWorkoutsView: View {
         if t.totalSets > 0 { parts.append(countLabel(t.totalSets, "set")) }
         return parts.joined(separator: " · ")
     }
+}
 
+/// Lists built-in starter templates (4-day split and original presets)
+/// to populate WorkoutBuilderView for custom editing before saving.
+struct PresetTemplatePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    let onSelect: (WorkoutTemplate) -> Void
+
+    private let presets = ExerciseLibrary.defaultTemplates()
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("4-Day Split Presets") {
+                    ForEach(presets.filter { $0.name.contains("Upper Body A") || $0.name.contains("Lower Body A") || $0.name.contains("Upper Body B") || $0.name.contains("Lower Body B") }) { preset in
+                        Button {
+                            onSelect(preset)
+                            dismiss()
+                        } label: {
+                            presetRow(preset)
+                        }
+                    }
+                }
+
+                Section("Other Starter Presets") {
+                    ForEach(presets.filter { !$0.name.contains("Upper Body A") && !$0.name.contains("Lower Body A") && !$0.name.contains("Upper Body B") && !$0.name.contains("Lower Body B") }) { preset in
+                        Button {
+                            onSelect(preset)
+                            dismiss()
+                        } label: {
+                            presetRow(preset)
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Choose Starter Preset")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func presetRow(_ template: WorkoutTemplate) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(template.category.color.opacity(0.18)).frame(width: 36, height: 36)
+                Image(systemName: template.category.symbol).foregroundStyle(template.category.color)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(template.name).font(.headline).foregroundStyle(.primary)
+                Text("\(template.exerciseCount) exercises · \(template.totalSets) sets")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 2)
+    }
 }
 
 /// Read-only template overview with Start and Edit actions.
