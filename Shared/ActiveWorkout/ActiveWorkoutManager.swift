@@ -526,10 +526,6 @@ final class ActiveWorkoutManager: ObservableObject {
         advancePhase()
     }
 
-    func dismissPhaseTransitionModal() {
-        showingPhaseTransitionModal = false
-    }
-
     // MARK: - Editing sets
 
     var currentExercise: SessionExercise? {

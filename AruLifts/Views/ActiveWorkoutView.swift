@@ -6,7 +6,6 @@ struct ActiveWorkoutView: View {
     @ObservedObject private var connectivity = ConnectivityManager.shared
     @State private var showingCancelConfirm = false
     @State private var showingMirrorDiscardConfirm = false
-    @State private var showingExercisePicker = false
     @State private var showingNotes = false
     @State private var showingReorder = false
 
@@ -529,12 +528,6 @@ struct PhaseTimerView: View {
         .padding(12)
         .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal)
-    }
-
-    private func formatTime(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%02d:%02d", m, s)
     }
 }
 
