@@ -104,5 +104,7 @@ iOSInjectionProject/
 .agents/agents/
 .gemini/
 
-# Xcode-generated empty workspace settings
-*.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+# Xcode-generated workspace settings. Anchored with ** because the real path is
+# nested (AruLifts.xcodeproj/project.xcworkspace/...) and a leading * does not
+# match across a / separator.
+**/xcshareddata/WorkspaceSettings.xcsettings
