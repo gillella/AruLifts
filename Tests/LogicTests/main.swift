@@ -888,8 +888,8 @@ expect(
     "core work maps to core training"
 )
 expect(
-    PhaseActivityKind.resolve(phaseType: .warmupStretches, exerciseNames: []) == .flexibility,
-    "warm-up stretches map to flexibility"
+    PhaseActivityKind.resolve(phaseType: .warmupStretches, exerciseNames: []) == .preparationAndRecovery,
+    "warm-up stretches map to preparation and recovery"
 )
 expect(
     PhaseActivityKind.resolve(phaseType: .postStretching, exerciseNames: []) == .flexibility,

@@ -122,6 +122,10 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
     var phases: [GymSessionLogPhase]
     /// Index of the current active phase during a multi-phase session.
     var currentPhaseIndex: Int
+    /// Start of the phase currently in progress. This lives in the replicated
+    /// session rather than in a device-local manager so ownership handoffs and
+    /// relaunches preserve accurate per-phase elapsed time.
+    var currentPhaseStartedAt: Date
 
     init(
         id: UUID = UUID(),
@@ -132,6 +136,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         exercises: [SessionExercise] = [],
         phases: [GymSessionLogPhase] = [],
         currentPhaseIndex: Int = 0,
+        currentPhaseStartedAt: Date? = nil,
         startedAt: Date = Date(),
         finishedAt: Date? = nil,
         notes: String = ""
@@ -144,6 +149,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         self.exercises = exercises
         self.phases = phases
         self.currentPhaseIndex = currentPhaseIndex
+        self.currentPhaseStartedAt = currentPhaseStartedAt ?? startedAt
         self.startedAt = startedAt
         self.finishedAt = finishedAt
         self.notes = notes
@@ -151,7 +157,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case id, templateID, routineID, name, category, exercises, phases
-        case currentPhaseIndex, startedAt, finishedAt, notes
+        case currentPhaseIndex, currentPhaseStartedAt, startedAt, finishedAt, notes
     }
 
     // Manual decode so history saved before notes/phases existed still loads.
@@ -166,6 +172,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         phases = try c.decodeIfPresent([GymSessionLogPhase].self, forKey: .phases) ?? []
         currentPhaseIndex = try c.decodeIfPresent(Int.self, forKey: .currentPhaseIndex) ?? 0
         startedAt = try c.decode(Date.self, forKey: .startedAt)
+        currentPhaseStartedAt = try c.decodeIfPresent(Date.self, forKey: .currentPhaseStartedAt) ?? startedAt
         finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }

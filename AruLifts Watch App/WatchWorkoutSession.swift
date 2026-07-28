@@ -83,7 +83,9 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
             // that doubles as the grouping key, while each fragment keeps a
             // distinct external id so Health sees them as separate entries.
             var metadata: [String: Any] = [
-                HKMetadataKeyExternalUUID: "\(sessionID.uuidString)-\(phaseName ?? "session")",
+                // A user may revisit the same phase, so the phase name alone
+                // is not a unique fragment identifier.
+                HKMetadataKeyExternalUUID: "\(sessionID.uuidString)-\(UUID().uuidString)",
                 Self.visitGroupingMetadataKey: sessionID.uuidString
             ]
             if let phaseName {

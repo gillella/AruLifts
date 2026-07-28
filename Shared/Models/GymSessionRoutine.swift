@@ -215,7 +215,9 @@ enum PhaseActivityKind: String, Codable, Hashable, CaseIterable {
             return .traditionalStrengthTraining
         case .coreWork:
             return .coreTraining
-        case .warmupStretches, .postStretching:
+        case .warmupStretches:
+            return .preparationAndRecovery
+        case .postStretching:
             return .flexibility
         case .saunaRecovery, .steamRecovery:
             return .preparationAndRecovery

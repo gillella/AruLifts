@@ -88,10 +88,6 @@ final class ActiveWorkoutManager: ObservableObject {
     /// Phone configuration cached alongside plans for Watch-owned execution.
     @Published private(set) var watchExecutionSettings = WatchExecutionSettings()
     @Published var showingPhaseTransitionModal = false
-    /// When the phase in progress began, so a phase records the time actually
-    /// spent in it — including any overtime — rather than the whole session.
-    private var currentPhaseStartedAt = Date()
-
     let restTimer: RestTimerManager
     let phaseTimer: PhaseTimerManager
 
@@ -249,7 +245,6 @@ final class ActiveWorkoutManager: ObservableObject {
         isFinalizing = false
         currentExerciseIndex = 0
         restTimer.stop()
-        currentPhaseStartedAt = Date()
         moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
         applyingRemote = false
@@ -450,14 +445,14 @@ final class ActiveWorkoutManager: ObservableObject {
         let currentIndex = current.currentPhaseIndex
         if current.phases.indices.contains(currentIndex) {
             current.phases[currentIndex].isCompleted = true
-            let elapsed = Int(Date().timeIntervalSince(currentPhaseStartedAt))
+            let elapsed = Int(Date().timeIntervalSince(current.currentPhaseStartedAt))
             current.phases[currentIndex].actualDurationSeconds = max(0, elapsed)
         }
         if currentIndex + 1 < current.phases.count {
             current.currentPhaseIndex += 1
-            session = current
             showingPhaseTransitionModal = false
-            currentPhaseStartedAt = Date()
+            current.currentPhaseStartedAt = Date()
+            session = current
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
             syncHealthActivityToPhase()
@@ -473,9 +468,9 @@ final class ActiveWorkoutManager: ObservableObject {
         guard canEdit, var current = session, !current.phases.isEmpty else { return }
         if current.currentPhaseIndex > 0 {
             current.currentPhaseIndex -= 1
-            session = current
             showingPhaseTransitionModal = false
-            currentPhaseStartedAt = Date()
+            current.currentPhaseStartedAt = Date()
+            session = current
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
             syncHealthActivityToPhase()
@@ -486,9 +481,9 @@ final class ActiveWorkoutManager: ObservableObject {
     func selectPhase(at index: Int) {
         guard canEdit, var current = session, current.phases.indices.contains(index) else { return }
         current.currentPhaseIndex = index
+        current.currentPhaseStartedAt = Date()
         session = current
         showingPhaseTransitionModal = false
-        currentPhaseStartedAt = Date()
         moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
         syncHealthActivityToPhase()
@@ -1041,7 +1036,9 @@ final class ActiveWorkoutManager: ObservableObject {
                 totalSeconds: timer.totalSeconds,
                 configuration: timer.alertConfiguration
             )
-        } else if let timer = replica.restTimer, timer.endDate > Date() {
+        } else if let timer = replica.restTimer {
+            // A past end date is an active rest in overtime, not a completed
+            // timer. `sync` adopts both countdown and overtime snapshots.
             restTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds, configuration: timer.alertConfiguration)
         } else {
             restTimer.stop()
@@ -1049,13 +1046,20 @@ final class ActiveWorkoutManager: ObservableObject {
         if let timer = replica.phaseTimer, let pausedRemaining = timer.pausedRemainingSeconds {
             phaseTimer.syncPaused(
                 remainingSeconds: pausedRemaining,
-                totalSeconds: timer.totalSeconds
+                totalSeconds: timer.totalSeconds,
+                cueLeadSeconds: phaseCueLeadSeconds,
+                resetLeadCue: wasNil || previousPhaseIndex != replica.session.currentPhaseIndex
             )
         } else if let timer = replica.phaseTimer {
             // A past end date is the owner running in overtime, not a finished
             // phase — `sync` adopts either. Filtering on `endDate > Date()` here
             // would drop every overtime snapshot into the stop branch below.
-            phaseTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds)
+            phaseTimer.sync(
+                endDate: timer.endDate,
+                totalSeconds: timer.totalSeconds,
+                cueLeadSeconds: phaseCueLeadSeconds,
+                resetLeadCue: wasNil || previousPhaseIndex != replica.session.currentPhaseIndex
+            )
         } else if (phaseTimer.isRunning || phaseTimer.isPaused),
                   previousPhaseIndex == replica.session.currentPhaseIndex,
                   replica.session.currentPhase?.phaseType.isTimed == true {
@@ -1072,11 +1076,23 @@ final class ActiveWorkoutManager: ObservableObject {
         #if os(watchOS)
         if wasNil {
             let configuration = WatchLaunchContext.shared.consumeConfiguration()
-            Task {
-                await WatchWorkoutSession.shared.start(
-                    sessionID: replica.session.id,
-                    configuration: configuration
-                )
+            if replica.session.isMultiPhase {
+                let kind = replica.session.currentActivityKind
+                let phaseName = replica.session.currentPhase?.name ?? replica.session.name
+                Task {
+                    await WatchWorkoutSession.shared.start(
+                        sessionID: replica.session.id,
+                        activityKind: kind,
+                        phaseName: phaseName
+                    )
+                }
+            } else {
+                Task {
+                    await WatchWorkoutSession.shared.start(
+                        sessionID: replica.session.id,
+                        configuration: configuration
+                    )
+                }
             }
             // HealthKit wakes the app; this local notification is a secondary
             // presentation step for a workout that is already persisted.

@@ -146,9 +146,18 @@ final class PhaseTimerManager: ObservableObject {
         hasFiredLeadCue = false
     }
 
-    func sync(endDate: Date, totalSeconds: Int) {
+    func sync(
+        endDate: Date,
+        totalSeconds: Int,
+        cueLeadSeconds: Int = 0,
+        resetLeadCue: Bool = false
+    ) {
         let remaining = Int(endDate.timeIntervalSinceNow.rounded())
         self.totalSeconds = totalSeconds
+        self.cueLeadSeconds = cueLeadSeconds < totalSeconds ? max(0, cueLeadSeconds) : 0
+        if resetLeadCue {
+            hasFiredLeadCue = false
+        }
         self.endDate = endDate
         self.secondsRemaining = max(0, remaining)
         // A past end date is the owner running in overtime, not a finished
@@ -161,9 +170,18 @@ final class PhaseTimerManager: ObservableObject {
         startTicker()
     }
 
-    func syncPaused(remainingSeconds: Int, totalSeconds: Int) {
+    func syncPaused(
+        remainingSeconds: Int,
+        totalSeconds: Int,
+        cueLeadSeconds: Int = 0,
+        resetLeadCue: Bool = false
+    ) {
         stopTicker()
         self.totalSeconds = totalSeconds
+        self.cueLeadSeconds = cueLeadSeconds < totalSeconds ? max(0, cueLeadSeconds) : 0
+        if resetLeadCue {
+            hasFiredLeadCue = false
+        }
         self.secondsRemaining = max(0, remainingSeconds)
         // Negative remaining encodes paused-in-overtime on the wire.
         self.overtimeSeconds = remainingSeconds < 0 ? -remainingSeconds : 0

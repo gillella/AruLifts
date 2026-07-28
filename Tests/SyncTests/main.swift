@@ -1017,6 +1017,23 @@ MainActor.assumeIsolated {
         mgr.currentExerciseIndex == exerciseBefore,
         "a rest timer reaching zero does not advance the exercise"
     )
+
+    // The phase start timestamp is part of the replicated session. Advancing
+    // after an ownership handoff must measure from that shared timestamp, not
+    // from when this device's manager happened to be created.
+    var handedOffSession = overtimeSession
+    handedOffSession.currentPhaseStartedAt = Date().addingTimeInterval(-125)
+    let handedOff = ActiveWorkoutManager(
+        localDevice: .watch,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("phaseElapsed"))
+    )
+    handedOff.start(handedOffSession, broadcast: false)
+    handedOff.advancePhase()
+    let recordedElapsed = handedOff.session?.phases[0].actualDurationSeconds ?? 0
+    expect(
+        (120...130).contains(recordedElapsed),
+        "phase duration uses the replicated phase-start timestamp across ownership handoff"
+    )
 }
 
 // MARK: - Issue #82: "prepare for next phase" lead cue
@@ -1070,6 +1087,21 @@ MainActor.assumeIsolated {
         failures += 1; print("FAIL execution settings round-trip")
     }
     expect(WatchExecutionSettings().phaseCueLeadSeconds == 30, "phase cue defaults to 30 seconds")
+
+    // A phone-led phase arrives as a timer snapshot. The Watch must arm the
+    // replicated lead cue while adopting that snapshot, not silently keep the
+    // timer's default cue of zero.
+    let adoptedCue = PhaseTimerManager(localDevice: .watch)
+    adoptedCue.sync(
+        endDate: Date().addingTimeInterval(60),
+        totalSeconds: 90,
+        cueLeadSeconds: execution.phaseCueLeadSeconds,
+        resetLeadCue: true
+    )
+    expect(
+        adoptedCue.cueLeadSeconds == 60,
+        "a replicated phase timer honours the Watch execution cue setting"
+    )
 }
 
 // MARK: - Issue #85: phase-complete announcement uses the displayed 1-based number
@@ -1193,6 +1225,28 @@ MainActor.assumeIsolated {
     expect(
         overtimeStarter.phaseTimer.isOvertime,
         "an overtime phase-timer snapshot replicates as overtime, not as stopped"
+    )
+
+    // Rest overtime must survive the manager's replica-adoption path too. A
+    // timer-level sync test alone cannot catch a manager that filters out past
+    // end dates before handing the snapshot to RestTimerManager.
+    overtimeStarter.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: startSession,
+                owner: .watch,
+                version: SessionVersion(ownershipEpoch: 1, revision: 4),
+                restTimer: RestTimerSnapshot(
+                    endDate: Date().addingTimeInterval(-30),
+                    totalSeconds: 120
+                )
+            ),
+            syncStatus: .synced
+        )
+    )
+    expect(
+        overtimeStarter.restTimer.isOvertime,
+        "an overtime rest-timer snapshot replicates as overtime, not as stopped"
     )
 }
 
