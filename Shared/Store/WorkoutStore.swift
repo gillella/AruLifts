@@ -189,8 +189,14 @@ final class WorkoutStore: ObservableObject {
         )
 
         let center = NotificationCenter.default
-        let reload: (Notification) -> Void = { [weak self] _ in
-            self?.scheduleICloudReload()
+        // Registered below with `queue: .main`, so delivery is guaranteed on the
+        // main thread — `assumeIsolated` records that for the compiler without
+        // the extra async hop a `Task { @MainActor }` would add, which would
+        // race the 350ms debounce in `scheduleICloudReload`.
+        let reload: @Sendable (Notification) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.scheduleICloudReload()
+            }
         }
         iCloudMetadataObservers = [
             center.addObserver(

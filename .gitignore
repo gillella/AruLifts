@@ -99,3 +99,10 @@ iOSInjectionProject/
 *.swo
 *~
 
+
+# Local AI agent tooling (per-machine, not shared)
+.agents/agents/
+.gemini/
+
+# Xcode-generated empty workspace settings
+*.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
