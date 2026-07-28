@@ -88,7 +88,6 @@ final class ActiveWorkoutManager: ObservableObject {
     /// Phone configuration cached alongside plans for Watch-owned execution.
     @Published private(set) var watchExecutionSettings = WatchExecutionSettings()
     @Published var showingPhaseTransitionModal = false
-
     let restTimer: RestTimerManager
     let phaseTimer: PhaseTimerManager
 
@@ -140,7 +139,7 @@ final class ActiveWorkoutManager: ObservableObject {
         let device = localDevice ?? .phone
         #endif
         restTimer = RestTimerManager(localDevice: device)
-        phaseTimer = PhaseTimerManager()
+        phaseTimer = PhaseTimerManager(localDevice: device)
         syncCoordinator = WorkoutSyncCoordinator(
             localDevice: device,
             repository: repository
@@ -178,11 +177,14 @@ final class ActiveWorkoutManager: ObservableObject {
             self.broadcast()
         }
 
+        phaseTimer.onLeadCue = { [weak self] in
+            self?.leadCueAnnouncement()
+        }
+
         phaseTimer.onCompletion = { [weak self] in
             guard let self else { return }
             self.showingPhaseTransitionModal = true
-            if let current = self.session?.currentPhase {
-                let msg = "Phase \(self.session?.currentPhaseIndex ?? 0 + 1) \(current.name) complete."
+            if let msg = self.phaseCompletionAnnouncement() {
                 self.phaseTimer.speakAnnouncement(msg)
             }
         }
@@ -243,6 +245,7 @@ final class ActiveWorkoutManager: ObservableObject {
         isFinalizing = false
         currentExerciseIndex = 0
         restTimer.stop()
+        moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
         applyingRemote = false
         if broadcast {
@@ -270,7 +273,21 @@ final class ActiveWorkoutManager: ObservableObject {
         #if os(watchOS)
         // Watch-initiated workout: run a real HKWorkoutSession so the app
         // stays alive through rest and the workout earns activity-ring credit.
-        Task { await WatchWorkoutSession.shared.start(sessionID: newSession.id) }
+        // A routine opens directly on its first phase's activity so the session
+        // isn't started as strength training only to be swapped immediately.
+        if newSession.isMultiPhase {
+            let kind = newSession.currentActivityKind
+            let phaseName = newSession.currentPhase?.name ?? newSession.name
+            Task {
+                await WatchWorkoutSession.shared.start(
+                    sessionID: newSession.id,
+                    activityKind: kind,
+                    phaseName: phaseName
+                )
+            }
+        } else {
+            Task { await WatchWorkoutSession.shared.start(sessionID: newSession.id) }
+        }
         #endif
     }
 
@@ -354,16 +371,73 @@ final class ActiveWorkoutManager: ObservableObject {
 
     // MARK: - Multi-Phase Routine Controls
 
+    /// Moves the live exercise to the newly current phase's first unfinished
+    /// exercise. Without this the pager keeps showing the previous phase's work
+    /// after advancing, so the Watch never "recognises" the new phase.
+    /// Retunes the live Health session to the activity the current phase needs.
+    /// `HKWorkoutSession` cannot change activity type in place, so this ends the
+    /// current workout and starts another — see #84 for the accepted trade-off.
+    private func syncHealthActivityToPhase() {
+        #if os(watchOS)
+        guard let session, session.isMultiPhase, let phase = session.currentPhase else { return }
+        let kind = session.currentActivityKind
+        let sessionID = session.id
+        let phaseName = phase.name
+        Task {
+            await WatchWorkoutSession.shared.switchActivity(
+                to: kind,
+                phaseName: phaseName,
+                sessionID: sessionID
+            )
+        }
+        #endif
+    }
+
+    private func moveToCurrentPhaseExercise() {
+        guard let session, session.isMultiPhase else { return }
+        if let landing = session.landingExerciseIndex(forPhase: session.currentPhaseIndex) {
+            currentExerciseIndex = landing
+        }
+    }
+
     private func checkAndStartPhaseTimer() {
         guard let currentPhase = session?.currentPhase else {
             phaseTimer.stop()
             return
         }
         if currentPhase.phaseType.isTimed, currentPhase.durationSeconds > 0 {
-            phaseTimer.start(seconds: currentPhase.durationSeconds)
+            phaseTimer.start(
+                seconds: currentPhase.durationSeconds,
+                cueLeadSeconds: phaseCueLeadSeconds
+            )
         } else {
             phaseTimer.stop()
         }
+    }
+
+    /// Lead time for the "prepare for the next phase" cue, zero when disabled.
+    /// The Watch reads the phone's setting from the cached execution settings.
+    private var phaseCueLeadSeconds: Int {
+        guard watchExecutionSettings.phaseCueEnabled else { return 0 }
+        return max(0, watchExecutionSettings.phaseCueLeadSeconds)
+    }
+
+    /// Spoken when a timed phase reaches zero. The phase number is 1-based to
+    /// match what both devices display ("Phase 1 of 7"), not the raw index.
+    func phaseCompletionAnnouncement() -> String? {
+        guard let session, let current = session.currentPhase else { return nil }
+        return "Phase \(session.currentPhaseIndex + 1) \(current.name) complete."
+    }
+
+    /// Text announced at the lead cue: what the user should get ready for.
+    private func leadCueAnnouncement() -> String? {
+        guard let session, session.isMultiPhase else { return nil }
+        let lead = phaseCueLeadSeconds
+        let nextIndex = session.currentPhaseIndex + 1
+        guard session.phases.indices.contains(nextIndex) else {
+            return "\(lead) seconds left. Final phase ending."
+        }
+        return "\(lead) seconds left. Next up: \(session.phases[nextIndex].name)."
     }
 
     func advancePhase() {
@@ -371,14 +445,17 @@ final class ActiveWorkoutManager: ObservableObject {
         let currentIndex = current.currentPhaseIndex
         if current.phases.indices.contains(currentIndex) {
             current.phases[currentIndex].isCompleted = true
-            let elapsed = Int(Date().timeIntervalSince(current.startedAt))
-            current.phases[currentIndex].actualDurationSeconds = elapsed
+            let elapsed = Int(Date().timeIntervalSince(current.currentPhaseStartedAt))
+            current.phases[currentIndex].actualDurationSeconds = max(0, elapsed)
         }
         if currentIndex + 1 < current.phases.count {
             current.currentPhaseIndex += 1
-            session = current
             showingPhaseTransitionModal = false
+            current.currentPhaseStartedAt = Date()
+            session = current
+            moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
+            syncHealthActivityToPhase()
             broadcast()
         } else {
             session = current
@@ -391,9 +468,12 @@ final class ActiveWorkoutManager: ObservableObject {
         guard canEdit, var current = session, !current.phases.isEmpty else { return }
         if current.currentPhaseIndex > 0 {
             current.currentPhaseIndex -= 1
-            session = current
             showingPhaseTransitionModal = false
+            current.currentPhaseStartedAt = Date()
+            session = current
+            moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
+            syncHealthActivityToPhase()
             broadcast()
         }
     }
@@ -401,9 +481,12 @@ final class ActiveWorkoutManager: ObservableObject {
     func selectPhase(at index: Int) {
         guard canEdit, var current = session, current.phases.indices.contains(index) else { return }
         current.currentPhaseIndex = index
+        current.currentPhaseStartedAt = Date()
         session = current
         showingPhaseTransitionModal = false
+        moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
+        syncHealthActivityToPhase()
         broadcast()
     }
 
@@ -451,6 +534,13 @@ final class ActiveWorkoutManager: ObservableObject {
 
     var currentExercise: SessionExercise? {
         guard let session, session.exercises.indices.contains(currentExerciseIndex) else { return nil }
+        // Only surface an exercise belonging to the phase in progress. A timed
+        // phase with no exercises of its own (cardio, sauna) must show its
+        // timer, not the next phase's first lift.
+        if session.isMultiPhase,
+           session.exercises[currentExerciseIndex].phaseIndex != session.currentPhaseIndex {
+            return nil
+        }
         return session.exercises[currentExerciseIndex]
     }
 
@@ -615,15 +705,47 @@ final class ActiveWorkoutManager: ObservableObject {
         restTimer.skip()
     }
 
+    /// Exercise navigation stays inside the phase in progress — reaching the
+    /// end of a phase does not roll into the next one, because advancing a
+    /// phase is always an explicit user action.
     func goToNextExercise() {
         guard canEdit, let session else { return }
-        if currentExerciseIndex < session.exercises.count - 1 {
-            currentExerciseIndex += 1
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else {
+            // Index is outside the current phase (e.g. mid-migration); snap back in.
+            if let landing = session.landingExerciseIndex(forPhase: session.currentPhaseIndex) {
+                currentExerciseIndex = landing
+            }
+            return
+        }
+        if position + 1 < scope.count {
+            currentExerciseIndex = scope[position + 1]
         }
     }
 
     func goToPreviousExercise() {
-        if canEdit && currentExerciseIndex > 0 { currentExerciseIndex -= 1 }
+        guard canEdit, let session else { return }
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return }
+        if position > 0 {
+            currentExerciseIndex = scope[position - 1]
+        }
+    }
+
+    /// True when a further exercise exists inside the current phase.
+    var hasNextExerciseInPhase: Bool {
+        guard let session else { return false }
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return false }
+        return position + 1 < scope.count
+    }
+
+    /// True when an earlier exercise exists inside the current phase.
+    var hasPreviousExerciseInPhase: Bool {
+        guard let session else { return false }
+        let scope = session.currentPhaseExerciseIndices
+        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return false }
+        return position > 0
     }
 
     /// The phone remains a read-only mirror until the Watch durably accepts
@@ -690,9 +812,13 @@ final class ActiveWorkoutManager: ObservableObject {
         workouts += gymRoutines.map {
             WatchStartableWorkout(routine: $0, templates: templates, library: library, settings: settings)
         }
+        let execution = WatchExecutionSettings(settings: settings)
+        // Keep the phone's own copy current too, so execution-time behaviour
+        // (like the phase cue) reads one source on both platforms.
+        watchExecutionSettings = execution
         let cache = (syncCoordinator.watchPlanCache ?? WatchPlanCache()).advanced(
             workouts: workouts,
-            executionSettings: WatchExecutionSettings(settings: settings)
+            executionSettings: execution
         )
         _ = syncCoordinator.updateWatchPlanCache(cache)
     }
@@ -714,12 +840,13 @@ final class ActiveWorkoutManager: ObservableObject {
         let rest: RestTimerSnapshot?
         if let endDate = restTimer.endDate {
             rest = RestTimerSnapshot(endDate: endDate, totalSeconds: restTimer.totalSeconds, alertConfiguration: restTimer.alertConfiguration)
-        } else if restTimer.isPaused, restTimer.secondsRemaining > 0 {
+        } else if restTimer.isPaused, restTimer.secondsRemaining > 0 || restTimer.isOvertime {
             // `endDate` is retained for wire compatibility only while paused;
             // receivers use pausedRemainingSeconds rather than this value.
+            // A negative value encodes paused-in-overtime.
             rest = RestTimerSnapshot(
                 endDate: Date(), totalSeconds: restTimer.totalSeconds,
-                pausedRemainingSeconds: restTimer.secondsRemaining,
+                pausedRemainingSeconds: restTimer.isOvertime ? -restTimer.overtimeSeconds : restTimer.secondsRemaining,
                 alertConfiguration: restTimer.alertConfiguration
             )
         } else {
@@ -728,10 +855,10 @@ final class ActiveWorkoutManager: ObservableObject {
         let pTimer: PhaseTimerSnapshot?
         if let endDate = phaseTimer.endDate {
             pTimer = PhaseTimerSnapshot(endDate: endDate, totalSeconds: phaseTimer.totalSeconds)
-        } else if phaseTimer.isPaused, phaseTimer.secondsRemaining > 0 {
+        } else if phaseTimer.isPaused, phaseTimer.secondsRemaining > 0 || phaseTimer.isOvertime {
             pTimer = PhaseTimerSnapshot(
                 endDate: Date(), totalSeconds: phaseTimer.totalSeconds,
-                pausedRemainingSeconds: phaseTimer.secondsRemaining
+                pausedRemainingSeconds: phaseTimer.isOvertime ? -phaseTimer.overtimeSeconds : phaseTimer.secondsRemaining
             )
         } else {
             pTimer = nil
@@ -841,6 +968,12 @@ final class ActiveWorkoutManager: ObservableObject {
     /// already-persisted state. It looks identical to a workout arriving from
     /// the counterpart, but the user is opening the app right now, so it must
     /// not trigger the "a workout appeared" wrist notification.
+    /// Applies a remote runtime state directly. Exists so tests can drive the
+    /// replica-adoption path without standing up a full two-device transport.
+    func applyRuntimeStateForTesting(_ state: WorkoutRuntimeState) {
+        applyV2State(state)
+    }
+
     private func applyV2State(_ state: WorkoutRuntimeState, isInitialRestore: Bool = false) {
         owner = state.activeReplica?.owner
         canEdit = syncCoordinator.canEdit
@@ -890,6 +1023,7 @@ final class ActiveWorkoutManager: ObservableObject {
         }
 
         let wasNil = session == nil
+        let previousPhaseIndex = session?.currentPhaseIndex
         applyingRemote = true
         session = replica.session
         currentExerciseIndex = replica.session.exercises.indices.contains(
@@ -902,7 +1036,9 @@ final class ActiveWorkoutManager: ObservableObject {
                 totalSeconds: timer.totalSeconds,
                 configuration: timer.alertConfiguration
             )
-        } else if let timer = replica.restTimer, timer.endDate > Date() {
+        } else if let timer = replica.restTimer {
+            // A past end date is an active rest in overtime, not a completed
+            // timer. `sync` adopts both countdown and overtime snapshots.
             restTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds, configuration: timer.alertConfiguration)
         } else {
             restTimer.stop()
@@ -910,10 +1046,27 @@ final class ActiveWorkoutManager: ObservableObject {
         if let timer = replica.phaseTimer, let pausedRemaining = timer.pausedRemainingSeconds {
             phaseTimer.syncPaused(
                 remainingSeconds: pausedRemaining,
-                totalSeconds: timer.totalSeconds
+                totalSeconds: timer.totalSeconds,
+                cueLeadSeconds: phaseCueLeadSeconds,
+                resetLeadCue: wasNil || previousPhaseIndex != replica.session.currentPhaseIndex
             )
-        } else if let timer = replica.phaseTimer, timer.endDate > Date() {
-            phaseTimer.sync(endDate: timer.endDate, totalSeconds: timer.totalSeconds)
+        } else if let timer = replica.phaseTimer {
+            // A past end date is the owner running in overtime, not a finished
+            // phase — `sync` adopts either. Filtering on `endDate > Date()` here
+            // would drop every overtime snapshot into the stop branch below.
+            phaseTimer.sync(
+                endDate: timer.endDate,
+                totalSeconds: timer.totalSeconds,
+                cueLeadSeconds: phaseCueLeadSeconds,
+                resetLeadCue: wasNil || previousPhaseIndex != replica.session.currentPhaseIndex
+            )
+        } else if (phaseTimer.isRunning || phaseTimer.isPaused),
+                  previousPhaseIndex == replica.session.currentPhaseIndex,
+                  replica.session.currentPhase?.phaseType.isTimed == true {
+            // The peer has no phase-timer snapshot yet — it may not have armed
+            // one, or its checkpoint predates ours. Keep the timer this device
+            // already started for the same phase rather than blanking it to
+            // 00:00, which is what made a freshly started routine show no time.
         } else {
             phaseTimer.stop()
         }
@@ -923,11 +1076,23 @@ final class ActiveWorkoutManager: ObservableObject {
         #if os(watchOS)
         if wasNil {
             let configuration = WatchLaunchContext.shared.consumeConfiguration()
-            Task {
-                await WatchWorkoutSession.shared.start(
-                    sessionID: replica.session.id,
-                    configuration: configuration
-                )
+            if replica.session.isMultiPhase {
+                let kind = replica.session.currentActivityKind
+                let phaseName = replica.session.currentPhase?.name ?? replica.session.name
+                Task {
+                    await WatchWorkoutSession.shared.start(
+                        sessionID: replica.session.id,
+                        activityKind: kind,
+                        phaseName: phaseName
+                    )
+                }
+            } else {
+                Task {
+                    await WatchWorkoutSession.shared.start(
+                        sessionID: replica.session.id,
+                        configuration: configuration
+                    )
+                }
             }
             // HealthKit wakes the app; this local notification is a secondary
             // presentation step for a workout that is already persisted.

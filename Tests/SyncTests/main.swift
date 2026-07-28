@@ -845,6 +845,411 @@ let phaseCheckEnvelope = pWire.last(.checkpoint) ?? pWire.last(.ownershipOffer)!
 expect(wCoord.receive(phaseCheckEnvelope) == .applied, "Watch adopts phase timer checkpoint")
 expect(wCoord.replica?.phaseTimer?.totalSeconds == 900, "Watch replica contains phase timer snapshot")
 
+// MARK: - Issue #80: phase-scoped exercise navigation (ActiveWorkoutManager)
+
+MainActor.assumeIsolated {
+    // A routine whose first three phases all carry exercises, so advancing has
+    // somewhere distinct to land each time.
+    let templates = ExerciseLibrary.defaultTemplates()
+    var routine = GymSessionRoutine.defaultCompleteGymVisit(templates: templates)
+    let withExercises = templates.filter { !$0.exercises.isEmpty }
+    if withExercises.count >= 3 {
+        for (offset, phaseType) in [GymSessionPhaseType.preCardio, .warmupStretches, .mainStrength].enumerated() {
+            if let idx = routine.phases.firstIndex(where: { $0.phaseType == phaseType }) {
+                routine.phases[idx].templateID = withExercises[offset].id
+            }
+        }
+    }
+
+    let session = WorkoutSession.from(
+        routine: routine,
+        templates: templates,
+        library: ExerciseLibrary.byID
+    )
+
+    let manager = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("phaseNav"))
+    )
+    manager.start(session, broadcast: false)
+
+    let phase0 = manager.session?.exerciseIndices(inPhase: 0) ?? []
+    expect(
+        phase0.contains(manager.currentExerciseIndex),
+        "starting a routine lands on an exercise inside phase 0"
+    )
+
+    // Walking to the end of phase 0 must not spill into phase 1.
+    for _ in 0..<(phase0.count + 3) { manager.goToNextExercise() }
+    expect(
+        phase0.contains(manager.currentExerciseIndex),
+        "Next never navigates past the end of the current phase"
+    )
+    expect(
+        manager.currentExerciseIndex == phase0.last,
+        "Next stops on the last exercise of the current phase"
+    )
+    expect(!manager.hasNextExerciseInPhase, "no next exercise reported at the phase boundary")
+
+    // A phase with no exercises of its own must not surface another phase's
+    // work. The default routine's cardio phase has no linked template, so
+    // starting it should show the phase card, not the first strength lift.
+    let bareRoutineSession = WorkoutSession.from(
+        routine: GymSessionRoutine.defaultCompleteGymVisit(templates: templates),
+        templates: templates,
+        library: ExerciseLibrary.byID
+    )
+    let bare = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("barePhase"))
+    )
+    bare.start(bareRoutineSession, broadcast: false)
+    if bareRoutineSession.exerciseIndices(inPhase: 0).isEmpty {
+        expect(
+            bare.currentExercise == nil,
+            "a phase with no exercises shows no exercise, not the next phase's work"
+        )
+    }
+    // Advancing to a phase that does have exercises surfaces them again.
+    if let populated = bareRoutineSession.phases.indices.first(where: {
+        !bareRoutineSession.exerciseIndices(inPhase: $0).isEmpty
+    }) {
+        bare.selectPhase(at: populated)
+        expect(
+            bare.currentExercise != nil,
+            "selecting a phase that has exercises surfaces that phase's work"
+        )
+        expect(
+            bare.currentExercise?.phaseIndex == populated,
+            "the surfaced exercise belongs to the selected phase"
+        )
+    }
+
+    // Advancing the phase is what moves you on — and it repositions the exercise.
+    manager.advancePhase()
+    let phase1 = manager.session?.exerciseIndices(inPhase: 1) ?? []
+    expect(manager.session?.currentPhaseIndex == 1, "advancePhase moves to phase 1")
+    expect(
+        phase1.contains(manager.currentExerciseIndex),
+        "advancing a phase repositions the live exercise into that phase"
+    )
+    expect(
+        manager.currentExerciseIndex == phase1.first,
+        "advancing lands on the new phase's first unfinished exercise"
+    )
+
+    // Going back a phase repositions too.
+    manager.previousPhase()
+    expect(
+        phase0.contains(manager.currentExerciseIndex),
+        "previousPhase repositions the live exercise back into the earlier phase"
+    )
+    expect(!manager.hasPreviousExerciseInPhase || phase0.count > 1, "phase-relative Previous is consistent")
+}
+
+// MARK: - Issue #81: timers keep counting past zero and never auto-advance
+
+MainActor.assumeIsolated {
+    // Phase timer already 3 seconds past its target.
+    let phaseTimer = PhaseTimerManager()
+    phaseTimer.sync(endDate: Date().addingTimeInterval(-3), totalSeconds: 600)
+    expect(phaseTimer.isOvertime, "a past end date syncs as overtime, not as stopped")
+    expect(phaseTimer.overtimeSeconds >= 2, "overtime reflects how far past zero the phase is")
+    expect(phaseTimer.isRunning, "a phase in overtime keeps running")
+    expect(phaseTimer.totalSeconds == 600, "overtime sync retains the phase target")
+    expect(phaseTimer.formattedRemaining.hasPrefix("+"), "overtime formats with a leading +")
+
+    // Extending pulls it back into a normal countdown.
+    phaseTimer.add(seconds: 300)
+    expect(!phaseTimer.isOvertime, "extending from overtime returns to a countdown")
+    expect(!phaseTimer.hasCompleted, "extending re-arms the completion alert")
+
+    // Paused overtime survives as overtime rather than collapsing to zero.
+    let pausedPhase = PhaseTimerManager()
+    pausedPhase.syncPaused(remainingSeconds: -45, totalSeconds: 900)
+    expect(pausedPhase.isOvertime, "negative paused remaining decodes as overtime")
+    expect(pausedPhase.overtimeSeconds == 45, "paused overtime retains its elapsed value")
+
+    // Rest timer: same rule.
+    let rest = RestTimerManager(localDevice: .watch)
+    rest.sync(endDate: Date().addingTimeInterval(-4), totalSeconds: 180)
+    expect(rest.isOvertime, "rest timer syncs a past end date as overtime")
+    expect(rest.isRunning, "a rest timer in overtime keeps running")
+    expect(rest.formattedRemaining.hasPrefix("+"), "rest overtime formats with a leading +")
+
+    rest.syncPaused(remainingSeconds: -20, totalSeconds: 180)
+    expect(rest.isOvertime && rest.overtimeSeconds == 20, "rest paused overtime replicates")
+
+    // The rule: reaching zero must never advance anything by itself.
+    let templates = ExerciseLibrary.defaultTemplates()
+    var overtimeRoutine = GymSessionRoutine.defaultCompleteGymVisit(templates: templates)
+    if let cardio = overtimeRoutine.phases.firstIndex(where: { $0.phaseType == .preCardio }),
+       let firstTemplate = templates.first(where: { !$0.exercises.isEmpty }) {
+        overtimeRoutine.phases[cardio].templateID = firstTemplate.id
+    }
+    let overtimeSession = WorkoutSession.from(
+        routine: overtimeRoutine,
+        templates: templates,
+        library: ExerciseLibrary.byID
+    )
+    let mgr = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("overtime"))
+    )
+    mgr.start(overtimeSession, broadcast: false)
+    let phaseBefore = mgr.session?.currentPhaseIndex
+    let exerciseBefore = mgr.currentExerciseIndex
+
+    // Drive the phase timer past zero.
+    mgr.phaseTimer.sync(endDate: Date().addingTimeInterval(-1), totalSeconds: 900)
+    expect(
+        mgr.session?.currentPhaseIndex == phaseBefore,
+        "a phase timer reaching zero does not advance the phase"
+    )
+    expect(
+        mgr.currentExerciseIndex == exerciseBefore,
+        "a phase timer reaching zero does not move the exercise"
+    )
+
+    // And an expired rest timer must not skip to the next exercise.
+    mgr.restTimer.sync(endDate: Date().addingTimeInterval(-1), totalSeconds: 120)
+    expect(
+        mgr.currentExerciseIndex == exerciseBefore,
+        "a rest timer reaching zero does not advance the exercise"
+    )
+
+    // The phase start timestamp is part of the replicated session. Advancing
+    // after an ownership handoff must measure from that shared timestamp, not
+    // from when this device's manager happened to be created.
+    var handedOffSession = overtimeSession
+    handedOffSession.currentPhaseStartedAt = Date().addingTimeInterval(-125)
+    let handedOff = ActiveWorkoutManager(
+        localDevice: .watch,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("phaseElapsed"))
+    )
+    handedOff.start(handedOffSession, broadcast: false)
+    handedOff.advancePhase()
+    let recordedElapsed = handedOff.session?.phases[0].actualDurationSeconds ?? 0
+    expect(
+        (120...130).contains(recordedElapsed),
+        "phase duration uses the replicated phase-start timestamp across ownership handoff"
+    )
+}
+
+// MARK: - Issue #82: "prepare for next phase" lead cue
+
+MainActor.assumeIsolated {
+    var cueCount = 0
+    let cued = PhaseTimerManager(localDevice: .phone)
+    cued.onLeadCue = { cueCount += 1; return "Next up: Warm-Up." }
+    cued.start(seconds: 60, cueLeadSeconds: 30)
+    expect(cued.cueLeadSeconds == 30, "lead time is retained when shorter than the phase")
+    expect(cueCount == 0, "no cue while the phase is above the lead time")
+
+    // Drive real ticks: a 4s phase with a 3s lead must cue once, and stay at
+    // once while it keeps ticking below the threshold.
+    var firedCount = 0
+    let ticking = PhaseTimerManager(localDevice: .phone)
+    ticking.onLeadCue = { firedCount += 1; return nil }
+    ticking.start(seconds: 4, cueLeadSeconds: 3)
+    RunLoop.current.run(until: Date().addingTimeInterval(2.5))
+    expect(firedCount == 1, "the lead cue fires when the countdown crosses the lead time")
+    // Run past zero so a tick lands in overtime. Exactly at 0:00 the timer
+    // reads "0:00", not "+0:00" — overtime only begins on the next second.
+    RunLoop.current.run(until: Date().addingTimeInterval(3.0))
+    expect(firedCount == 1, "the lead cue never fires more than once per phase run")
+    expect(ticking.isOvertime, "the phase keeps counting into overtime after the cue")
+    expect(ticking.isRunning, "the phase is still running after passing zero")
+
+    // Suppressed when the lead is as long as (or longer than) the phase itself.
+    let shortPhase = PhaseTimerManager(localDevice: .phone)
+    shortPhase.start(seconds: 20, cueLeadSeconds: 30)
+    expect(shortPhase.cueLeadSeconds == 0, "a lead >= the phase duration disables the cue")
+    let exactPhase = PhaseTimerManager(localDevice: .phone)
+    exactPhase.start(seconds: 30, cueLeadSeconds: 30)
+    expect(exactPhase.cueLeadSeconds == 0, "a lead equal to the phase duration disables the cue")
+
+    // Only the phone speaks; the Watch still buzzes.
+    expect(PhaseTimerManager(localDevice: .phone).spokenAlertsEnabled, "phone speaks phase announcements")
+    expect(!PhaseTimerManager(localDevice: .watch).spokenAlertsEnabled, "watch does not duplicate spoken announcements")
+
+    // The setting travels to the Watch with the plan cache.
+    var tuned = AppSettings()
+    tuned.phaseCueEnabled = true
+    tuned.phaseCueLeadSeconds = 60
+    let execution = WatchExecutionSettings(settings: tuned)
+    expect(execution.phaseCueLeadSeconds == 60, "phase cue lead replicates in execution settings")
+    if let data = try? JSONEncoder().encode(execution),
+       let restored = try? JSONDecoder().decode(WatchExecutionSettings.self, from: data) {
+        expect(restored.phaseCueLeadSeconds == 60, "phase cue lead survives the wire round-trip")
+        expect(restored.phaseCueEnabled, "phase cue toggle survives the wire round-trip")
+    } else {
+        failures += 1; print("FAIL execution settings round-trip")
+    }
+    expect(WatchExecutionSettings().phaseCueLeadSeconds == 30, "phase cue defaults to 30 seconds")
+
+    // A phone-led phase arrives as a timer snapshot. The Watch must arm the
+    // replicated lead cue while adopting that snapshot, not silently keep the
+    // timer's default cue of zero.
+    let adoptedCue = PhaseTimerManager(localDevice: .watch)
+    adoptedCue.sync(
+        endDate: Date().addingTimeInterval(60),
+        totalSeconds: 90,
+        cueLeadSeconds: execution.phaseCueLeadSeconds,
+        resetLeadCue: true
+    )
+    expect(
+        adoptedCue.cueLeadSeconds == 60,
+        "a replicated phase timer honours the Watch execution cue setting"
+    )
+}
+
+// MARK: - Issue #85: phase-complete announcement uses the displayed 1-based number
+
+MainActor.assumeIsolated {
+    let announceSession = WorkoutSession.from(
+        routine: GymSessionRoutine.defaultCompleteGymVisit(),
+        templates: [],
+        library: ExerciseLibrary.byID
+    )
+    let announcer = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("announce"))
+    )
+    announcer.start(announceSession, broadcast: false)
+
+    let first = announcer.phaseCompletionAnnouncement()
+    expect(first?.hasPrefix("Phase 1 ") == true, "the first phase announces as Phase 1, not Phase 0")
+    expect(
+        first?.contains(announceSession.phases[0].name) == true,
+        "the announcement names the phase that finished"
+    )
+
+    announcer.advancePhase()
+    expect(
+        announcer.phaseCompletionAnnouncement()?.hasPrefix("Phase 2 ") == true,
+        "the announcement tracks the displayed phase number as phases advance"
+    )
+}
+
+// MARK: - Issue #86: a freshly started phase timer must not be blanked
+
+MainActor.assumeIsolated {
+    let startSession = WorkoutSession.from(
+        routine: GymSessionRoutine.defaultCompleteGymVisit(),
+        templates: [],
+        library: ExerciseLibrary.byID
+    )
+    let starter = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("timerStart"))
+    )
+    starter.start(startSession, broadcast: false)
+
+    // Starting a routine must arm the first timed phase at its full duration.
+    let firstPhase = startSession.phases[0]
+    expect(firstPhase.phaseType.isTimed, "the default routine opens on a timed phase")
+    expect(
+        starter.phaseTimer.totalSeconds == firstPhase.durationSeconds,
+        "starting a routine arms the phase timer at the phase duration"
+    )
+    expect(
+        starter.phaseTimer.secondsRemaining > firstPhase.durationSeconds - 5,
+        "the armed timer starts counting down from the full duration, not 00:00"
+    )
+    expect(starter.phaseTimer.isRunning, "the phase timer is running after start")
+
+    // The reported symptom: an incoming replica carrying no phase-timer
+    // snapshot must not wipe the timer this device just started.
+    let emptySnapshotState = WorkoutRuntimeState(
+        activeReplica: WorkoutReplica(
+            session: startSession,
+            owner: .watch,
+            version: SessionVersion(ownershipEpoch: 1, revision: 1),
+            phaseTimer: nil
+        ),
+        syncStatus: .synced
+    )
+    starter.applyRuntimeStateForTesting(emptySnapshotState)
+    expect(
+        starter.phaseTimer.totalSeconds == firstPhase.durationSeconds,
+        "a replica with no phase-timer snapshot does not blank a running phase timer"
+    )
+    expect(
+        starter.phaseTimer.secondsRemaining > 0,
+        "the phase timer still shows time remaining after an empty snapshot arrives"
+    )
+
+    // But a genuine stop still applies: moving to an untimed phase clears it.
+    if let strengthIdx = startSession.phases.firstIndex(where: { !$0.phaseType.isTimed }) {
+        var untimed = startSession
+        untimed.currentPhaseIndex = strengthIdx
+        starter.applyRuntimeStateForTesting(
+            WorkoutRuntimeState(
+                activeReplica: WorkoutReplica(
+                    session: untimed,
+                    owner: .watch,
+                    version: SessionVersion(ownershipEpoch: 1, revision: 2),
+                    phaseTimer: nil
+                ),
+                syncStatus: .synced
+            )
+        )
+        expect(
+            !starter.phaseTimer.isRunning,
+            "moving to an untimed phase still stops the phase timer"
+        )
+    }
+
+    // And an overtime snapshot must survive the replica path rather than being
+    // filtered into the stop branch.
+    let overtimeStarter = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("timerOvertime"))
+    )
+    overtimeStarter.start(startSession, broadcast: false)
+    overtimeStarter.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: startSession,
+                owner: .watch,
+                version: SessionVersion(ownershipEpoch: 1, revision: 3),
+                phaseTimer: PhaseTimerSnapshot(
+                    endDate: Date().addingTimeInterval(-30),
+                    totalSeconds: firstPhase.durationSeconds
+                )
+            ),
+            syncStatus: .synced
+        )
+    )
+    expect(
+        overtimeStarter.phaseTimer.isOvertime,
+        "an overtime phase-timer snapshot replicates as overtime, not as stopped"
+    )
+
+    // Rest overtime must survive the manager's replica-adoption path too. A
+    // timer-level sync test alone cannot catch a manager that filters out past
+    // end dates before handing the snapshot to RestTimerManager.
+    overtimeStarter.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: startSession,
+                owner: .watch,
+                version: SessionVersion(ownershipEpoch: 1, revision: 4),
+                restTimer: RestTimerSnapshot(
+                    endDate: Date().addingTimeInterval(-30),
+                    totalSeconds: 120
+                )
+            ),
+            syncStatus: .synced
+        )
+    )
+    expect(
+        overtimeStarter.restTimer.isOvertime,
+        "an overtime rest-timer snapshot replicates as overtime, not as stopped"
+    )
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)

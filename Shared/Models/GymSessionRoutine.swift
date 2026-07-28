@@ -188,6 +188,67 @@ struct GymSessionRoutine: Identifiable, Codable, Hashable {
     }
 }
 
+/// The kind of activity a routine phase represents.
+///
+/// Deliberately HealthKit-free so the mapping rules stay unit-testable in the
+/// pure-logic target; `HKWorkoutActivityType` is derived from this at the
+/// HealthKit boundary on watchOS.
+enum PhaseActivityKind: String, Codable, Hashable, CaseIterable {
+    case stairClimbing
+    case elliptical
+    case running
+    case cycling
+    case rowing
+    case mixedCardio
+    case traditionalStrengthTraining
+    case flexibility
+    case coreTraining
+    case preparationAndRecovery
+
+    /// Resolves the activity a phase should be tracked as. Cardio is refined by
+    /// the machine named in the phase (or its linked template) so a stair
+    /// stepper is not logged as generic cardio; anything unrecognised falls
+    /// back to `mixedCardio`.
+    static func resolve(phaseType: GymSessionPhaseType, exerciseNames: [String]) -> PhaseActivityKind {
+        switch phaseType {
+        case .mainStrength:
+            return .traditionalStrengthTraining
+        case .coreWork:
+            return .coreTraining
+        case .warmupStretches:
+            return .preparationAndRecovery
+        case .postStretching:
+            return .flexibility
+        case .saunaRecovery, .steamRecovery:
+            return .preparationAndRecovery
+        case .preCardio:
+            return cardioKind(from: exerciseNames)
+        }
+    }
+
+    private static func cardioKind(from names: [String]) -> PhaseActivityKind {
+        for raw in names {
+            let name = raw.lowercased()
+            if name.contains("stair") || name.contains("climber") || name.contains("step") {
+                return .stairClimbing
+            }
+            if name.contains("elliptical") || name.contains("cross train") {
+                return .elliptical
+            }
+            if name.contains("treadmill") || name.contains("run") || name.contains("jog") || name.contains("incline") {
+                return .running
+            }
+            if name.contains("bike") || name.contains("cycl") || name.contains("spin") {
+                return .cycling
+            }
+            if name.contains("row") {
+                return .rowing
+            }
+        }
+        return .mixedCardio
+    }
+}
+
 /// Active execution log state for a single phase inside a `WorkoutSession`.
 struct GymSessionLogPhase: Identifiable, Codable, Hashable {
     var id: UUID
@@ -197,7 +258,6 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
     var actualDurationSeconds: Int?
     var isCompleted: Bool
     var exerciseNames: [String]
-    var exercises: [SessionExercise]
     var notes: String
 
     init(
@@ -208,7 +268,6 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
         actualDurationSeconds: Int? = nil,
         isCompleted: Bool = false,
         exerciseNames: [String] = [],
-        exercises: [SessionExercise] = [],
         notes: String = ""
     ) {
         self.id = id
@@ -218,7 +277,11 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
         self.actualDurationSeconds = actualDurationSeconds
         self.isCompleted = isCompleted
         self.exerciseNames = exerciseNames
-        self.exercises = exercises
         self.notes = notes
+    }
+
+    /// How this phase should be tracked in Health.
+    var activityKind: PhaseActivityKind {
+        PhaseActivityKind.resolve(phaseType: phaseType, exerciseNames: exerciseNames)
     }
 }

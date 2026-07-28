@@ -12,6 +12,8 @@ struct WatchExecutionSettings: Codable, Hashable {
     var restAlertStyle: RestAlertStyle
     var earlyRestCueEnabled: Bool
     var earlyRestCueLeadSeconds: Int
+    var phaseCueEnabled: Bool
+    var phaseCueLeadSeconds: Int
     var adaptiveRestEnabled: Bool
     var failedSetRestMultiplier: Double
 
@@ -25,6 +27,8 @@ struct WatchExecutionSettings: Codable, Hashable {
         restAlertStyle = settings.restAlertStyle
         earlyRestCueEnabled = settings.earlyRestCueEnabled
         earlyRestCueLeadSeconds = settings.earlyRestCueLeadSeconds
+        phaseCueEnabled = settings.phaseCueEnabled
+        phaseCueLeadSeconds = settings.phaseCueLeadSeconds
         adaptiveRestEnabled = settings.adaptiveRestEnabled
         failedSetRestMultiplier = settings.failedSetRestMultiplier
     }
@@ -32,6 +36,7 @@ struct WatchExecutionSettings: Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case units, barWeight, availablePlates, weightIncrement, autoStartRest, restAlertsEnabled
         case restAlertStyle, earlyRestCueEnabled, earlyRestCueLeadSeconds
+        case phaseCueEnabled, phaseCueLeadSeconds
         case adaptiveRestEnabled, failedSetRestMultiplier
     }
 
@@ -46,6 +51,8 @@ struct WatchExecutionSettings: Codable, Hashable {
         restAlertStyle = try c.decodeIfPresent(RestAlertStyle.self, forKey: .restAlertStyle) ?? .soundAndHaptic
         earlyRestCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .earlyRestCueEnabled) ?? true
         earlyRestCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .earlyRestCueLeadSeconds) ?? 10
+        phaseCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .phaseCueEnabled) ?? true
+        phaseCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .phaseCueLeadSeconds) ?? 30
         adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
         failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5
     }
@@ -86,6 +93,9 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
     /// Target duration for cardio and mobility entries. Zero means set/rep
     /// tracking; a positive value represents one checkable timed block.
     var durationSeconds: Int
+    /// Phase this exercise belongs to, preserved so an offline Watch start
+    /// reproduces the same phase scoping the phone would have produced.
+    var phaseIndex: Int?
 
     init(
         id: UUID = UUID(),
@@ -95,7 +105,8 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
         restSeconds: Int,
         usesWeight: Bool,
         loadingMode: LoadingMode = .direct,
-        durationSeconds: Int = 0
+        durationSeconds: Int = 0,
+        phaseIndex: Int? = nil
     ) {
         self.id = id
         self.exerciseID = exerciseID
@@ -105,12 +116,13 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
         self.usesWeight = usesWeight
         self.loadingMode = loadingMode
         self.durationSeconds = durationSeconds
+        self.phaseIndex = phaseIndex
     }
 
     var isTimed: Bool { durationSeconds > 0 }
 
     private enum CodingKeys: String, CodingKey {
-        case id, exerciseID, name, sets, restSeconds, usesWeight, loadingMode, durationSeconds
+        case id, exerciseID, name, sets, restSeconds, usesWeight, loadingMode, durationSeconds, phaseIndex
     }
 
     init(from decoder: Decoder) throws {
@@ -123,6 +135,7 @@ struct WatchStartableExercise: Identifiable, Codable, Hashable {
         usesWeight = try c.decodeIfPresent(Bool.self, forKey: .usesWeight) ?? true
         loadingMode = try c.decodeIfPresent(LoadingMode.self, forKey: .loadingMode) ?? .direct
         durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
+        phaseIndex = try c.decodeIfPresent(Int.self, forKey: .phaseIndex)
     }
 }
 
@@ -278,7 +291,8 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                 },
                 restSeconds: sessionEx.restSeconds,
                 usesWeight: sessionEx.usesWeight,
-                loadingMode: sessionEx.loadingMode
+                loadingMode: sessionEx.loadingMode,
+                phaseIndex: sessionEx.phaseIndex
             )
         }
     }
@@ -336,7 +350,8 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                     },
                     restSeconds: cachedExercise.restSeconds,
                     usesWeight: cachedExercise.usesWeight,
-                    loadingMode: cachedExercise.loadingMode
+                    loadingMode: cachedExercise.loadingMode,
+                    phaseIndex: cachedExercise.phaseIndex
                 )
             },
             phases: phases.map { phase in
@@ -348,7 +363,6 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                     actualDurationSeconds: nil,
                     isCompleted: false,
                     exerciseNames: phase.exerciseNames,
-                    exercises: phase.exercises,
                     notes: phase.notes
                 )
             },

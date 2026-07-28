@@ -40,7 +40,12 @@ struct WatchRestView: View {
                             .font(.system(.title2, design: .rounded).bold())
                             .monospacedDigit()
                             .contentTransition(.numericText())
-                        if timer.isPaused {
+                            .foregroundStyle(timer.isOvertime ? Color.green : Color.primary)
+                        if timer.isOvertime {
+                            Text("OVER")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.green)
+                        } else if timer.isPaused {
                             Text("PAUSED")
                                 .font(.system(size: 8, weight: .bold))
                                 .foregroundStyle(.secondary)
@@ -50,7 +55,9 @@ struct WatchRestView: View {
                 .frame(width: 108, height: 108)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
-                    "\(timer.isPaused ? "Rest paused" : "Resting"), \(timer.formattedRemaining) remaining"
+                    timer.isOvertime
+                        ? "Rest over by \(timer.formattedRemaining.dropFirst())"
+                        : "\(timer.isPaused ? "Rest paused" : "Resting"), \(timer.formattedRemaining) remaining"
                 )
 
                 if let nextSet {

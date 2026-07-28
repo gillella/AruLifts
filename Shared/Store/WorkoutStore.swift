@@ -19,6 +19,10 @@ struct AppSettings: Codable, Equatable {
     var restAlertStyle: RestAlertStyle = .soundAndHaptic
     var earlyRestCueEnabled: Bool = true
     var earlyRestCueLeadSeconds: Int = 10
+    /// Warn before a timed routine phase ends, naming the phase coming next, so
+    /// there is time to wind down the machine and move to the next station.
+    var phaseCueEnabled: Bool = true
+    var phaseCueLeadSeconds: Int = 30
     /// Auto-start the rest timer when a set is completed.
     var autoStartRest: Bool = true
     /// Give an incomplete set longer recovery without making successful sets
@@ -52,6 +56,8 @@ struct AppSettings: Codable, Equatable {
         restAlertStyle = try c.decodeIfPresent(RestAlertStyle.self, forKey: .restAlertStyle) ?? .soundAndHaptic
         earlyRestCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .earlyRestCueEnabled) ?? true
         earlyRestCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .earlyRestCueLeadSeconds) ?? 10
+        phaseCueEnabled = try c.decodeIfPresent(Bool.self, forKey: .phaseCueEnabled) ?? true
+        phaseCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .phaseCueLeadSeconds) ?? 30
         autoStartRest = try c.decodeIfPresent(Bool.self, forKey: .autoStartRest) ?? true
         adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
         failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5

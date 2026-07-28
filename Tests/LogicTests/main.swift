@@ -842,16 +842,134 @@ if let cardioTemplate = defaultTemplates.first(where: { !$0.exercises.isEmpty })
             templates: defaultTemplates,
             library: ExerciseLibrary.byID
         )
-        let cardioPhaseLog = linkedSession.phases.first(where: { $0.phaseType == .preCardio })
+        let cardioPhaseIdx = linkedSession.phases.firstIndex(where: { $0.phaseType == .preCardio })
+        let cardioPhaseExercises = cardioPhaseIdx.map { linkedSession.exercises(inPhase: $0) } ?? []
         expect(
-            cardioPhaseLog?.exercises.count == cardioTemplate.exercises.count,
+            cardioPhaseExercises.count == cardioTemplate.exercises.count,
             "template linked to a non-strength phase populates that phase's exercises"
         )
         expect(
-            cardioPhaseLog?.exercises.first?.name == cardioTemplate.exercises.first?.name,
+            cardioPhaseExercises.first?.name == cardioTemplate.exercises.first?.name,
             "linked non-strength phase pulls exercises from the correct template"
         )
+
+        // Issue #80: every exercise must be attributed to the phase that owns it,
+        // and phase scoping must partition the flat list without gaps or overlap.
+        expect(
+            linkedSession.exercises.allSatisfy { $0.phaseIndex != nil },
+            "every exercise in a routine session carries a phaseIndex"
+        )
+        let partitioned = linkedSession.phases.indices
+            .flatMap { linkedSession.exerciseIndices(inPhase: $0) }
+            .sorted()
+        expect(
+            partitioned == Array(linkedSession.exercises.indices),
+            "phase scoping partitions the whole exercise list exactly once"
+        )
+        if let cardioPhaseIdx {
+            expect(
+                linkedSession.landingExerciseIndex(forPhase: cardioPhaseIdx)
+                    == linkedSession.exerciseIndices(inPhase: cardioPhaseIdx).first,
+                "landing index for a fresh phase is its first exercise"
+            )
+        }
     }
+}
+
+// Issue #84: each phase maps to the HealthKit activity that matches it, with
+// cardio refined by the machine so a stair stepper isn't logged as generic
+// cardio (or, as before, as strength training).
+expect(
+    PhaseActivityKind.resolve(phaseType: .mainStrength, exerciseNames: []) == .traditionalStrengthTraining,
+    "main strength maps to traditional strength training"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .coreWork, exerciseNames: []) == .coreTraining,
+    "core work maps to core training"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .warmupStretches, exerciseNames: []) == .preparationAndRecovery,
+    "warm-up stretches map to preparation and recovery"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .postStretching, exerciseNames: []) == .flexibility,
+    "cool-down maps to flexibility"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .saunaRecovery, exerciseNames: []) == .preparationAndRecovery,
+    "sauna maps to preparation and recovery"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .steamRecovery, exerciseNames: []) == .preparationAndRecovery,
+    "steam maps to preparation and recovery"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .preCardio, exerciseNames: ["Stair Climber"]) == .stairClimbing,
+    "stair climber cardio maps to stair climbing"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .preCardio, exerciseNames: ["Elliptical"]) == .elliptical,
+    "elliptical cardio maps to elliptical"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .preCardio, exerciseNames: ["Treadmill Incline"]) == .running,
+    "treadmill cardio maps to running"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .preCardio, exerciseNames: ["Rowing Machine"]) == .rowing,
+    "rowing cardio maps to rowing"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .preCardio, exerciseNames: ["Assault Bike"]) == .cycling,
+    "bike cardio maps to cycling"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .preCardio, exerciseNames: ["Something Unusual"]) == .mixedCardio,
+    "unrecognised cardio falls back to mixed cardio"
+)
+expect(
+    PhaseActivityKind.resolve(phaseType: .preCardio, exerciseNames: []) == .mixedCardio,
+    "cardio with no named machine falls back to mixed cardio"
+)
+
+// A session resolves the kind per phase, preferring exercises pulled from a
+// linked template over the routine's declared names.
+let activityRoutine = GymSessionRoutine.defaultCompleteGymVisit()
+let activitySession = WorkoutSession.from(
+    routine: activityRoutine,
+    templates: [],
+    library: ExerciseLibrary.byID
+)
+if let cardioIdx = activitySession.phases.firstIndex(where: { $0.phaseType == .preCardio }),
+   let strengthIdx = activitySession.phases.firstIndex(where: { $0.phaseType == .mainStrength }) {
+    expect(
+        activitySession.activityKind(forPhase: cardioIdx) == .elliptical,
+        "default cardio phase resolves from its declared machine names"
+    )
+    expect(
+        activitySession.activityKind(forPhase: strengthIdx) == .traditionalStrengthTraining,
+        "strength phase resolves independently of the cardio phase"
+    )
+}
+// A plain workout has no phases and stays strength training.
+expect(
+    WorkoutSession(name: "Plain", category: .fullBody, exercises: []).currentActivityKind
+        == .traditionalStrengthTraining,
+    "a non-phase session tracks as strength training"
+)
+
+// Issue #80: a plain single-template session has no phases, so navigation scope
+// must stay the entire exercise list.
+if let plainTemplate = defaultTemplates.first(where: { $0.exercises.count > 1 }) {
+    let plainSession = WorkoutSession.from(
+        template: plainTemplate,
+        library: ExerciseLibrary.byID
+    )
+    expect(!plainSession.isMultiPhase, "single-template session is not multi-phase")
+    expect(
+        plainSession.currentPhaseExerciseIndices == Array(plainSession.exercises.indices),
+        "single-template session scopes navigation to all exercises"
+    )
 }
 
 if let routineData = try? JSONEncoder().encode(defaultRoutine),

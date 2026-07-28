@@ -110,6 +110,19 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Toggle("Prepare-for-next cue", isOn: $store.settings.phaseCueEnabled)
+                    if store.settings.phaseCueEnabled {
+                        Picker("Cue timing", selection: $store.settings.phaseCueLeadSeconds) {
+                            ForEach([10, 30, 60], id: \.self) { Text("\($0) seconds before").tag($0) }
+                        }
+                    }
+                } header: {
+                    Text("Gym Session Phases")
+                } footer: {
+                    Text("Announces the next phase before a timed phase ends. The timer keeps counting past zero either way — you decide when to move on.")
+                }
+
                 Section("Apple Watch") {
                     HStack {
                         Text("Status")

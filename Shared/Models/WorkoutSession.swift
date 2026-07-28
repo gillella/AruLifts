@@ -53,6 +53,10 @@ struct SessionExercise: Identifiable, Codable, Hashable {
     /// Captured at workout start so editors on both devices use the same
     /// wording and behavior without needing to look up the exercise library.
     var loadingMode: LoadingMode
+    /// Which routine phase this exercise belongs to, as an index into
+    /// `WorkoutSession.phases`. `nil` for plain single-template sessions, which
+    /// have no phases and navigate across the whole list.
+    var phaseIndex: Int?
 
     init(
         id: UUID = UUID(),
@@ -61,7 +65,8 @@ struct SessionExercise: Identifiable, Codable, Hashable {
         sets: [SetEntry],
         restSeconds: Int = 180,
         usesWeight: Bool = true,
-        loadingMode: LoadingMode = .direct
+        loadingMode: LoadingMode = .direct,
+        phaseIndex: Int? = nil
     ) {
         self.id = id
         self.exerciseID = exerciseID
@@ -70,10 +75,11 @@ struct SessionExercise: Identifiable, Codable, Hashable {
         self.restSeconds = restSeconds
         self.usesWeight = usesWeight
         self.loadingMode = loadingMode
+        self.phaseIndex = phaseIndex
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, exerciseID, name, sets, restSeconds, usesWeight, loadingMode
+        case id, exerciseID, name, sets, restSeconds, usesWeight, loadingMode, phaseIndex
     }
 
     init(from decoder: Decoder) throws {
@@ -85,6 +91,7 @@ struct SessionExercise: Identifiable, Codable, Hashable {
         restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds) ?? 180
         usesWeight = try c.decodeIfPresent(Bool.self, forKey: .usesWeight) ?? true
         loadingMode = try c.decodeIfPresent(LoadingMode.self, forKey: .loadingMode) ?? .direct
+        phaseIndex = try c.decodeIfPresent(Int.self, forKey: .phaseIndex)
     }
 
     var completedSets: Int { sets.filter { $0.isCompleted }.count }
@@ -115,6 +122,10 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
     var phases: [GymSessionLogPhase]
     /// Index of the current active phase during a multi-phase session.
     var currentPhaseIndex: Int
+    /// Start of the phase currently in progress. This lives in the replicated
+    /// session rather than in a device-local manager so ownership handoffs and
+    /// relaunches preserve accurate per-phase elapsed time.
+    var currentPhaseStartedAt: Date
 
     init(
         id: UUID = UUID(),
@@ -125,6 +136,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         exercises: [SessionExercise] = [],
         phases: [GymSessionLogPhase] = [],
         currentPhaseIndex: Int = 0,
+        currentPhaseStartedAt: Date? = nil,
         startedAt: Date = Date(),
         finishedAt: Date? = nil,
         notes: String = ""
@@ -137,6 +149,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         self.exercises = exercises
         self.phases = phases
         self.currentPhaseIndex = currentPhaseIndex
+        self.currentPhaseStartedAt = currentPhaseStartedAt ?? startedAt
         self.startedAt = startedAt
         self.finishedAt = finishedAt
         self.notes = notes
@@ -144,7 +157,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case id, templateID, routineID, name, category, exercises, phases
-        case currentPhaseIndex, startedAt, finishedAt, notes
+        case currentPhaseIndex, currentPhaseStartedAt, startedAt, finishedAt, notes
     }
 
     // Manual decode so history saved before notes/phases existed still loads.
@@ -159,6 +172,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         phases = try c.decodeIfPresent([GymSessionLogPhase].self, forKey: .phases) ?? []
         currentPhaseIndex = try c.decodeIfPresent(Int.self, forKey: .currentPhaseIndex) ?? 0
         startedAt = try c.decode(Date.self, forKey: .startedAt)
+        currentPhaseStartedAt = try c.decodeIfPresent(Date.self, forKey: .currentPhaseStartedAt) ?? startedAt
         finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }
@@ -169,6 +183,52 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
     var currentPhase: GymSessionLogPhase? {
         guard phases.indices.contains(currentPhaseIndex) else { return nil }
         return phases[currentPhaseIndex]
+    }
+
+    // MARK: - Phase-scoped exercise access
+
+    /// Indices into `exercises` belonging to the given phase.
+    ///
+    /// A single-template session has no phases, so every exercise is in scope —
+    /// that keeps plain workouts navigating across the whole list as before.
+    func exerciseIndices(inPhase phaseIndex: Int) -> [Int] {
+        guard isMultiPhase else { return Array(exercises.indices) }
+        return exercises.indices.filter { exercises[$0].phaseIndex == phaseIndex }
+    }
+
+    /// Indices into `exercises` belonging to the phase currently in progress.
+    var currentPhaseExerciseIndices: [Int] {
+        guard isMultiPhase else { return Array(exercises.indices) }
+        return exerciseIndices(inPhase: currentPhaseIndex)
+    }
+
+    /// Where navigation should land when a phase becomes current: its first
+    /// unfinished exercise, or its first exercise when everything is done.
+    func landingExerciseIndex(forPhase phaseIndex: Int) -> Int? {
+        let indices = exerciseIndices(inPhase: phaseIndex)
+        return indices.first(where: { !exercises[$0].isComplete }) ?? indices.first
+    }
+
+    /// Exercises belonging to the given phase, derived from the flat list.
+    func exercises(inPhase phaseIndex: Int) -> [SessionExercise] {
+        exerciseIndices(inPhase: phaseIndex).map { exercises[$0] }
+    }
+
+    /// How a phase should be tracked in Health. Exercises pulled from a linked
+    /// template identify the machine more reliably than the routine's declared
+    /// names, so they are consulted first.
+    func activityKind(forPhase phaseIndex: Int) -> PhaseActivityKind {
+        guard phases.indices.contains(phaseIndex) else { return .traditionalStrengthTraining }
+        let phase = phases[phaseIndex]
+        let names = exercises(inPhase: phaseIndex).map(\.name) + phase.exerciseNames
+        return PhaseActivityKind.resolve(phaseType: phase.phaseType, exerciseNames: names)
+    }
+
+    /// Activity kind for the phase currently in progress, or plain strength
+    /// training for a single-template session.
+    var currentActivityKind: PhaseActivityKind {
+        guard isMultiPhase else { return .traditionalStrengthTraining }
+        return activityKind(forPhase: currentPhaseIndex)
     }
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
@@ -280,6 +340,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         var logPhases: [GymSessionLogPhase] = []
 
         for phase in routine.enabledPhases {
+            let phaseIndex = logPhases.count
             var phaseExercises: [SessionExercise] = []
             // Any phase may link a template, not just main strength — cardio,
             // warm-up, cool-down and recovery phases are composable too. Core
@@ -306,13 +367,18 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
                 }
             }
 
+            // Stamp phase attribution so the flat `exercises` array stays the
+            // single source of truth while still knowing which phase owns what.
+            for i in phaseExercises.indices {
+                phaseExercises[i].phaseIndex = phaseIndex
+            }
+
             allExercises.append(contentsOf: phaseExercises)
             logPhases.append(GymSessionLogPhase(
                 phaseType: phase.phaseType,
                 name: phase.name,
                 durationSeconds: phase.durationSeconds,
                 exerciseNames: phase.exerciseNames,
-                exercises: phaseExercises,
                 notes: phase.notes
             ))
         }
