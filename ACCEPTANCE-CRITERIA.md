@@ -8,9 +8,10 @@ executes it.
 - **Companion docs:** [`E2E-TEST-PLAN.md`](E2E-TEST-PLAN.md) holds the goal-level
   narrative and the historical results log. [`ROADMAP.md`](ROADMAP.md) holds forward
   epics. This document is the authoritative *pass/fail* contract.
-- **Traceability:** every criterion cites the issue that introduced it (§10).
-- **Maintenance:** when an issue changes behaviour, update the criterion in the same
-  PR. A criterion that no longer matches shipped behaviour is a bug in this document.
+- **Traceability:** every criterion cites the issue that introduced it (§15).
+- **Maintenance:** this document is kept current as the app changes — see §17 for the
+  rule and the checklist. A criterion that no longer matches shipped behaviour is a bug
+  in this document, not a failing test.
 
 ---
 
@@ -18,10 +19,10 @@ executes it.
 
 1. Run §4 (automated gates). **If any suite fails, stop** and report — manual results
    on a broken build are meaningless.
-2. Perform the §3 reset before each functional area in §5–§9. Skipping the reset is the
+2. Perform the §3 reset before each functional area in §5–§14. Skipping the reset is the
    single most common cause of false failures (see §3.3).
 3. Execute criteria in ID order within an area. Record one verdict per criterion.
-4. Report using the §11 format. Do not summarise several criteria into one verdict.
+4. Report using the §16 format. Do not summarise several criteria into one verdict.
 
 ### 1.1 Verdict vocabulary
 
@@ -52,11 +53,11 @@ These are environmental limits, **not defects**. A criterion blocked by one of t
 
 | Limit | Consequence | Affected |
 |---|---|---|
-| **Simulator builds carry no HealthKit entitlement.** Xcode strips it; `codesign -d --entitlements :-` returns an empty dict. | `HKWorkoutSession` and `startWatchApp` always fail. No Health workout is ever created. | All of §9, and the phone→Watch wake in §8 |
-| No real sensors | No heart rate, no calories, no rings | §9 |
+| **Simulator builds carry no HealthKit entitlement.** Xcode strips it; `codesign -d --entitlements :-` returns an empty dict. | `HKWorkoutSession` and `startWatchApp` always fail. No Health workout is ever created. | All of §13, and the phone→Watch wake in §12 |
+| No real sensors | No heart rate, no calories, no rings | §13 |
 | Haptics are not produced | Cannot verify a haptic fired | AC-E4, AC-E7 |
-| Audio/speech is unreliable in CI | Cannot verify an announcement was *heard* | AC-E7, AC-K1 |
-| Watch app does not reliably auto-propagate on install | Install it directly from `<iPhone .app>/Watch/AruLifts Watch App.app` | §7, §8 |
+| Audio/speech is unreliable in CI | Cannot verify an announcement was *heard* | AC-E7, AC-J4 |
+| Watch app does not reliably auto-propagate on install | Install it directly from `<iPhone .app>/Watch/AruLifts Watch App.app` | §11, §12 |
 
 **Useful side effect:** because the Watch wake always fails, the simulator reliably
 exercises the "Couldn't wake Apple Watch → Retry / Discard" path for free (AC-H5).
@@ -159,7 +160,7 @@ xcodebuild -project AruLifts.xcodeproj -scheme 'AruLifts Watch App' \
 **AC-0.2** Both targets report `** BUILD SUCCEEDED **`.
 
 > Green suites do **not** imply the devices sync. `run.sh` and `run_e2e.sh` cover pure
-> logic only — that is how a total sync outage once shipped past 86 passing tests. §8 is
+> logic only — that is how a total sync outage once shipped past 86 passing tests. §12 is
 > not optional.
 
 ---
@@ -496,7 +497,11 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 | I HealthKit | AC-I1–I8 | #84 |
 | J Persistence | AC-J1–J4 | #85 |
 
-Shipped in PR #79 (#74–#78) and PR #88 (#80–#86); epic #87.
+Shipped in PR #79 (#74–#78) and PR #88 (#80–#86); epic #87. This document's baseline is
+**v3.0.0** (`a1e2434`).
+
+**Not yet covered.** Epic F (#90–#96) — guided multi-phase session execution — is open at
+the time of writing. Each of those issues adds criteria here as it lands, per §17.
 
 ### Superseded findings
 
@@ -534,3 +539,47 @@ Failures requiring triage: AC-D3
 
 Report every criterion attempted. A run that reports only failures is not reusable as
 evidence that everything else still works.
+
+---
+
+## 17. Keeping this document current
+
+This document only has value if it describes the app as it is **today**. A stale
+criterion is worse than a missing one: it produces a confident `FAIL` against correct
+behaviour, or a confident `PASS` against a feature that no longer exists.
+
+### The rule
+
+> **A PR that changes user-visible behaviour updates this document in the same PR.**
+
+Not a follow-up issue, not "later". The person who changed the behaviour is the only one
+who reliably knows what the new expected result is.
+
+### Checklist for a behaviour-changing PR
+
+- [ ] **New behaviour** → add a criterion to the relevant area, numbered after the
+      current highest ID in that area. Never renumber existing criteria — IDs are cited
+      in past run reports and must stay stable.
+- [ ] **Changed behaviour** → edit the existing criterion in place and update its issue
+      citation to include the new issue.
+- [ ] **Removed behaviour** → delete the criterion and record it under
+      §15 *Superseded findings* with the issue that removed it. Do not leave it in place
+      marked "obsolete".
+- [ ] **Cite the issue** — every criterion carries `*(#N)*`.
+- [ ] **Expected results stay observable** — an exact on-screen string, a JSON value, a
+      test-suite success line. "Works correctly" is not a criterion.
+- [ ] **Update §15 traceability** — the area's criteria range and source issues.
+- [ ] **Check internal references** — if you added a section, section numbers shift and
+      `§N` references go stale.
+
+### When no behaviour changed
+
+A refactor, a build fix or a docs-only change needs no update here. Say so in the PR
+rather than leaving it ambiguous.
+
+### Auditing for drift
+
+Drift accumulates quietly. When picking up work after a gap, spot-check the areas the
+work touches before trusting them, and reconcile §15 against the closed issues on the
+board. If a criterion cannot be traced to shipped code, treat it as suspect and verify
+it against the app before running a full pass.
