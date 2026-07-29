@@ -98,7 +98,7 @@ loggable part of the session on both devices.
   chosen by exercise shape rather than phase type. The visible payoff of #92 + #93.
 - [x] **[#95] Composer: edit a phase's exercise list and targets** 📱 — make the shipped defaults
   curatable instead of unreachable.
-- [ ] **[#96] Add or swap an exercise mid-workout** 📱⌚️ — for an occupied machine or extra work,
+- [x] **[#96] Add or swap an exercise mid-workout** 📱⌚️ — for an occupied machine or extra work,
   without ever mutating the saved template.
 
 ---
