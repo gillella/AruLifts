@@ -80,6 +80,44 @@ extension GymSessionPhaseType {
 }
 #endif
 
+/// A routine-owned exercise target for phases that do not use a linked
+/// `WorkoutTemplate`. A positive duration describes timed work; otherwise
+/// `reps` and `sets` describe rep-based work.
+struct PhaseExerciseItem: Identifiable, Codable, Hashable {
+    var id: UUID
+    var name: String
+    var durationSeconds: Int
+    var reps: Int
+    var sets: Int
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        durationSeconds: Int = 0,
+        reps: Int = 0,
+        sets: Int = 1
+    ) {
+        self.id = id
+        self.name = name
+        self.durationSeconds = max(0, durationSeconds)
+        self.reps = max(0, reps)
+        self.sets = max(1, sets)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, durationSeconds, reps, sets
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decode(String.self, forKey: .name)
+        durationSeconds = max(0, try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0)
+        reps = max(0, try c.decodeIfPresent(Int.self, forKey: .reps) ?? 0)
+        sets = max(1, try c.decodeIfPresent(Int.self, forKey: .sets) ?? 1)
+    }
+}
+
 /// A phase entry in a customizable `GymSessionRoutine`.
 struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
     var id: UUID
@@ -88,8 +126,11 @@ struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
     var name: String
     var durationSeconds: Int
     var templateID: UUID?
-    var exerciseNames: [String]
+    var exerciseItems: [PhaseExerciseItem]
     var notes: String
+
+    /// Compatibility accessor for presentation and activity classification.
+    var exerciseNames: [String] { exerciseItems.map(\.name) }
 
     init(
         id: UUID = UUID(),
@@ -98,6 +139,7 @@ struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
         name: String? = nil,
         durationSeconds: Int = 0,
         templateID: UUID? = nil,
+        exerciseItems: [PhaseExerciseItem]? = nil,
         exerciseNames: [String] = [],
         notes: String = ""
     ) {
@@ -107,8 +149,48 @@ struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
         self.name = name ?? phaseType.displayName
         self.durationSeconds = durationSeconds > 0 ? durationSeconds : Self.defaultDuration(for: phaseType)
         self.templateID = templateID
-        self.exerciseNames = exerciseNames.isEmpty ? Self.defaultExercises(for: phaseType) : exerciseNames
+        if let exerciseItems {
+            self.exerciseItems = exerciseItems
+        } else {
+            let names = exerciseNames.isEmpty ? Self.defaultExercises(for: phaseType) : exerciseNames
+            self.exerciseItems = names.map { PhaseExerciseItem(name: $0) }
+        }
         self.notes = notes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, phaseType, isEnabled, name, durationSeconds, templateID
+        case exerciseItems, exerciseNames, notes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        phaseType = try c.decode(GymSessionPhaseType.self, forKey: .phaseType)
+        isEnabled = try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? phaseType.displayName
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
+            ?? Self.defaultDuration(for: phaseType)
+        templateID = try c.decodeIfPresent(UUID.self, forKey: .templateID)
+        if let items = try c.decodeIfPresent([PhaseExerciseItem].self, forKey: .exerciseItems) {
+            exerciseItems = items
+        } else {
+            exerciseItems = try c.decodeIfPresent([String].self, forKey: .exerciseNames)?
+                .map { PhaseExerciseItem(name: $0) } ?? []
+        }
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(phaseType, forKey: .phaseType)
+        try c.encode(isEnabled, forKey: .isEnabled)
+        try c.encode(name, forKey: .name)
+        try c.encode(durationSeconds, forKey: .durationSeconds)
+        try c.encodeIfPresent(templateID, forKey: .templateID)
+        try c.encode(exerciseItems, forKey: .exerciseItems)
+        try c.encode(notes, forKey: .notes)
     }
 
     static func defaultDuration(for phaseType: GymSessionPhaseType) -> Int {
@@ -257,8 +339,11 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
     var durationSeconds: Int
     var actualDurationSeconds: Int?
     var isCompleted: Bool
-    var exerciseNames: [String]
+    var exerciseItems: [PhaseExerciseItem]
     var notes: String
+
+    /// Compatibility accessor for existing history presentation.
+    var exerciseNames: [String] { exerciseItems.map(\.name) }
 
     init(
         id: UUID = UUID(),
@@ -267,6 +352,7 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
         durationSeconds: Int = 0,
         actualDurationSeconds: Int? = nil,
         isCompleted: Bool = false,
+        exerciseItems: [PhaseExerciseItem]? = nil,
         exerciseNames: [String] = [],
         notes: String = ""
     ) {
@@ -276,8 +362,42 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
         self.durationSeconds = durationSeconds
         self.actualDurationSeconds = actualDurationSeconds
         self.isCompleted = isCompleted
-        self.exerciseNames = exerciseNames
+        self.exerciseItems = exerciseItems ?? exerciseNames.map { PhaseExerciseItem(name: $0) }
         self.notes = notes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, phaseType, name, durationSeconds, actualDurationSeconds
+        case isCompleted, exerciseItems, exerciseNames, notes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        phaseType = try c.decode(GymSessionPhaseType.self, forKey: .phaseType)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? phaseType.displayName
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
+        actualDurationSeconds = try c.decodeIfPresent(Int.self, forKey: .actualDurationSeconds)
+        isCompleted = try c.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
+        if let items = try c.decodeIfPresent([PhaseExerciseItem].self, forKey: .exerciseItems) {
+            exerciseItems = items
+        } else {
+            exerciseItems = try c.decodeIfPresent([String].self, forKey: .exerciseNames)?
+                .map { PhaseExerciseItem(name: $0) } ?? []
+        }
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(phaseType, forKey: .phaseType)
+        try c.encode(name, forKey: .name)
+        try c.encode(durationSeconds, forKey: .durationSeconds)
+        try c.encodeIfPresent(actualDurationSeconds, forKey: .actualDurationSeconds)
+        try c.encode(isCompleted, forKey: .isCompleted)
+        try c.encode(exerciseItems, forKey: .exerciseItems)
+        try c.encode(notes, forKey: .notes)
     }
 
     /// How this phase should be tracked in Health.

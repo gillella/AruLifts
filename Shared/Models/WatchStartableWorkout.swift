@@ -66,18 +66,34 @@ struct WatchStartableSet: Identifiable, Codable, Hashable {
     var id: UUID
     var reps: Int
     var weight: Double
+    var durationSeconds: Int
     var isWarmup: Bool
 
     init(
         id: UUID = UUID(),
         reps: Int,
         weight: Double,
+        durationSeconds: Int = 0,
         isWarmup: Bool = false
     ) {
         self.id = id
         self.reps = reps
         self.weight = weight
+        self.durationSeconds = max(0, durationSeconds)
         self.isWarmup = isWarmup
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, reps, weight, durationSeconds, isWarmup
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        reps = try c.decode(Int.self, forKey: .reps)
+        weight = try c.decode(Double.self, forKey: .weight)
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
+        isWarmup = try c.decodeIfPresent(Bool.self, forKey: .isWarmup) ?? false
     }
 }
 
@@ -209,7 +225,11 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                 return WatchStartableExercise(
                     exerciseID: templateExercise.exerciseID,
                     name: templateExercise.name,
-                    sets: [WatchStartableSet(reps: 0, weight: 0)],
+                    sets: [WatchStartableSet(
+                        reps: 0,
+                        weight: 0,
+                        durationSeconds: templateExercise.durationSeconds
+                    )],
                     restSeconds: 0,
                     usesWeight: false,
                     loadingMode: .direct,
@@ -287,11 +307,18 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                 exerciseID: sessionEx.exerciseID,
                 name: sessionEx.name,
                 sets: sessionEx.sets.map { set in
-                    WatchStartableSet(id: set.id, reps: set.reps, weight: set.weight, isWarmup: set.isWarmup)
+                    WatchStartableSet(
+                        id: set.id,
+                        reps: set.reps,
+                        weight: set.weight,
+                        durationSeconds: set.durationSeconds,
+                        isWarmup: set.isWarmup
+                    )
                 },
                 restSeconds: sessionEx.restSeconds,
                 usesWeight: sessionEx.usesWeight,
                 loadingMode: sessionEx.loadingMode,
+                durationSeconds: sessionEx.sets.first?.durationSeconds ?? 0,
                 phaseIndex: sessionEx.phaseIndex
             )
         }
@@ -344,6 +371,9 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                             id: UUID(),
                             reps: cachedSet.reps,
                             weight: cachedSet.weight,
+                            durationSeconds: cachedSet.durationSeconds > 0
+                                ? cachedSet.durationSeconds
+                                : cachedExercise.durationSeconds,
                             isCompleted: false,
                             isWarmup: cachedSet.isWarmup
                         )
@@ -362,7 +392,7 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                     durationSeconds: phase.durationSeconds,
                     actualDurationSeconds: nil,
                     isCompleted: false,
-                    exerciseNames: phase.exerciseNames,
+                    exerciseItems: phase.exerciseItems,
                     notes: phase.notes
                 )
             },

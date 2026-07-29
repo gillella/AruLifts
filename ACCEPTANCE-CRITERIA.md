@@ -529,7 +529,8 @@ Shipped through PR #99; epic #87. This document's baseline is **v3.1.0**.
 criteria here as it lands, per §17.
 
 - #90 — landed, covered by AC-D11–D16
-- #91–#96 — open, not yet covered
+- #91 — model/migration-only; covered by the automated gates in AC-0.1
+- #92–#96 — open, not yet covered
 
 ### Superseded findings
 

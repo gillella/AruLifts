@@ -8,6 +8,8 @@ struct SetEntry: Identifiable, Codable, Hashable {
     /// partial set while this remains the reference for adaptive recovery.
     var targetReps: Int
     var weight: Double
+    /// Target duration for timed work. Zero means this is a rep-based set.
+    var durationSeconds: Int
     var isCompleted: Bool
     var isWarmup: Bool
 
@@ -16,6 +18,7 @@ struct SetEntry: Identifiable, Codable, Hashable {
         reps: Int,
         targetReps: Int? = nil,
         weight: Double,
+        durationSeconds: Int = 0,
         isCompleted: Bool = false,
         isWarmup: Bool = false
     ) {
@@ -23,12 +26,13 @@ struct SetEntry: Identifiable, Codable, Hashable {
         self.reps = reps
         self.targetReps = targetReps ?? reps
         self.weight = weight
+        self.durationSeconds = max(0, durationSeconds)
         self.isCompleted = isCompleted
         self.isWarmup = isWarmup
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, reps, targetReps, weight, isCompleted, isWarmup
+        case id, reps, targetReps, weight, durationSeconds, isCompleted, isWarmup
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +41,7 @@ struct SetEntry: Identifiable, Codable, Hashable {
         reps = try c.decode(Int.self, forKey: .reps)
         targetReps = try c.decodeIfPresent(Int.self, forKey: .targetReps) ?? reps
         weight = try c.decode(Double.self, forKey: .weight)
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
         isCompleted = try c.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
         isWarmup = try c.decodeIfPresent(Bool.self, forKey: .isWarmup) ?? false
     }
@@ -310,7 +315,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
                 return SessionExercise(
                     exerciseID: te.exerciseID,
                     name: te.name,
-                    sets: [SetEntry(reps: 0, weight: 0)],
+                    sets: [SetEntry(reps: 0, weight: 0, durationSeconds: te.durationSeconds)],
                     restSeconds: 0,
                     usesWeight: false,
                     loadingMode: .direct
@@ -407,7 +412,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
                 phaseType: phase.phaseType,
                 name: phase.name,
                 durationSeconds: phase.durationSeconds,
-                exerciseNames: phase.exerciseNames,
+                exerciseItems: phase.exerciseItems,
                 notes: phase.notes
             ))
         }
