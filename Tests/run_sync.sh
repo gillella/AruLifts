@@ -46,6 +46,7 @@ swiftc -o "$APP/Contents/MacOS/AruLiftsSyncTests" \
   Shared/ActiveWorkout/Records.swift \
   Shared/ActiveWorkout/RestTimerManager.swift \
   Shared/ActiveWorkout/PhaseTimerManager.swift \
+  Shared/ActiveWorkout/ExerciseTimerManager.swift \
   Shared/ActiveWorkout/ActiveWorkoutManager.swift \
   Shared/Views/PhaseVisualHelper.swift \
   Shared/LiveActivity/WorkoutActivityAttributes.swift \

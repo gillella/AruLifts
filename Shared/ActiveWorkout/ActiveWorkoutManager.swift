@@ -60,10 +60,20 @@ final class ActiveWorkoutManager: ObservableObject {
         let expiresAt: Date
     }
 
+    private struct TimedSetTarget: Equatable {
+        let exerciseID: UUID
+        let setID: UUID
+        let durationSeconds: Int
+        let exerciseName: String
+    }
+
     @Published private(set) var session: WorkoutSession?
     /// Index of the exercise the user is currently working through.
     @Published var currentExerciseIndex: Int = 0 {
         didSet {
+            if !applyingRemote, currentExerciseIndex != oldValue {
+                checkAndStartExerciseTimer()
+            }
             broadcast()
         }
     }
@@ -88,8 +98,11 @@ final class ActiveWorkoutManager: ObservableObject {
     /// Phone configuration cached alongside plans for Watch-owned execution.
     @Published private(set) var watchExecutionSettings = WatchExecutionSettings()
     @Published var showingPhaseTransitionModal = false
+    @Published private(set) var exerciseTimerExerciseID: UUID?
+    @Published private(set) var exerciseTimerSetID: UUID?
     let restTimer: RestTimerManager
     let phaseTimer: PhaseTimerManager
+    let exerciseTimer: ExerciseTimerManager
 
     private let connectivity = ConnectivityManager.shared
     private let syncCoordinator: WorkoutSyncCoordinator
@@ -140,6 +153,7 @@ final class ActiveWorkoutManager: ObservableObject {
         #endif
         restTimer = RestTimerManager(localDevice: device)
         phaseTimer = PhaseTimerManager(localDevice: device)
+        exerciseTimer = ExerciseTimerManager(localDevice: device)
         syncCoordinator = WorkoutSyncCoordinator(
             localDevice: device,
             repository: repository
@@ -187,6 +201,24 @@ final class ActiveWorkoutManager: ObservableObject {
             if let msg = self.phaseCompletionAnnouncement() {
                 self.phaseTimer.speakAnnouncement(msg)
             }
+        }
+
+        exerciseTimer.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        exerciseTimer.onStateChange = { [weak self] in
+            self?.broadcast()
+        }
+
+        exerciseTimer.onLeadCue = { [weak self] in
+            self?.exerciseLeadCueAnnouncement()
+        }
+
+        exerciseTimer.onCompletion = { [weak self] in
+            guard let self,
+                  let message = self.exerciseCompletionAnnouncement() else { return }
+            self.exerciseTimer.speakAnnouncement(message)
         }
 
         connectivity.$receivedWorkoutEnvelope
@@ -247,10 +279,15 @@ final class ActiveWorkoutManager: ObservableObject {
         restTimer.stop()
         moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
+        checkAndStartExerciseTimer()
         applyingRemote = false
         if broadcast {
             let persisted = syncCoordinator.start(newSession)
             if persisted {
+                // The coordinator did not exist yet when the timers armed.
+                // Publish their first snapshots immediately rather than waiting
+                // for a later user edit or tick.
+                self.broadcast()
                 logger.info(
                     "Persisted workout start \(newSession.id.uuidString, privacy: .public)"
                 )
@@ -320,6 +357,7 @@ final class ActiveWorkoutManager: ObservableObject {
         session = nil
         isWorkoutPaused = false
         restTimer.stop()
+        stopExerciseTimer()
     }
 
     func finish() {
@@ -346,6 +384,7 @@ final class ActiveWorkoutManager: ObservableObject {
             clearUndo()
             isWorkoutPaused = false
             restTimer.stop()
+            stopExerciseTimer()
             session = nil
             isFinalizing = false
         }
@@ -363,6 +402,7 @@ final class ActiveWorkoutManager: ObservableObject {
         currentExerciseIndex = 0
         clearUndo()
         restTimer.stop()
+        stopExerciseTimer()
         session = nil
         isFinalizing = false
         isWorkoutPaused = false
@@ -415,6 +455,39 @@ final class ActiveWorkoutManager: ObservableObject {
         }
     }
 
+    private var currentTimedSetTarget: TimedSetTarget? {
+        guard let exercise = currentExercise,
+              let set = exercise.sets.first(where: {
+                  !$0.isCompleted && $0.durationSeconds > 0
+              }) else { return nil }
+        return TimedSetTarget(
+            exerciseID: exercise.id,
+            setID: set.id,
+            durationSeconds: set.durationSeconds,
+            exerciseName: exercise.name
+        )
+    }
+
+    /// Arms the first incomplete timed set for the selected exercise. Changing
+    /// exercise or completing a timed set always creates a fresh run; remote
+    /// adoption uses the snapshot path below instead.
+    private func checkAndStartExerciseTimer() {
+        stopExerciseTimer()
+        guard let target = currentTimedSetTarget else { return }
+        exerciseTimerExerciseID = target.exerciseID
+        exerciseTimerSetID = target.setID
+        exerciseTimer.start(
+            seconds: target.durationSeconds,
+            cueLeadSeconds: phaseCueLeadSeconds
+        )
+    }
+
+    private func stopExerciseTimer() {
+        exerciseTimer.stop()
+        exerciseTimerExerciseID = nil
+        exerciseTimerSetID = nil
+    }
+
     /// Lead time for the "prepare for the next phase" cue, zero when disabled.
     /// The Watch reads the phone's setting from the cached execution settings.
     private var phaseCueLeadSeconds: Int {
@@ -440,6 +513,20 @@ final class ActiveWorkoutManager: ObservableObject {
         return "\(lead) seconds left. Next up: \(session.phases[nextIndex].name)."
     }
 
+    private func exerciseLeadCueAnnouncement() -> String? {
+        guard let target = currentTimedSetTarget,
+              target.exerciseID == exerciseTimerExerciseID,
+              target.setID == exerciseTimerSetID else { return nil }
+        return "\(phaseCueLeadSeconds) seconds left in \(target.exerciseName)."
+    }
+
+    func exerciseCompletionAnnouncement() -> String? {
+        guard let target = currentTimedSetTarget,
+              target.exerciseID == exerciseTimerExerciseID,
+              target.setID == exerciseTimerSetID else { return nil }
+        return "\(target.exerciseName) timer complete."
+    }
+
     func advancePhase() {
         guard canEdit, var current = session, !current.phases.isEmpty else { return }
         let currentIndex = current.currentPhaseIndex
@@ -455,6 +542,7 @@ final class ActiveWorkoutManager: ObservableObject {
             session = current
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
+            checkAndStartExerciseTimer()
             syncHealthActivityToPhase()
             broadcast()
         } else {
@@ -473,6 +561,7 @@ final class ActiveWorkoutManager: ObservableObject {
             session = current
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
+            checkAndStartExerciseTimer()
             syncHealthActivityToPhase()
             broadcast()
         }
@@ -486,6 +575,7 @@ final class ActiveWorkoutManager: ObservableObject {
         showingPhaseTransitionModal = false
         moveToCurrentPhaseExercise()
         checkAndStartPhaseTimer()
+        checkAndStartExerciseTimer()
         syncHealthActivityToPhase()
         broadcast()
     }
@@ -503,6 +593,28 @@ final class ActiveWorkoutManager: ObservableObject {
     func adjustPhaseTimer(by seconds: Int) {
         guard canEdit else { return }
         phaseTimer.add(seconds: seconds)
+        broadcast()
+    }
+
+    func toggleExerciseTimerPause() {
+        guard canEdit, exerciseTimerSetID != nil else { return }
+        if exerciseTimer.isRunning {
+            exerciseTimer.pause()
+        } else {
+            exerciseTimer.resume()
+        }
+        broadcast()
+    }
+
+    func adjustExerciseTimer(by seconds: Int) {
+        guard canEdit, exerciseTimerSetID != nil else { return }
+        exerciseTimer.add(seconds: seconds)
+        broadcast()
+    }
+
+    func resetExerciseTimer() {
+        guard canEdit, exerciseTimerSetID != nil else { return }
+        exerciseTimer.reset()
         broadcast()
     }
 
@@ -567,6 +679,7 @@ final class ActiveWorkoutManager: ObservableObject {
             clearUndo()
         }
         self.session = session
+        checkAndStartExerciseTimer()
         playSelectionHaptic()
 
         if nowComplete && autoStartRest {
@@ -601,6 +714,7 @@ final class ActiveWorkoutManager: ObservableObject {
         session.exercises[last.exerciseIndex].sets[last.setIndex].isCompleted = false
         self.session = session
         restTimer.stop()
+        checkAndStartExerciseTimer()
         clearUndo()
         playSelectionHaptic()
         broadcast()
@@ -625,9 +739,16 @@ final class ActiveWorkoutManager: ObservableObject {
     func addSet(exerciseIndex: Int) {
         guard canEdit, var session, session.exercises.indices.contains(exerciseIndex) else { return }
         let template = session.exercises[exerciseIndex].sets.last
-        let new = SetEntry(reps: template?.reps ?? 10, weight: template?.weight ?? 0)
+        let new = SetEntry(
+            reps: template?.reps ?? 10,
+            weight: template?.weight ?? 0,
+            durationSeconds: template?.durationSeconds ?? 0
+        )
         session.exercises[exerciseIndex].sets.append(new)
         self.session = session
+        if exerciseIndex == currentExerciseIndex {
+            checkAndStartExerciseTimer()
+        }
         broadcast()
     }
 
@@ -636,6 +757,9 @@ final class ActiveWorkoutManager: ObservableObject {
               session.exercises[exerciseIndex].sets.indices.contains(setIndex) else { return }
         session.exercises[exerciseIndex].sets.remove(at: setIndex)
         self.session = session
+        if exerciseIndex == currentExerciseIndex {
+            checkAndStartExerciseTimer()
+        }
         broadcast()
     }
 
@@ -674,8 +798,10 @@ final class ActiveWorkoutManager: ObservableObject {
         isWorkoutPaused.toggle()
         if isWorkoutPaused {
             restTimer.pause()
+            exerciseTimer.pause()
         } else {
             restTimer.resume()
+            exerciseTimer.resume()
         }
         playSelectionHaptic()
         broadcast()
@@ -864,12 +990,39 @@ final class ActiveWorkoutManager: ObservableObject {
         } else {
             pTimer = nil
         }
+        let eTimer: ExerciseTimerSnapshot?
+        if let exerciseID = exerciseTimerExerciseID,
+           let setID = exerciseTimerSetID,
+           let endDate = exerciseTimer.endDate {
+            eTimer = ExerciseTimerSnapshot(
+                endDate: endDate,
+                totalSeconds: exerciseTimer.totalSeconds,
+                exerciseID: exerciseID,
+                setID: setID
+            )
+        } else if let exerciseID = exerciseTimerExerciseID,
+                  let setID = exerciseTimerSetID,
+                  exerciseTimer.isPaused,
+                  exerciseTimer.secondsRemaining > 0 || exerciseTimer.isOvertime {
+            eTimer = ExerciseTimerSnapshot(
+                endDate: Date(),
+                totalSeconds: exerciseTimer.totalSeconds,
+                pausedRemainingSeconds: exerciseTimer.isOvertime
+                    ? -exerciseTimer.overtimeSeconds
+                    : exerciseTimer.secondsRemaining,
+                exerciseID: exerciseID,
+                setID: setID
+            )
+        } else {
+            eTimer = nil
+        }
         _ = syncCoordinator.mutate(
             session: session,
             currentExerciseIndex: currentExerciseIndex,
             restTimer: rest,
             isWorkoutPaused: isWorkoutPaused,
-            phaseTimer: pTimer
+            phaseTimer: pTimer,
+            exerciseTimer: eTimer
         )
         #if os(iOS)
         updateLiveActivity()
@@ -959,6 +1112,7 @@ final class ActiveWorkoutManager: ObservableObject {
         isWorkoutPaused = false
         isFinalizing = false
         restTimer.stop()
+        stopExerciseTimer()
         session = nil
     }
 
@@ -1025,6 +1179,9 @@ final class ActiveWorkoutManager: ObservableObject {
 
         let wasNil = session == nil
         let previousPhaseIndex = session?.currentPhaseIndex
+        let previousExerciseTimerExerciseID = exerciseTimerExerciseID
+        let previousExerciseTimerSetID = exerciseTimerSetID
+        var shouldPublishSynthesizedExerciseTimer = false
         applyingRemote = true
         session = replica.session
         currentExerciseIndex = replica.session.exercises.indices.contains(
@@ -1071,8 +1228,60 @@ final class ActiveWorkoutManager: ObservableObject {
         } else {
             phaseTimer.stop()
         }
+        let target = currentTimedSetTarget
+        let snapshotMatchesTarget = target.map { target in
+            replica.exerciseTimer?.exerciseID == target.exerciseID
+                && replica.exerciseTimer?.setID == target.setID
+        } ?? false
+        if let timer = replica.exerciseTimer,
+           snapshotMatchesTarget,
+           let target {
+            exerciseTimerExerciseID = target.exerciseID
+            exerciseTimerSetID = target.setID
+            let changedTarget = previousExerciseTimerExerciseID != target.exerciseID
+                || previousExerciseTimerSetID != target.setID
+            if let pausedRemaining = timer.pausedRemainingSeconds {
+                exerciseTimer.syncPaused(
+                    remainingSeconds: pausedRemaining,
+                    totalSeconds: timer.totalSeconds,
+                    cueLeadSeconds: phaseCueLeadSeconds,
+                    resetLeadCue: changedTarget
+                )
+            } else {
+                exerciseTimer.sync(
+                    endDate: timer.endDate,
+                    totalSeconds: timer.totalSeconds,
+                    cueLeadSeconds: phaseCueLeadSeconds,
+                    resetLeadCue: changedTarget
+                )
+            }
+        } else if let target,
+                  (exerciseTimer.isRunning || exerciseTimer.isPaused),
+                  previousExerciseTimerExerciseID == target.exerciseID,
+                  previousExerciseTimerSetID == target.setID,
+                  replica.exerciseTimer == nil {
+            // Same protection as the phase timer: an older peer checkpoint
+            // without this snapshot must not blank a timer just armed locally.
+        } else if let target, replica.owner == syncCoordinator.localDevice {
+            exerciseTimerExerciseID = target.exerciseID
+            exerciseTimerSetID = target.setID
+            exerciseTimer.start(
+                seconds: target.durationSeconds,
+                cueLeadSeconds: phaseCueLeadSeconds
+            )
+            // Backward-compatible adoption: an older checkpoint/offer may not
+            // contain the new snapshot. The new owner can derive the correct
+            // timer from the set, but must publish it after remote-application
+            // suppression ends so the mirror does not remain blank.
+            shouldPublishSynthesizedExerciseTimer = true
+        } else {
+            stopExerciseTimer()
+        }
         clearUndo()
         applyingRemote = false
+        if shouldPublishSynthesizedExerciseTimer {
+            broadcast()
+        }
 
         #if os(watchOS)
         if wasNil {

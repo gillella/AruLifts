@@ -166,7 +166,47 @@ struct WatchActiveView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(set.isWarmup ? .orange : .secondary)
 
-            if exercise.usesWeight {
+            if set.durationSeconds > 0,
+               active.exerciseTimerExerciseID == exercise.id,
+               active.exerciseTimerSetID == set.id {
+                VStack(spacing: 5) {
+                    Text(active.exerciseTimer.formattedRemaining)
+                        .font(.system(size: 30, weight: .bold, design: .monospaced))
+                        .foregroundStyle(active.exerciseTimer.isOvertime ? Color.green : Color.orange)
+                        .accessibilityLabel(
+                            active.exerciseTimer.isOvertime
+                                ? "\(exercise.name) overtime \(active.exerciseTimer.formattedRemaining.dropFirst())"
+                                : "\(exercise.name), \(active.exerciseTimer.formattedRemaining) remaining"
+                        )
+                    if active.exerciseTimer.isOvertime {
+                        Text("OVER")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.green)
+                    }
+                    HStack(spacing: 5) {
+                        Button("-15") { active.adjustExerciseTimer(by: -15) }
+                            .buttonStyle(.bordered)
+                        Button {
+                            active.toggleExerciseTimerPause()
+                        } label: {
+                            Image(systemName: active.exerciseTimer.isRunning ? "pause.fill" : "play.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        Button("+15") { active.adjustExerciseTimer(by: 15) }
+                            .buttonStyle(.bordered)
+                        Button {
+                            active.resetExerciseTimer()
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Reset exercise timer")
+                    }
+                    .font(.caption2)
+                    .disabled(!active.canEdit)
+                }
+            } else if exercise.usesWeight {
                 Text("\(WeightFormatter.string(set.weight, units: active.watchExecutionSettings.units)) × \(set.reps)")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .monospacedDigit()
@@ -186,22 +226,24 @@ struct WatchActiveView: View {
                     .accessibilityLabel("Plates \(plateString(for: set.weight))")
             }
 
-            Button {
-                crownAdjustment = crownAdjustment.next(usesWeight: exercise.usesWeight)
-                synchronizeCrownValue(with: set, exercise: exercise)
-                isCrownFocused = true
-            } label: {
-                Label(
-                    "Crown: \(crownAdjustment.label(usesWeight: exercise.usesWeight))",
-                    systemImage: "crown"
-                )
-                .font(.caption2.weight(.semibold))
+            if set.durationSeconds == 0 {
+                Button {
+                    crownAdjustment = crownAdjustment.next(usesWeight: exercise.usesWeight)
+                    synchronizeCrownValue(with: set, exercise: exercise)
+                    isCrownFocused = true
+                } label: {
+                    Label(
+                        "Crown: \(crownAdjustment.label(usesWeight: exercise.usesWeight))",
+                        systemImage: "crown"
+                    )
+                    .font(.caption2.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .disabled(!active.canEdit)
+                .accessibilityLabel("Digital Crown adjusts \(crownAdjustment.label(usesWeight: exercise.usesWeight))")
+                .accessibilityHint(exercise.usesWeight ? "Double tap to switch between weight and reps" : "Rotate the Digital Crown to adjust reps")
             }
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .disabled(!active.canEdit)
-            .accessibilityLabel("Digital Crown adjusts \(crownAdjustment.label(usesWeight: exercise.usesWeight))")
-            .accessibilityHint(exercise.usesWeight ? "Double tap to switch between weight and reps" : "Rotate the Digital Crown to adjust reps")
 
             Button {
                 active.completeSet(
@@ -219,23 +261,32 @@ struct WatchActiveView: View {
                     failedSetRestMultiplier: active.watchExecutionSettings.failedSetRestMultiplier
                 )
             } label: {
-                Label("Complete & Rest", systemImage: "checkmark.circle.fill")
+                Label(
+                    set.durationSeconds > 0 ? "Done" : "Complete & Rest",
+                    systemImage: "checkmark.circle.fill"
+                )
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 38)
             }
             .buttonStyle(.borderedProminent)
             .tint(set.isWarmup ? .orange : .green)
             .disabled(active.isFinalizing || !active.canEdit)
-            .accessibilityHint("Marks this set complete and starts the rest timer")
+            .accessibilityHint(
+                set.durationSeconds > 0
+                    ? "Marks this timed set complete without advancing automatically"
+                    : "Marks this set complete and starts the rest timer"
+            )
 
-            Button("Adjust weight or reps") {
-                showingAdjustment = true
+            if set.durationSeconds == 0 {
+                Button("Adjust weight or reps") {
+                    showingAdjustment = true
+                }
+                .font(.caption2)
+                .buttonStyle(.plain)
+                .foregroundStyle(.orange)
+                .disabled(!active.canEdit)
+                .accessibilityHint("Opens Digital Crown adjustment controls")
             }
-            .font(.caption2)
-            .buttonStyle(.plain)
-            .foregroundStyle(.orange)
-            .disabled(!active.canEdit)
-            .accessibilityHint("Opens Digital Crown adjustment controls")
         }
         .padding(8)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 15))
@@ -272,7 +323,9 @@ struct WatchActiveView: View {
     }
 
     private func updateFocusedSet(fromCrown value: Double, index: Int, exercise: SessionExercise) {
-        guard active.canEdit else { return }
+        guard active.canEdit,
+              exercise.sets.indices.contains(index),
+              exercise.sets[index].durationSeconds == 0 else { return }
         switch crownAdjustment {
         case .weight where exercise.usesWeight:
             active.updateSet(

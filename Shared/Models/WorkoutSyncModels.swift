@@ -80,6 +80,31 @@ struct PhaseTimerSnapshot: Codable, Hashable {
     }
 }
 
+/// Replicated countdown for one exact timed set. Identity travels with timing
+/// so a delayed checkpoint cannot put the previous exercise's countdown onto
+/// the newly selected set.
+struct ExerciseTimerSnapshot: Codable, Hashable {
+    var endDate: Date
+    var totalSeconds: Int
+    var pausedRemainingSeconds: Int?
+    var exerciseID: UUID
+    var setID: UUID
+
+    init(
+        endDate: Date,
+        totalSeconds: Int,
+        pausedRemainingSeconds: Int? = nil,
+        exerciseID: UUID,
+        setID: UUID
+    ) {
+        self.endDate = endDate
+        self.totalSeconds = totalSeconds
+        self.pausedRemainingSeconds = pausedRemainingSeconds
+        self.exerciseID = exerciseID
+        self.setID = setID
+    }
+}
+
 /// One self-contained, atomically persisted/published view of a workout.
 struct WorkoutReplica: Codable, Hashable {
     var session: WorkoutSession
@@ -90,6 +115,7 @@ struct WorkoutReplica: Codable, Hashable {
     var isWorkoutPaused: Bool
     var healthRecorder: WorkoutDevice?
     var phaseTimer: PhaseTimerSnapshot?
+    var exerciseTimer: ExerciseTimerSnapshot?
 
     init(
         session: WorkoutSession,
@@ -99,7 +125,8 @@ struct WorkoutReplica: Codable, Hashable {
         restTimer: RestTimerSnapshot? = nil,
         isWorkoutPaused: Bool = false,
         healthRecorder: WorkoutDevice? = nil,
-        phaseTimer: PhaseTimerSnapshot? = nil
+        phaseTimer: PhaseTimerSnapshot? = nil,
+        exerciseTimer: ExerciseTimerSnapshot? = nil
     ) {
         self.session = session
         self.owner = owner
@@ -109,11 +136,12 @@ struct WorkoutReplica: Codable, Hashable {
         self.isWorkoutPaused = isWorkoutPaused
         self.healthRecorder = healthRecorder
         self.phaseTimer = phaseTimer
+        self.exerciseTimer = exerciseTimer
     }
 
     private enum CodingKeys: String, CodingKey {
         case session, owner, version, currentExerciseIndex, restTimer
-        case isWorkoutPaused, healthRecorder, phaseTimer
+        case isWorkoutPaused, healthRecorder, phaseTimer, exerciseTimer
     }
 
     init(from decoder: Decoder) throws {
@@ -130,6 +158,10 @@ struct WorkoutReplica: Codable, Hashable {
             WorkoutDevice.self, forKey: .healthRecorder
         )
         phaseTimer = try c.decodeIfPresent(PhaseTimerSnapshot.self, forKey: .phaseTimer)
+        exerciseTimer = try c.decodeIfPresent(
+            ExerciseTimerSnapshot.self,
+            forKey: .exerciseTimer
+        )
     }
 }
 
