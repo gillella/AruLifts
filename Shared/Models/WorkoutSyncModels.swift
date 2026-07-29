@@ -111,6 +111,10 @@ struct WorkoutReplica: Codable, Hashable {
     var owner: WorkoutDevice
     var version: SessionVersion
     var currentExerciseIndex: Int
+    /// Stable selected instance identity. Array indices still travel for
+    /// backward compatibility, but add/remove/reorder adoption resolves this
+    /// UUID first so the counterpart cannot jump to a different exercise.
+    var currentExerciseID: UUID?
     var restTimer: RestTimerSnapshot?
     var isWorkoutPaused: Bool
     var healthRecorder: WorkoutDevice?
@@ -122,6 +126,7 @@ struct WorkoutReplica: Codable, Hashable {
         owner: WorkoutDevice,
         version: SessionVersion = .initial,
         currentExerciseIndex: Int = 0,
+        currentExerciseID: UUID? = nil,
         restTimer: RestTimerSnapshot? = nil,
         isWorkoutPaused: Bool = false,
         healthRecorder: WorkoutDevice? = nil,
@@ -132,6 +137,10 @@ struct WorkoutReplica: Codable, Hashable {
         self.owner = owner
         self.version = version
         self.currentExerciseIndex = currentExerciseIndex
+        self.currentExerciseID = currentExerciseID
+            ?? (session.exercises.indices.contains(currentExerciseIndex)
+                ? session.exercises[currentExerciseIndex].id
+                : nil)
         self.restTimer = restTimer
         self.isWorkoutPaused = isWorkoutPaused
         self.healthRecorder = healthRecorder
@@ -140,7 +149,7 @@ struct WorkoutReplica: Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case session, owner, version, currentExerciseIndex, restTimer
+        case session, owner, version, currentExerciseIndex, currentExerciseID, restTimer
         case isWorkoutPaused, healthRecorder, phaseTimer, exerciseTimer
     }
 
@@ -150,6 +159,7 @@ struct WorkoutReplica: Codable, Hashable {
         owner = try c.decode(WorkoutDevice.self, forKey: .owner)
         version = try c.decode(SessionVersion.self, forKey: .version)
         currentExerciseIndex = try c.decode(Int.self, forKey: .currentExerciseIndex)
+        currentExerciseID = try c.decodeIfPresent(UUID.self, forKey: .currentExerciseID)
         restTimer = try c.decodeIfPresent(RestTimerSnapshot.self, forKey: .restTimer)
         isWorkoutPaused = try c.decodeIfPresent(
             Bool.self, forKey: .isWorkoutPaused

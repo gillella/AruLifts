@@ -139,6 +139,38 @@ struct TemplateExercise: Identifiable, Codable, Hashable {
     /// Time-based entry (cardio/stretch) rather than sets × reps.
     var isTimed: Bool { durationSeconds > 0 }
 
+    /// Sensible defaults shared by the workout builder and live-session
+    /// exercise edits. Keeping this here prevents an exercise added on the gym
+    /// floor from getting different timing, rest, loading, or bar-weight rules
+    /// than the same exercise added to a saved template.
+    static func defaultConfiguration(
+        for exercise: Exercise,
+        settings: AppSettings,
+        preferredWeight: Double? = nil
+    ) -> TemplateExercise {
+        if exercise.isTimed {
+            let seconds = exercise.primaryMuscle == .cardio ? 600 : 45
+            return TemplateExercise(
+                exerciseID: exercise.id,
+                name: exercise.name,
+                targetSets: 1,
+                targetReps: 0,
+                restSeconds: 0,
+                durationSeconds: seconds
+            )
+        }
+
+        let minimumWeight = exercise.loadingMode == .barbell
+            ? (settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units))
+            : 0
+        return TemplateExercise(
+            exerciseID: exercise.id,
+            name: exercise.name,
+            weight: max(preferredWeight ?? 0, minimumWeight),
+            restSeconds: settings.defaultRestSeconds
+        )
+    }
+
     // Manual decode so templates saved before progression existed still load.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)

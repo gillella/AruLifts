@@ -738,6 +738,8 @@ var lbSettings = AppSettings()
 lbSettings.units = .lb
 lbSettings.autoStartRest = false
 lbSettings.restAlertsEnabled = false
+lbSettings.defaultRestSeconds = 75
+lbSettings.warmupsEnabled = false
 lbSettings.plateSet = [45, 25, 10, 5, 2.5]
 let lbExecution = WatchExecutionSettings(settings: lbSettings)
 let cacheV1 = WatchPlanCache().advanced(
@@ -750,8 +752,16 @@ expect(cacheV2 > cacheV1, "Watch plan cache revision advances monotonically")
 expect(
     cacheV2.executionSettings.units == .lb &&
         !cacheV2.executionSettings.autoStartRest &&
+        cacheV2.executionSettings.defaultRestSeconds == 75 &&
+        !cacheV2.executionSettings.warmupsEnabled &&
         cacheV2.executionSettings.availablePlates == [45, 25, 10, 5, 2.5],
-    "Watch plan cache retains units, rest behavior, and plates"
+    "Watch plan cache retains units, live-edit defaults, rest behavior, and plates"
+)
+expect(
+    lbExecution.sessionEditSettings.defaultRestSeconds == 75
+        && !lbExecution.sessionEditSettings.warmupsEnabled
+        && lbExecution.sessionEditSettings.units == .lb,
+    "Watch rebuilds the settings required by shared live-exercise construction"
 )
 
 // 55. New recovery metadata remains compatible with sessions saved before it.
@@ -1266,6 +1276,142 @@ expect(
 expect(
     timedTemplate == templateBeforeComposerEdit,
     "editing phase items never mutates the linked workout template"
+)
+
+// MARK: - #96 live exercise list mutation contract
+
+let liveSettings = AppSettings()
+let liveBarbell = ExerciseLibrary.all.first { $0.name == "Barbell Bench Press" }!
+let liveCable = ExerciseLibrary.all.first { $0.name == "Incline Dumbbell Press" }!
+let liveTimed = ExerciseLibrary.all.first { $0.isTimed }!
+let liveConfigured = TemplateExercise.defaultConfiguration(
+    for: liveBarbell,
+    settings: liveSettings,
+    preferredWeight: 80
+)
+let liveConstructed = WorkoutSession.makeSessionExercise(
+    for: liveBarbell,
+    settings: liveSettings,
+    preferredWeight: 80
+)
+let templateConstructed = WorkoutSession.from(
+    template: WorkoutTemplate(
+        name: "Factory Parity",
+        exercises: [liveConfigured]
+    ),
+    library: ExerciseLibrary.byID,
+    settings: liveSettings
+).exercises[0]
+expect(
+    liveConstructed.exerciseID == templateConstructed.exerciseID
+        && liveConstructed.loadingMode == templateConstructed.loadingMode
+        && liveConstructed.usesWeight == templateConstructed.usesWeight
+        && liveConstructed.sets.map {
+            ($0.reps, $0.weight, $0.isWarmup)
+        }.elementsEqual(
+            templateConstructed.sets.map {
+                ($0.reps, $0.weight, $0.isWarmup)
+            },
+            by: ==
+        ),
+    "mid-workout construction matches template startup loading and warmups"
+)
+expect(
+    liveConstructed.sets.contains(where: \.isWarmup),
+    "live barbell construction uses the configured warmup path"
+)
+let liveTimedConstructed = WorkoutSession.makeSessionExercise(
+    for: liveTimed,
+    settings: liveSettings
+)
+expect(
+    liveTimedConstructed.usesGuidedTimedStepper
+        && liveTimedConstructed.sets[0].durationSeconds > 0,
+    "live timed construction uses the same timed-session shape"
+)
+
+let livePhases = [
+    GymSessionLogPhase(phaseType: .warmupStretches, name: "Warm-Up"),
+    GymSessionLogPhase(phaseType: .mainStrength, name: "Strength"),
+    GymSessionLogPhase(phaseType: .postStretching, name: "Cool-Down")
+]
+let liveA = SessionExercise(
+    exerciseID: UUID(),
+    name: "A",
+    sets: [SetEntry(reps: 10, weight: 0)],
+    phaseIndex: 0
+)
+let liveB = SessionExercise(
+    exerciseID: UUID(),
+    name: "B",
+    sets: [SetEntry(reps: 10, weight: 0)],
+    phaseIndex: 0
+)
+let liveC = SessionExercise(
+    exerciseID: UUID(),
+    name: "C",
+    sets: [SetEntry(reps: 10, weight: 0)],
+    phaseIndex: 2
+)
+var liveMutationSession = WorkoutSession(
+    name: "Live Edits",
+    exercises: [liveA, liveB, liveC],
+    phases: livePhases
+)
+let addedPhaseZeroIndex = liveMutationSession.addExercise(
+    liveConstructed,
+    toPhase: 0
+)
+expect(
+    addedPhaseZeroIndex == 2
+        && liveMutationSession.exercises.map(\.name)
+            == ["A", "B", liveBarbell.name, "C"],
+    "live add inserts at the end of the requested phase run"
+)
+expect(
+    liveMutationSession.exercises[2].phaseIndex == 0,
+    "live add stamps the requested phase"
+)
+let addedEmptyPhaseIndex = liveMutationSession.addExercise(
+    liveTimedConstructed,
+    toPhase: 1
+)
+expect(
+    addedEmptyPhaseIndex == 3
+        && liveMutationSession.exercises[3].phaseIndex == 1
+        && liveMutationSession.exercises[4].name == "C",
+    "live add fills an empty phase before the next populated phase"
+)
+
+let replacement = WorkoutSession.makeSessionExercise(
+    for: liveCable,
+    settings: liveSettings
+)
+let replacedLive = liveMutationSession.replaceExercise(
+    at: 1,
+    with: replacement
+)
+expect(
+    replacedLive
+        && liveMutationSession.exercises[1].name == liveCable.name
+        && liveMutationSession.exercises[1].phaseIndex == 0,
+    "live swap keeps the original position and phase attribution"
+)
+liveMutationSession.exercises[1].sets[0].isCompleted = true
+expect(
+    !liveMutationSession.replaceExercise(
+        at: 1,
+        with: liveConstructed
+    ),
+    "live swap cannot discard completed sets"
+)
+expect(
+    liveMutationSession.removeExercise(at: 1) == nil,
+    "live removal blocks an exercise with completed sets"
+)
+expect(
+    liveMutationSession.removeExercise(at: 0)?.name == "A",
+    "live removal accepts an exercise with no completed sets"
 )
 
 let timedWatchPlan = WatchStartableWorkout(

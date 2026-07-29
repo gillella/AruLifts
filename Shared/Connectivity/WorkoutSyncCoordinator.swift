@@ -131,6 +131,9 @@ final class WorkoutSyncCoordinator {
               replica.session.id == session.id else { return false }
         replica.session = session
         replica.currentExerciseIndex = currentExerciseIndex
+        replica.currentExerciseID = session.exercises.indices.contains(currentExerciseIndex)
+            ? session.exercises[currentExerciseIndex].id
+            : nil
         replica.restTimer = restTimer
         replica.isWorkoutPaused = isWorkoutPaused
         replica.phaseTimer = phaseTimer
@@ -424,6 +427,7 @@ final class WorkoutSyncCoordinator {
             // cannot conflict with a Watch mutation.
             committedReplica.session = current.session
             committedReplica.currentExerciseIndex = current.currentExerciseIndex
+            committedReplica.currentExerciseID = current.currentExerciseID
             committedReplica.restTimer = current.restTimer
             committedReplica.isWorkoutPaused = current.isWorkoutPaused
             committedReplica.phaseTimer = current.phaseTimer

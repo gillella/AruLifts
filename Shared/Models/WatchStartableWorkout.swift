@@ -7,6 +7,8 @@ struct WatchExecutionSettings: Codable, Hashable {
     var barWeight: Double
     var availablePlates: [Double]
     var weightIncrement: Double
+    var defaultRestSeconds: Int
+    var warmupsEnabled: Bool
     var autoStartRest: Bool
     var restAlertsEnabled: Bool
     var restAlertStyle: RestAlertStyle
@@ -22,6 +24,8 @@ struct WatchExecutionSettings: Codable, Hashable {
         barWeight = settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units)
         availablePlates = settings.plateSet ?? PlateCalculator.defaultPlates(units: settings.units)
         weightIncrement = settings.weightIncrement
+        defaultRestSeconds = settings.defaultRestSeconds
+        warmupsEnabled = settings.warmupsEnabled
         autoStartRest = settings.autoStartRest
         restAlertsEnabled = settings.restAlertsEnabled
         restAlertStyle = settings.restAlertStyle
@@ -34,7 +38,8 @@ struct WatchExecutionSettings: Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case units, barWeight, availablePlates, weightIncrement, autoStartRest, restAlertsEnabled
+        case units, barWeight, availablePlates, weightIncrement
+        case defaultRestSeconds, warmupsEnabled, autoStartRest, restAlertsEnabled
         case restAlertStyle, earlyRestCueEnabled, earlyRestCueLeadSeconds
         case phaseCueEnabled, phaseCueLeadSeconds
         case adaptiveRestEnabled, failedSetRestMultiplier
@@ -46,6 +51,8 @@ struct WatchExecutionSettings: Codable, Hashable {
         barWeight = try c.decodeIfPresent(Double.self, forKey: .barWeight) ?? Warmup.defaultBarWeight(units: units)
         availablePlates = try c.decodeIfPresent([Double].self, forKey: .availablePlates) ?? PlateCalculator.defaultPlates(units: units)
         weightIncrement = try c.decodeIfPresent(Double.self, forKey: .weightIncrement) ?? 2.5
+        defaultRestSeconds = try c.decodeIfPresent(Int.self, forKey: .defaultRestSeconds) ?? 180
+        warmupsEnabled = try c.decodeIfPresent(Bool.self, forKey: .warmupsEnabled) ?? true
         autoStartRest = try c.decodeIfPresent(Bool.self, forKey: .autoStartRest) ?? true
         restAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .restAlertsEnabled) ?? true
         restAlertStyle = try c.decodeIfPresent(RestAlertStyle.self, forKey: .restAlertStyle) ?? .soundAndHaptic
@@ -55,6 +62,28 @@ struct WatchExecutionSettings: Codable, Hashable {
         phaseCueLeadSeconds = try c.decodeIfPresent(Int.self, forKey: .phaseCueLeadSeconds) ?? 30
         adaptiveRestEnabled = try c.decodeIfPresent(Bool.self, forKey: .adaptiveRestEnabled) ?? true
         failedSetRestMultiplier = try c.decodeIfPresent(Double.self, forKey: .failedSetRestMultiplier) ?? 1.5
+    }
+
+    /// Reconstructs the settings needed by the shared session-exercise factory
+    /// when the Watch edits an already-running workout.
+    var sessionEditSettings: AppSettings {
+        var settings = AppSettings()
+        settings.units = units
+        settings.barWeight = barWeight
+        settings.plateSet = availablePlates
+        settings.weightIncrement = weightIncrement
+        settings.defaultRestSeconds = defaultRestSeconds
+        settings.warmupsEnabled = warmupsEnabled
+        settings.autoStartRest = autoStartRest
+        settings.restAlertsEnabled = restAlertsEnabled
+        settings.restAlertStyle = restAlertStyle
+        settings.earlyRestCueEnabled = earlyRestCueEnabled
+        settings.earlyRestCueLeadSeconds = earlyRestCueLeadSeconds
+        settings.phaseCueEnabled = phaseCueEnabled
+        settings.phaseCueLeadSeconds = phaseCueLeadSeconds
+        settings.adaptiveRestEnabled = adaptiveRestEnabled
+        settings.failedSetRestMultiplier = failedSetRestMultiplier
+        return settings
     }
 }
 

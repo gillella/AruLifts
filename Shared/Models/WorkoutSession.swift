@@ -305,6 +305,63 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         exercises = remaining
     }
 
+    /// Inserts a session-only exercise at the end of the requested phase's
+    /// contiguous run. For an empty phase it is inserted immediately before
+    /// the next populated phase; plain template sessions append to the list.
+    /// The returned flat-array index is useful when the caller has no previous
+    /// selection to preserve.
+    @discardableResult
+    mutating func addExercise(
+        _ exercise: SessionExercise,
+        toPhase phaseIndex: Int
+    ) -> Int? {
+        var inserted = exercise
+        if isMultiPhase {
+            guard phases.indices.contains(phaseIndex) else { return nil }
+            inserted.phaseIndex = phaseIndex
+        } else {
+            inserted.phaseIndex = nil
+        }
+
+        let insertionIndex: Int
+        if !isMultiPhase {
+            insertionIndex = exercises.count
+        } else if let last = exerciseIndices(inPhase: phaseIndex).last {
+            insertionIndex = last + 1
+        } else {
+            insertionIndex = exercises.firstIndex {
+                ($0.phaseIndex ?? Int.max) > phaseIndex
+            } ?? exercises.count
+        }
+        exercises.insert(inserted, at: insertionIndex)
+        return insertionIndex
+    }
+
+    /// Replaces one live instance without touching its saved template/routine.
+    /// Logged work is never discarded by a swap.
+    @discardableResult
+    mutating func replaceExercise(
+        at index: Int,
+        with replacement: SessionExercise
+    ) -> Bool {
+        guard exercises.indices.contains(index),
+              exercises[index].completedSets == 0 else { return false }
+        var replacement = replacement
+        replacement.phaseIndex = exercises[index].phaseIndex
+        exercises[index] = replacement
+        return true
+    }
+
+    /// Removes an unstarted live instance. Returning the removed value lets the
+    /// manager choose a phase-correct fallback when the selected item itself
+    /// was removed.
+    @discardableResult
+    mutating func removeExercise(at index: Int) -> SessionExercise? {
+        guard exercises.indices.contains(index),
+              exercises[index].completedSets == 0 else { return nil }
+        return exercises.remove(at: index)
+    }
+
     /// Builds a fresh session from a template, pre-populating each set.
     /// Pass `settings` to prepend generated warmup sets (when enabled) for
     /// weighted exercises.
@@ -313,59 +370,93 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         library: [UUID: Exercise],
         settings: AppSettings? = nil
     ) -> WorkoutSession {
-        let exercises = template.exercises.map { te -> SessionExercise in
-            // Timed entries (cardio/stretch) are a single checkable block, no
-            // weight and no warmup ramp. Rich duration tracking is handled in
-            // the tracking flow; here they just need to start without breaking.
-            if te.isTimed {
-                return SessionExercise(
-                    exerciseID: te.exerciseID,
-                    name: te.name,
-                    sets: [SetEntry(reps: 0, weight: 0, durationSeconds: te.durationSeconds)],
-                    restSeconds: 0,
-                    usesWeight: false,
-                    loadingMode: .direct
-                )
-            }
-            let loadingMode = library[te.exerciseID]?.loadingMode ?? .direct
-            let usesWeight = loadingMode == .bodyweight
-                ? te.tracksAddedBodyweight
-                : (library[te.exerciseID]?.usesWeight ?? true)
-            let configuredBar = settings.map {
-                $0.barWeight ?? Warmup.defaultBarWeight(units: $0.units)
-            } ?? 0
-            let workingWeight = loadingMode == .barbell
-                ? max(te.weight, configuredBar)
-                : te.weight
-            var sets: [SetEntry] = []
-            if let settings, settings.warmupsEnabled, loadingMode == .barbell {
-                sets = Warmup.sets(
-                    workingWeight: workingWeight,
-                    units: settings.units,
-                    barWeight: settings.barWeight,
-                    roundTo: settings.weightIncrement
-                )
-            }
-            sets += (0..<max(1, te.targetSets)).map { _ in
-                SetEntry(
-                    reps: te.targetReps,
-                    weight: loadingMode == .bodyweight && !te.tracksAddedBodyweight ? 0 : workingWeight
-                )
-            }
-            return SessionExercise(
-                exerciseID: te.exerciseID,
-                name: te.name,
-                sets: sets,
-                restSeconds: te.restSeconds,
-                usesWeight: usesWeight,
-                loadingMode: loadingMode
-            )
+        let exercises = template.exercises.map {
+            makeSessionExercise(from: $0, library: library, settings: settings)
         }
         return WorkoutSession(
             templateID: template.id,
             name: template.name,
             category: template.category,
             exercises: exercises
+        )
+    }
+
+    /// The one construction path for template startup and mid-workout edits.
+    /// This preserves loading mode, bodyweight behavior, bar minimums and
+    /// generated warmups instead of hand-rolling a second live-session shape.
+    static func makeSessionExercise(
+        from templateExercise: TemplateExercise,
+        library: [UUID: Exercise],
+        settings: AppSettings? = nil
+    ) -> SessionExercise {
+        if templateExercise.isTimed {
+            return SessionExercise(
+                exerciseID: templateExercise.exerciseID,
+                name: templateExercise.name,
+                sets: [
+                    SetEntry(
+                        reps: 0,
+                        weight: 0,
+                        durationSeconds: templateExercise.durationSeconds
+                    )
+                ],
+                restSeconds: 0,
+                usesWeight: false,
+                loadingMode: .direct
+            )
+        }
+
+        let loadingMode = library[templateExercise.exerciseID]?.loadingMode ?? .direct
+        let usesWeight = loadingMode == .bodyweight
+            ? templateExercise.tracksAddedBodyweight
+            : (library[templateExercise.exerciseID]?.usesWeight ?? true)
+        let configuredBar = settings.map {
+            $0.barWeight ?? Warmup.defaultBarWeight(units: $0.units)
+        } ?? 0
+        let workingWeight = loadingMode == .barbell
+            ? max(templateExercise.weight, configuredBar)
+            : templateExercise.weight
+        var sets: [SetEntry] = []
+        if let settings, settings.warmupsEnabled, loadingMode == .barbell {
+            sets = Warmup.sets(
+                workingWeight: workingWeight,
+                units: settings.units,
+                barWeight: settings.barWeight,
+                roundTo: settings.weightIncrement
+            )
+        }
+        sets += (0..<max(1, templateExercise.targetSets)).map { _ in
+            SetEntry(
+                reps: templateExercise.targetReps,
+                weight: loadingMode == .bodyweight && !templateExercise.tracksAddedBodyweight
+                    ? 0
+                    : workingWeight
+            )
+        }
+        return SessionExercise(
+            exerciseID: templateExercise.exerciseID,
+            name: templateExercise.name,
+            sets: sets,
+            restSeconds: templateExercise.restSeconds,
+            usesWeight: usesWeight,
+            loadingMode: loadingMode
+        )
+    }
+
+    static func makeSessionExercise(
+        for exercise: Exercise,
+        settings: AppSettings,
+        preferredWeight: Double? = nil
+    ) -> SessionExercise {
+        let configured = TemplateExercise.defaultConfiguration(
+            for: exercise,
+            settings: settings,
+            preferredWeight: preferredWeight
+        )
+        return makeSessionExercise(
+            from: configured,
+            library: [exercise.id: exercise],
+            settings: settings
         )
     }
 

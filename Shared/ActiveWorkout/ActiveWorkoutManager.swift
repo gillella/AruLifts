@@ -796,6 +796,177 @@ final class ActiveWorkoutManager: ObservableObject {
         broadcast()
     }
 
+    /// Adds one exercise to the live session only. The saved template/routine
+    /// is never consulted or mutated. The selected exercise is restored by
+    /// instance UUID after insertion because phase-correct insertion may shift
+    /// its flat-array index.
+    @discardableResult
+    func addExercise(
+        _ exercise: Exercise,
+        toPhase phaseIndex: Int,
+        settings: AppSettings? = nil,
+        preferredWeight: Double? = nil
+    ) -> Bool {
+        guard canEdit, var session else { return false }
+        let selectedID = selectedExerciseID(in: session)
+        let newExercise = WorkoutSession.makeSessionExercise(
+            for: exercise,
+            settings: settings ?? watchExecutionSettings.sessionEditSettings,
+            preferredWeight: preferredWeight
+        )
+        guard let insertedIndex = session.addExercise(
+            newExercise,
+            toPhase: phaseIndex
+        ) else { return false }
+
+        applyStructuralEdit(
+            session,
+            selectedID: selectedID,
+            fallbackIndex: insertedIndex
+        )
+        return true
+    }
+
+    /// Swaps a live exercise in place. Completed work is protected just like a
+    /// removal because replacing it would silently discard logged sets.
+    @discardableResult
+    func replaceExercise(
+        at index: Int,
+        with exercise: Exercise,
+        settings: AppSettings? = nil,
+        preferredWeight: Double? = nil
+    ) -> Bool {
+        guard canEdit, var session else { return false }
+        let selectedID = selectedExerciseID(in: session)
+        let replacement = WorkoutSession.makeSessionExercise(
+            for: exercise,
+            settings: settings ?? watchExecutionSettings.sessionEditSettings,
+            preferredWeight: preferredWeight
+        )
+        guard session.replaceExercise(at: index, with: replacement) else {
+            return false
+        }
+        let fallback = index == currentExerciseIndex ? index : currentExerciseIndex
+        applyStructuralEdit(
+            session,
+            selectedID: index == currentExerciseIndex ? nil : selectedID,
+            fallbackIndex: fallback
+        )
+        return true
+    }
+
+    /// Removes an unstarted exercise from this workout only. When another
+    /// exercise is selected, that instance stays on screen by UUID; when the
+    /// selected item itself is removed, navigation lands on the next exercise
+    /// in the same phase, then the previous one.
+    @discardableResult
+    func removeExercise(at index: Int) -> Bool {
+        guard canEdit, var session,
+              session.exercises.indices.contains(index) else { return false }
+        let selectedID = selectedExerciseID(in: session)
+        let removedWasSelected = index == currentExerciseIndex
+        let removedPhase = session.exercises[index].phaseIndex
+        guard session.removeExercise(at: index) != nil else { return false }
+
+        let fallback: Int
+        if removedWasSelected {
+            let scope = session.isMultiPhase
+                ? session.exerciseIndices(
+                    inPhase: removedPhase ?? session.currentPhaseIndex
+                )
+                : Array(session.exercises.indices)
+            fallback = scope.first(where: { $0 >= index }) ?? scope.last ?? 0
+        } else {
+            fallback = min(currentExerciseIndex, max(0, session.exercises.count - 1))
+        }
+        applyStructuralEdit(
+            session,
+            selectedID: removedWasSelected ? nil : selectedID,
+            fallbackIndex: fallback
+        )
+        return true
+    }
+
+    func canRemoveExercise(at index: Int) -> Bool {
+        guard let session, session.exercises.indices.contains(index) else {
+            return false
+        }
+        return session.exercises[index].completedSets == 0
+    }
+
+    /// A Watch-sized replacement list: same-muscle built-ins first, with the
+    /// session category as a fallback when a custom current exercise has no
+    /// built-in metadata. The full library remains an iPhone-only interaction.
+    func contextualExerciseAlternatives(
+        library: [Exercise] = ExerciseLibrary.all,
+        limit: Int = 6
+    ) -> [Exercise] {
+        guard let session, let current = currentExercise else { return [] }
+        let currentDefinition = library.first { $0.id == current.exerciseID }
+        let relevantMuscles: Set<MuscleGroup>
+        if let currentDefinition {
+            relevantMuscles = Set(
+                [currentDefinition.primaryMuscle]
+                    + currentDefinition.secondaryMuscles
+            )
+        } else {
+            relevantMuscles = Set(session.category.suggestedMuscles)
+        }
+
+        return Array(
+            library
+                .filter { candidate in
+                    guard candidate.id != current.exerciseID else { return false }
+                    guard !relevantMuscles.isEmpty else { return true }
+                    return relevantMuscles.contains(candidate.primaryMuscle)
+                        || candidate.secondaryMuscles.contains {
+                            relevantMuscles.contains($0)
+                        }
+                }
+                .sorted {
+                    if $0.primaryMuscle == currentDefinition?.primaryMuscle,
+                       $1.primaryMuscle != currentDefinition?.primaryMuscle {
+                        return true
+                    }
+                    if $1.primaryMuscle == currentDefinition?.primaryMuscle,
+                       $0.primaryMuscle != currentDefinition?.primaryMuscle {
+                        return false
+                    }
+                    return $0.name < $1.name
+                }
+                .prefix(max(0, limit))
+        )
+    }
+
+    private func selectedExerciseID(in session: WorkoutSession) -> UUID? {
+        session.exercises.indices.contains(currentExerciseIndex)
+            ? session.exercises[currentExerciseIndex].id
+            : nil
+    }
+
+    private func applyStructuralEdit(
+        _ session: WorkoutSession,
+        selectedID: UUID?,
+        fallbackIndex: Int
+    ) {
+        clearUndo()
+        applyingRemote = true
+        self.session = session
+        if let selectedID,
+           let preservedIndex = session.exercises.firstIndex(
+               where: { $0.id == selectedID }
+           ) {
+            currentExerciseIndex = preservedIndex
+        } else if session.exercises.indices.contains(fallbackIndex) {
+            currentExerciseIndex = fallbackIndex
+        } else {
+            currentExerciseIndex = max(0, session.exercises.count - 1)
+        }
+        applyingRemote = false
+        checkAndStartExerciseTimer()
+        broadcast()
+    }
+
     /// Reorders exercise instances for this workout only. The template is never
     /// consulted or mutated here, so a one-off gym-floor adjustment cannot
     /// change the user's saved plan. Keep the selected instance stable by id:
@@ -1210,9 +1381,19 @@ final class ActiveWorkoutManager: ObservableObject {
         var shouldPublishSynthesizedExerciseTimer = false
         applyingRemote = true
         session = replica.session
-        currentExerciseIndex = replica.session.exercises.indices.contains(
-            replica.currentExerciseIndex
-        ) ? replica.currentExerciseIndex : max(0, replica.session.exercises.count - 1)
+        if let selectedID = replica.currentExerciseID,
+           let selectedIndex = replica.session.exercises.firstIndex(
+               where: { $0.id == selectedID }
+           ) {
+            currentExerciseIndex = selectedIndex
+        } else {
+            currentExerciseIndex = replica.session.exercises.indices.contains(
+                replica.currentExerciseIndex
+            ) ? replica.currentExerciseIndex : max(
+                0,
+                replica.session.exercises.count - 1
+            )
+        }
         isWorkoutPaused = replica.isWorkoutPaused
         if let timer = replica.restTimer, let pausedRemaining = timer.pausedRemainingSeconds {
             restTimer.syncPaused(
