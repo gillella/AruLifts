@@ -448,9 +448,13 @@ struct RestTimerBar: View {
                             Text(timer.isOvertime ? "Rest over" : (timer.isPaused ? "Rest paused" : "Resting"))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(timer.isOvertime ? Color.green : Color.secondary)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                             Text(timer.formattedRemaining)
                                 .font(.title2.monospacedDigit().bold())
                                 .foregroundStyle(timer.isOvertime ? Color.green : Color.primary)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                                 .contentTransition(.numericText())
                         }
                     }

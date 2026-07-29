@@ -509,6 +509,10 @@ does not restart a running or paused exercise timer when the selected timed set 
 prescribed duration are unchanged. Completing/undoing a set or selecting a genuinely
 different exercise/set still arms that target from its full prescribed duration.
 
+**AC-E22** *(#109)* — The iPhone inline rest bar keeps its **Resting**, **Rest paused** or
+**Rest over** label and `M:SS`/`+M:SS` countdown on one line at the default text size,
+without wrapping digits between lines beside the +30, Skip and options controls.
+
 ---
 
 ## 10. Area F — Exercise form access during a workout
