@@ -467,9 +467,17 @@ expect(
     },
     "all set/rep built-ins have direct YouTube watch links"
 )
-let totalExercisesCount = ExerciseLibrary.all.count
-expect(ExerciseLibrary.all.allSatisfy { $0.videoName != nil }, "all \(totalExercisesCount) exercises have video demo clips assigned")
-expect(Set(ExerciseLibrary.all.compactMap(\.videoName)).count == totalExercisesCount, "video demo names are unique across all \(totalExercisesCount) exercises")
+// A demo entry names an image/clip that must actually ship in the bundle. An
+// exercise with no shipped asset must NOT be registered — otherwise the detail
+// screen renders a blank media box instead of the exercise's SF Symbol. Keep
+// this count literal so adding an exercise forces a conscious asset decision.
+let exercisesWithDemoClips = ExerciseLibrary.all.filter { $0.videoName != nil }
+expect(exercisesWithDemoClips.count == 34, "34 built-in exercises ship a demo clip")
+expect(Set(exercisesWithDemoClips.compactMap(\.videoName)).count == 34, "video demo names are unique across the 34 exercises that ship clips")
+expect(
+    ExerciseLibrary.all.allSatisfy { $0.videoName != nil || $0.demoImageName == nil },
+    "no exercise names a demo image without also naming a clip"
+)
 expect(timedExercises.allSatisfy { !$0.instructions.isEmpty }, "timed built-ins have form notes")
 
 // --- Watch-first live-workout replication ---

@@ -638,10 +638,11 @@ enum ExerciseLibrary {
         "Chest Doorway Stretch": .init(imageName: "chest_doorway_stretch", videoURL: "https://www.youtube.com/watch?v=N6Lp6fW0M88", videoName: "chest_doorway_stretch"),
         "Shoulder Cross-Body Stretch": .init(imageName: "shoulder_cross_body_stretch", videoURL: "https://www.youtube.com/watch?v=I7X1vY3t0bM", videoName: "shoulder_cross_body_stretch"),
         "Hip Flexor Stretch": .init(imageName: "hip_flexor_stretch", videoURL: "https://www.youtube.com/watch?v=YQmpO9VTk4E", videoName: "hip_flexor_stretch"),
-        "Child's Pose": .init(imageName: "childs_pose", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "childs_pose"),
-        "Stair Stepper": .init(imageName: "stair_stepper", videoURL: "https://www.youtube.com/watch?v=33K16298nFk", videoName: "stair_stepper"),
-        "Sauna Heat Exposure": .init(imageName: "sauna_heat_exposure", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "sauna_heat_exposure"),
-        "Steam Room Session": .init(imageName: "steam_room_session", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "steam_room_session")
+        "Child's Pose": .init(imageName: "childs_pose", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "childs_pose")
+        // Stair Stepper, Sauna Heat Exposure and Steam Room Session deliberately
+        // have no entry here: no demo asset ships for them. Registering one would
+        // set `demoImageName`/`videoName` to a missing asset, which renders a blank
+        // media box instead of falling back to the exercise's SF Symbol.
     ]
 
     static let all: [Exercise] = rawAll.map { raw in
