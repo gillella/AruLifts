@@ -323,6 +323,40 @@ exercises through the same phase navigation path; there is no special core-only 
 **AC-D20** *(#92)* — A saved custom item whose name is not in the exercise library still
 appears as a usable non-weighted exercise rather than preventing the routine from starting.
 
+**AC-D21** *(#94)* — A non-weighted exercise whose sets are all duration-based renders the
+guided stepper on iPhone and Watch. Its header states the phase-relative position and name
+(for example, **3 of 5 · Hip Mobility**) and its per-exercise countdown is prominent while
+the whole-phase countdown remains visible.
+
+**AC-D22** *(#94)* — Stepper selection follows **exercise shape, not phase type**. A timed,
+non-weighted mobility exercise placed inside Main Strength still uses the stepper. A
+weighted timed hold and an exercise mixing timed and rep-based sets retain the normal set
+logger.
+
+**AC-D23** *(#94)* — **Done is explicit.** Let the exercise countdown reach zero and enter
+overtime: neither the set, exercise nor phase changes. Tapping **Done & Next** records the
+final interval, ticks the exercise and opens the next exercise in the same phase.
+
+**AC-D24** *(#94)* — An exercise with multiple timed intervals stays on that exercise after
+Done while another interval remains. The next interval receives its own full countdown;
+only the final explicit completion may move to the next exercise.
+
+**AC-D25** *(#94)* — Completing the last guided exercise in a phase never crosses the phase
+boundary. The completed item is ticked and phase advancement remains an explicit
+**Next Phase** action.
+
+**AC-D26** *(#94)* — The default Dynamic Warm-Up is fully navigable through Leg Swings,
+Arm Circles and Hip Mobility on both devices. Each screen shows exercise progress ticks,
+position, name, countdown and a full-width Done or Done & Next control.
+
+**AC-D27** *(#94)* — Genuinely empty Sauna and Steam phases retain an intentional
+**Recovery phase** message with their whole-phase timer and Next Phase control; they never
+show the old dead-end “No logged exercises” copy.
+
+**AC-D28** *(#94)* — VoiceOver announces each guided exercise's name, phase-relative
+position, interval progress and remaining/overtime duration. Timer controls and Done/Next
+each have an explicit label and action hint on iPhone and Watch.
+
 ---
 
 ## 9. Area E — Timers, overtime and cues
@@ -557,7 +591,7 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 | A Templates | AC-A1–A6 | #75, #78 |
 | B Composer | AC-B1–B12 | #77, #78, #74 |
 | C Home | AC-C1–C4 | #74, #77 |
-| D Phase scoping | AC-D1–D20 | #80, #86, #90, #92 |
+| D Phase scoping | AC-D1–D28 | #80, #86, #90, #92, #94 |
 | E Timers | AC-E1–E20 | #81, #82, #86, #93 |
 | F Form access | AC-F1–F4 | #76 |
 | G Watch | AC-G1–G7 | #83, #80, #81 |
@@ -574,7 +608,8 @@ criteria here as it lands, per §17.
 - #91 — model/migration-only; covered by the automated gates in AC-0.1
 - #92 — landed, covered by AC-D3, AC-D5 and AC-D17–D20
 - #93 — implemented, covered by AC-E14–E20
-- #94–#96 — open, not yet covered
+- #94 — implemented, covered by AC-D21–D28
+- #95–#96 — open, not yet covered
 
 ### Superseded findings
 

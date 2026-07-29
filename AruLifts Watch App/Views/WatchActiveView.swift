@@ -22,71 +22,14 @@ struct WatchActiveView: View {
     }
 
     var body: some View {
-        VStack(spacing: 7) {
-            if let session = active.session, session.isMultiPhase {
-                HStack(spacing: 4) {
-                    Image(systemName: session.currentPhase?.phaseType.iconSymbol ?? "flame.fill")
-                        .foregroundStyle(.orange)
-                        .font(.caption2)
-                    Text("P\(session.currentPhaseIndex + 1)/\(session.phases.count): \(session.currentPhase?.name ?? "")")
-                        .font(.caption2.bold())
-                        .lineLimit(1)
-                    Spacer()
-                    Button {
-                        active.advancePhase()
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.plain)
+        Group {
+            if exercise?.usesGuidedTimedStepper == true {
+                ScrollView {
+                    workoutContent
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
-            }
-
-            if let exercise {
-                header(exercise)
-
-                if !active.canEdit {
-                    // A stalled handshake looks identical to a brief one, so
-                    // say which it is: the retry is still running underneath,
-                    // but the user needs to know why the button is dead and
-                    // that logging on iPhone still works.
-                    if active.isHandshakeStalled {
-                        VStack(spacing: 2) {
-                            Label(
-                                "Still syncing with iPhone",
-                                systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
-                            )
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                            Text("Keep AruLifts open, or log this set on iPhone.")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .accessibilityElement(children: .combine)
-                    } else {
-                        Label("Waiting for iPhone handoff", systemImage: "iphone.slash")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if active.isWorkoutPaused {
-                    pausedCard
-                } else if let setIndex = workingSetIndex,
-                          exercise.sets.indices.contains(setIndex) {
-                    focusedSet(exercise.sets[setIndex], index: setIndex, in: exercise)
-                } else {
-                    allDoneCard
-                }
-
-                progressDots(exercise)
-                exerciseNavigation
-            } else if let session = active.session, session.isMultiPhase {
-                multiPhaseCard(session)
+                .scrollIndicators(.hidden)
+            } else {
+                workoutContent
             }
         }
         .padding(.horizontal, 4)
@@ -138,13 +81,101 @@ struct WatchActiveView: View {
         }
     }
 
+    private var workoutContent: some View {
+        VStack(spacing: 7) {
+            if let session = active.session, session.isMultiPhase {
+                HStack(spacing: 4) {
+                    Image(systemName: session.currentPhase?.phaseType.iconSymbol ?? "flame.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption2)
+                    Text("P\(session.currentPhaseIndex + 1)/\(session.phases.count): \(session.currentPhase?.name ?? "")")
+                        .font(.caption2.bold())
+                        .lineLimit(1)
+                    Spacer()
+                    if session.currentPhase?.phaseType.isTimed == true {
+                        Text(active.phaseTimer.formattedRemaining)
+                            .font(.caption2.monospacedDigit().bold())
+                            .foregroundStyle(active.phaseTimer.isOvertime ? Color.green : Color.orange)
+                            .accessibilityLabel(
+                                active.phaseTimer.isOvertime
+                                    ? "Phase overtime \(active.phaseTimer.formattedRemaining.dropFirst())"
+                                    : "Phase time \(active.phaseTimer.formattedRemaining) remaining"
+                            )
+                    }
+                    Button {
+                        active.advancePhase()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+            }
+
+            if let exercise {
+                header(exercise)
+
+                if !active.canEdit {
+                    // A stalled handshake looks identical to a brief one, so
+                    // say which it is: the retry is still running underneath,
+                    // but the user needs to know why the button is dead and
+                    // that logging on iPhone still works.
+                    if active.isHandshakeStalled {
+                        VStack(spacing: 2) {
+                            Label(
+                                "Still syncing with iPhone",
+                                systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+                            )
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            Text("Keep AruLifts open, or log this set on iPhone.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .accessibilityElement(children: .combine)
+                    } else {
+                        Label("Waiting for iPhone handoff", systemImage: "iphone.slash")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if active.isWorkoutPaused {
+                    pausedCard
+                } else if let setIndex = workingSetIndex,
+                          exercise.sets.indices.contains(setIndex) {
+                    focusedSet(exercise.sets[setIndex], index: setIndex, in: exercise)
+                } else {
+                    allDoneCard
+                }
+
+                if exercise.usesGuidedTimedStepper {
+                    guidedExerciseProgress
+                } else {
+                    progressDots(exercise)
+                }
+                exerciseNavigation
+            } else if let session = active.session, session.isMultiPhase {
+                multiPhaseCard(session)
+            }
+        }
+    }
+
     private func header(_ exercise: SessionExercise) -> some View {
         VStack(spacing: 1) {
             HStack(spacing: 4) {
                 Image(systemName: PhaseVisualHelper.iconSymbol(for: exercise.name))
                     .foregroundStyle(.orange)
                     .font(.caption)
-                Text(exercise.name)
+                Text(
+                    exercise.usesGuidedTimedStepper
+                        ? "\(phasePosition) of \(max(phaseScope.count, 1)) · \(exercise.name)"
+                        : exercise.name
+                )
                     .font(.headline)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -186,6 +217,8 @@ struct WatchActiveView: View {
                     HStack(spacing: 5) {
                         Button("-15") { active.adjustExerciseTimer(by: -15) }
                             .buttonStyle(.bordered)
+                            .accessibilityLabel("Subtract 15 seconds")
+                            .accessibilityHint("Shortens this exercise timer")
                         Button {
                             active.toggleExerciseTimerPause()
                         } label: {
@@ -193,8 +226,12 @@ struct WatchActiveView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.orange)
+                        .accessibilityLabel(active.exerciseTimer.isRunning ? "Pause exercise timer" : "Resume exercise timer")
+                        .accessibilityHint("Changes only this exercise timer")
                         Button("+15") { active.adjustExerciseTimer(by: 15) }
                             .buttonStyle(.bordered)
+                            .accessibilityLabel("Add 15 seconds")
+                            .accessibilityHint("Extends this exercise timer")
                         Button {
                             active.resetExerciseTimer()
                         } label: {
@@ -202,6 +239,7 @@ struct WatchActiveView: View {
                         }
                         .buttonStyle(.bordered)
                         .accessibilityLabel("Reset exercise timer")
+                        .accessibilityHint("Returns this exercise to its planned duration")
                     }
                     .font(.caption2)
                     .disabled(!active.canEdit)
@@ -246,23 +284,27 @@ struct WatchActiveView: View {
             }
 
             Button {
-                active.completeSet(
-                    exerciseIndex: active.currentExerciseIndex,
-                    setIndex: index,
-                    autoStartRest: active.watchExecutionSettings.autoStartRest,
-                    restAlerts: active.watchExecutionSettings.restAlertsEnabled,
-                    restAlertConfiguration: RestTimerAlertConfiguration(
-                        alertsEnabled: active.watchExecutionSettings.restAlertsEnabled,
-                        style: active.watchExecutionSettings.restAlertStyle,
-                        earlyCueEnabled: active.watchExecutionSettings.earlyRestCueEnabled,
-                        earlyCueLeadSeconds: active.watchExecutionSettings.earlyRestCueLeadSeconds
-                    ),
-                    adaptiveRest: active.watchExecutionSettings.adaptiveRestEnabled,
-                    failedSetRestMultiplier: active.watchExecutionSettings.failedSetRestMultiplier
-                )
+                if exercise.usesGuidedTimedStepper {
+                    active.completeGuidedTimedSetAndAdvance()
+                } else {
+                    active.completeSet(
+                        exerciseIndex: active.currentExerciseIndex,
+                        setIndex: index,
+                        autoStartRest: active.watchExecutionSettings.autoStartRest,
+                        restAlerts: active.watchExecutionSettings.restAlertsEnabled,
+                        restAlertConfiguration: RestTimerAlertConfiguration(
+                            alertsEnabled: active.watchExecutionSettings.restAlertsEnabled,
+                            style: active.watchExecutionSettings.restAlertStyle,
+                            earlyCueEnabled: active.watchExecutionSettings.earlyRestCueEnabled,
+                            earlyCueLeadSeconds: active.watchExecutionSettings.earlyRestCueLeadSeconds
+                        ),
+                        adaptiveRest: active.watchExecutionSettings.adaptiveRestEnabled,
+                        failedSetRestMultiplier: active.watchExecutionSettings.failedSetRestMultiplier
+                    )
+                }
             } label: {
                 Label(
-                    set.durationSeconds > 0 ? "Done" : "Complete & Rest",
+                    completionButtonTitle(for: exercise),
                     systemImage: "checkmark.circle.fill"
                 )
                     .font(.headline)
@@ -271,11 +313,7 @@ struct WatchActiveView: View {
             .buttonStyle(.borderedProminent)
             .tint(set.isWarmup ? .orange : .green)
             .disabled(active.isFinalizing || !active.canEdit)
-            .accessibilityHint(
-                set.durationSeconds > 0
-                    ? "Marks this timed set complete without advancing automatically"
-                    : "Marks this set complete and starts the rest timer"
-            )
+            .accessibilityHint(completionButtonHint(for: exercise))
 
             if set.durationSeconds == 0 {
                 Button("Adjust weight or reps") {
@@ -424,6 +462,54 @@ struct WatchActiveView: View {
     /// exercises in this phase, not across the whole gym session.
     private var phaseScope: [Int] {
         active.session?.currentPhaseExerciseIndices ?? []
+    }
+
+    private var phasePosition: Int {
+        (phaseScope.firstIndex(of: active.currentExerciseIndex) ?? 0) + 1
+    }
+
+    private var guidedExerciseProgress: some View {
+        HStack(spacing: 5) {
+            ForEach(phaseScope, id: \.self) { index in
+                if let session = active.session, session.exercises.indices.contains(index) {
+                    let item = session.exercises[index]
+                    Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(
+                            item.isComplete ? Color.green :
+                                (index == active.currentExerciseIndex ? Color.orange : Color.secondary)
+                        )
+                        .accessibilityLabel(
+                            "\(item.name), \(item.isComplete ? "complete" : "not complete")"
+                        )
+                }
+            }
+        }
+        .font(.caption)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func completionButtonTitle(for exercise: SessionExercise) -> String {
+        guard exercise.usesGuidedTimedStepper else {
+            return exercise.sets.contains(where: { $0.durationSeconds > 0 })
+                ? "Done" : "Complete & Rest"
+        }
+        let remaining = exercise.sets.filter { !$0.isCompleted }.count
+        return remaining == 1 && active.hasNextExerciseInPhase ? "Done & Next" : "Done"
+    }
+
+    private func completionButtonHint(for exercise: SessionExercise) -> String {
+        guard exercise.usesGuidedTimedStepper else {
+            return exercise.sets.contains(where: { $0.durationSeconds > 0 })
+                ? "Marks this timed set complete without advancing automatically"
+                : "Marks this set complete and starts the rest timer"
+        }
+        let remaining = exercise.sets.filter { !$0.isCompleted }.count
+        if remaining > 1 {
+            return "Marks this interval complete and starts the next interval"
+        }
+        return active.hasNextExerciseInPhase
+            ? "Marks this exercise complete and opens the next exercise"
+            : "Marks this exercise complete without advancing the phase"
     }
 
     private var exerciseNavigation: some View {

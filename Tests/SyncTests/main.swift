@@ -1615,6 +1615,88 @@ MainActor.assumeIsolated {
     )
 }
 
+// Issue #94: only an explicit guided completion advances. Multiple intervals
+// remain on the same exercise until its final one, and the phase boundary is
+// never crossed automatically.
+MainActor.assumeIsolated {
+    let guided = SessionExercise(
+        exerciseID: UUID(),
+        name: "Hip Mobility",
+        sets: [
+            SetEntry(reps: 0, weight: 0, durationSeconds: 30),
+            SetEntry(reps: 0, weight: 0, durationSeconds: 30)
+        ],
+        restSeconds: 0,
+        usesWeight: false,
+        phaseIndex: 0
+    )
+    let next = SessionExercise(
+        exerciseID: UUID(),
+        name: "Arm Circles",
+        sets: [SetEntry(reps: 0, weight: 0, durationSeconds: 30)],
+        restSeconds: 0,
+        usesWeight: false,
+        phaseIndex: 0
+    )
+    let laterPhase = SessionExercise(
+        exerciseID: UUID(),
+        name: "Strength Mobility",
+        sets: [SetEntry(reps: 0, weight: 0, durationSeconds: 20)],
+        restSeconds: 0,
+        usesWeight: false,
+        phaseIndex: 1
+    )
+    let guidedSession = WorkoutSession(
+        name: "Guided",
+        exercises: [guided, next, laterPhase],
+        phases: [
+            GymSessionLogPhase(phaseType: .warmupStretches, name: "Warm-Up"),
+            GymSessionLogPhase(phaseType: .mainStrength, name: "Strength")
+        ]
+    )
+    let guidedManager = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("guidedStepper"))
+    )
+    guidedManager.start(guidedSession, broadcast: false)
+
+    guidedManager.completeGuidedTimedSetAndAdvance()
+    expect(
+        guidedManager.currentExerciseIndex == 0,
+        "guided stepper stays on an exercise while another interval remains"
+    )
+    expect(
+        guidedManager.session?.exercises[0].completedSets == 1,
+        "guided Done records the current interval"
+    )
+
+    guidedManager.completeGuidedTimedSetAndAdvance()
+    expect(
+        guidedManager.currentExerciseIndex == 1,
+        "guided Done and Next advances after the final interval"
+    )
+    expect(
+        guidedManager.session?.exercises[0].isComplete == true,
+        "guided completion ticks the finished exercise"
+    )
+
+    guidedManager.completeGuidedTimedSetAndAdvance()
+    expect(
+        guidedManager.currentExerciseIndex == 1,
+        "guided completion at a phase boundary never advances the phase"
+    )
+    expect(
+        guidedManager.session?.currentPhaseIndex == 0,
+        "guided completion leaves phase changes explicit"
+    )
+
+    guidedManager.selectPhase(at: 1)
+    expect(
+        guidedManager.currentExercise?.usesGuidedTimedStepper == true,
+        "a timed non-weighted exercise inside strength still uses the guided stepper"
+    )
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)

@@ -117,12 +117,15 @@ struct ActiveWorkoutView: View {
 
                 ScrollView {
                     if let idx = currentIndex(in: session) {
-                        SetLogList(exerciseIndex: idx)
-                            .padding()
-                            .padding(.bottom, 16)
-                            .opacity(active.canEdit ? 1 : 0.72)
+                        if session.exercises[idx].usesGuidedTimedStepper {
+                            GuidedTimedExerciseView(exerciseIndex: idx)
+                        } else {
+                            SetLogList(exerciseIndex: idx)
+                        }
                     }
                 }
+                .padding(.bottom, 16)
+                .opacity(active.canEdit ? 1 : 0.72)
             } else if session.isMultiPhase {
                 VStack(spacing: 12) {
                     Spacer()
@@ -137,7 +140,7 @@ struct ActiveWorkoutView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
-                    Text("No logged exercises in this phase — use the timer above, then tap Next Phase when you're ready.")
+                    Text(emptyPhaseGuidance(for: session))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -207,6 +210,15 @@ struct ActiveWorkoutView: View {
         .padding(.top, 6)
         .padding(.bottom, 2)
         .accessibilityElement(children: .combine)
+    }
+
+    private func emptyPhaseGuidance(for session: WorkoutSession) -> String {
+        switch session.currentPhase?.phaseType {
+        case .saunaRecovery, .steamRecovery:
+            return "Recovery phase — use the phase timer above, then tap Next Phase when you're ready."
+        default:
+            return "No exercises are configured for this phase. Use the phase timer above, then tap Next Phase when you're ready."
+        }
     }
 
     private var syncMessage: String {
@@ -387,6 +399,160 @@ struct ExercisePager: View {
             }
         }
         .padding(.vertical, 8)
+    }
+}
+
+private struct GuidedTimedExerciseView: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    let exerciseIndex: Int
+
+    private var session: WorkoutSession? { active.session }
+    private var exercise: SessionExercise? {
+        guard let session, session.exercises.indices.contains(exerciseIndex) else { return nil }
+        return session.exercises[exerciseIndex]
+    }
+    private var scope: [Int] { session?.currentPhaseExerciseIndices ?? [] }
+    private var position: Int { (scope.firstIndex(of: exerciseIndex) ?? 0) + 1 }
+    private var remainingIntervalCount: Int {
+        exercise?.sets.filter { !$0.isCompleted }.count ?? 0
+    }
+
+    var body: some View {
+        if let session, let exercise {
+            VStack(spacing: 18) {
+                VStack(spacing: 6) {
+                    Text("\(position) of \(max(scope.count, 1)) · \(exercise.name)")
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                    Text("\(exercise.completedSets) of \(exercise.sets.count) intervals complete")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    "\(exercise.name), exercise \(position) of \(max(scope.count, 1)), "
+                    + "\(exercise.completedSets) of \(exercise.sets.count) intervals complete"
+                )
+
+                phaseProgress(in: session)
+
+                VStack(spacing: 12) {
+                    Text(active.exerciseTimer.formattedRemaining)
+                        .font(.system(size: 52, weight: .bold, design: .monospaced))
+                        .foregroundStyle(active.exerciseTimer.isOvertime ? Color.green : Color.orange)
+                        .minimumScaleFactor(0.7)
+                        .accessibilityLabel(timerAccessibilityLabel(for: exercise))
+
+                    if active.exerciseTimer.isOvertime {
+                        Text("OVERTIME")
+                            .font(.caption.bold())
+                            .foregroundStyle(.green)
+                    }
+
+                    HStack(spacing: 10) {
+                        Button("-15s") { active.adjustExerciseTimer(by: -15) }
+                            .accessibilityHint("Subtracts 15 seconds from this exercise timer")
+                        Button {
+                            active.toggleExerciseTimerPause()
+                        } label: {
+                            Label(
+                                active.exerciseTimer.isRunning ? "Pause" : "Resume",
+                                systemImage: active.exerciseTimer.isRunning ? "pause.fill" : "play.fill"
+                            )
+                            .labelStyle(.iconOnly)
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .accessibilityHint("Pauses or resumes only this exercise timer")
+                        Button("+15s") { active.adjustExerciseTimer(by: 15) }
+                            .accessibilityHint("Adds 15 seconds to this exercise timer")
+                        Button {
+                            active.resetExerciseTimer()
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
+                        .accessibilityLabel("Reset exercise timer")
+                        .accessibilityHint("Returns this exercise to its planned duration")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!active.canEdit)
+                }
+                .padding()
+                .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
+
+                Button {
+                    active.completeGuidedTimedSetAndAdvance()
+                } label: {
+                    Label(doneButtonTitle, systemImage: "checkmark.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .disabled(!active.canEdit || active.isFinalizing || exercise.isComplete)
+                .accessibilityLabel("\(doneButtonTitle), \(exercise.name)")
+                .accessibilityHint(doneButtonHint)
+
+                HStack(spacing: 12) {
+                    Button {
+                        active.goToPreviousExercise()
+                    } label: {
+                        Label("Previous", systemImage: "chevron.left")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(!active.hasPreviousExerciseInPhase)
+
+                    Button {
+                        active.goToNextExercise()
+                    } label: {
+                        Label("Next", systemImage: "chevron.right")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(!active.hasNextExerciseInPhase)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+        }
+    }
+
+    private var doneButtonTitle: String {
+        if remainingIntervalCount > 1 { return "Done" }
+        return active.hasNextExerciseInPhase ? "Done & Next" : "Done"
+    }
+
+    private var doneButtonHint: String {
+        if remainingIntervalCount > 1 {
+            return "Marks this interval complete and starts the next interval"
+        }
+        if active.hasNextExerciseInPhase {
+            return "Marks this exercise complete and opens the next exercise"
+        }
+        return "Marks this exercise complete without advancing the phase"
+    }
+
+    private func timerAccessibilityLabel(for exercise: SessionExercise) -> String {
+        active.exerciseTimer.isOvertime
+            ? "\(exercise.name) overtime \(active.exerciseTimer.formattedRemaining.dropFirst())"
+            : "\(exercise.name), \(active.exerciseTimer.formattedRemaining) remaining"
+    }
+
+    private func phaseProgress(in session: WorkoutSession) -> some View {
+        HStack(spacing: 7) {
+            ForEach(scope, id: \.self) { index in
+                let item = session.exercises[index]
+                Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(
+                        item.isComplete ? Color.green :
+                            (index == exerciseIndex ? Color.orange : Color.secondary)
+                    )
+                    .accessibilityLabel(
+                        "\(item.name), \(item.isComplete ? "complete" : "not complete")"
+                    )
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 }
 

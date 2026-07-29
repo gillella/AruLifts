@@ -1501,5 +1501,38 @@ expect(!plain.hasNextExerciseInCurrentPhase(after: 2), "plain session: last exer
 expect(plain.hasPreviousExerciseInCurrentPhase(before: 2), "plain session: last exercise has a previous")
 expect(!plain.hasNextPhase, "plain session reports no next phase")
 
+// Issue #94: guided presentation is selected by exercise shape, never by the
+// phase label. A timed mobility item inside strength is guided; weighted or
+// mixed-duration work stays in the normal set logger.
+let timedMobility = SessionExercise(
+    exerciseID: UUID(),
+    name: "Timed Mobility",
+    sets: [SetEntry(reps: 0, weight: 0, durationSeconds: 45)],
+    usesWeight: false,
+    phaseIndex: 0
+)
+expect(timedMobility.usesGuidedTimedStepper, "timed non-weighted exercise uses the guided stepper")
+
+let weightedTimed = SessionExercise(
+    exerciseID: UUID(),
+    name: "Weighted Hold",
+    sets: [SetEntry(reps: 0, weight: 20, durationSeconds: 30)],
+    usesWeight: true,
+    phaseIndex: 0
+)
+expect(!weightedTimed.usesGuidedTimedStepper, "weighted timed exercise keeps the set logger")
+
+let mixedWork = SessionExercise(
+    exerciseID: UUID(),
+    name: "Mixed Work",
+    sets: [
+        SetEntry(reps: 0, weight: 0, durationSeconds: 30),
+        SetEntry(reps: 8, weight: 0)
+    ],
+    usesWeight: false,
+    phaseIndex: 0
+)
+expect(!mixedWork.usesGuidedTimedStepper, "mixed timed and rep sets keep the set logger")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
