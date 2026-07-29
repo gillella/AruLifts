@@ -1014,6 +1014,169 @@ if let snapshotData = try? JSONEncoder().encode(timerSnapshot),
     failures += 1; print("FAIL PhaseTimerSnapshot JSON encode/decode round-trip")
 }
 
+// MARK: - #91 structured phase exercises and timed-set migration
+
+let legacyRoutinePhaseData = """
+{
+  "id":"00000000-0000-0000-0000-000000000091",
+  "phaseType":"warmupStretches",
+  "isEnabled":true,
+  "name":"Legacy Warm-Up",
+  "durationSeconds":300,
+  "exerciseNames":["Leg Swings","Arm Circles"],
+  "notes":"Saved before structured items"
+}
+""".data(using: .utf8)!
+if let legacyPhase = try? JSONDecoder().decode(
+    GymSessionRoutinePhase.self, from: legacyRoutinePhaseData
+) {
+    expect(
+        legacyPhase.exerciseItems.map(\.name) == ["Leg Swings", "Arm Circles"],
+        "legacy routine phase names migrate without loss"
+    )
+    expect(
+        legacyPhase.exerciseItems.allSatisfy {
+            $0.durationSeconds == 0 && $0.reps == 0 && $0.sets == 1
+        },
+        "legacy routine phase names receive default targets"
+    )
+} else {
+    failures += 1; print("FAIL legacy routine phase did not decode")
+}
+
+let legacyHistoryPhaseData = """
+{
+  "id":"00000000-0000-0000-0000-000000000092",
+  "phaseType":"postStretching",
+  "name":"Legacy Cool-Down",
+  "durationSeconds":600,
+  "actualDurationSeconds":540,
+  "isCompleted":true,
+  "exerciseNames":["Hamstring Stretch","Child's Pose"],
+  "notes":"Historical phase"
+}
+""".data(using: .utf8)!
+if let legacyHistoryPhase = try? JSONDecoder().decode(
+    GymSessionLogPhase.self, from: legacyHistoryPhaseData
+) {
+    expect(
+        legacyHistoryPhase.exerciseNames == ["Hamstring Stretch", "Child's Pose"],
+        "legacy history phase names still render after migration"
+    )
+} else {
+    failures += 1; print("FAIL legacy history phase did not decode")
+}
+
+expect(legacySet.durationSeconds == 0, "legacy set duration defaults to zero")
+
+let timedExerciseID = UUID()
+let timedTemplate = WorkoutTemplate(
+    name: "Timed Work",
+    exercises: [
+        TemplateExercise(
+            exerciseID: timedExerciseID,
+            name: "Plank",
+            targetSets: 1,
+            targetReps: 0,
+            weight: 0,
+            restSeconds: 0,
+            durationSeconds: 60
+        )
+    ]
+)
+let timedSession = WorkoutSession.from(
+    template: timedTemplate,
+    library: ExerciseLibrary.byID
+)
+expect(
+    timedSession.exercises.first?.sets.first?.durationSeconds == 60,
+    "template duration reaches the generated session set"
+)
+var completedTimedSession = timedSession
+completedTimedSession.exercises[0].sets[0].isCompleted = true
+expect(completedTimedSession.totalVolume == 0, "timed sets do not contribute training volume")
+
+let typedItems = [
+    PhaseExerciseItem(name: "Plank", durationSeconds: 60),
+    PhaseExerciseItem(name: "Bird Dog", reps: 8, sets: 2)
+]
+let typedRoutine = GymSessionRoutine(
+    name: "Typed Routine",
+    phases: [
+        GymSessionRoutinePhase(
+            phaseType: .coreWork,
+            exerciseItems: typedItems
+        )
+    ]
+)
+let typedHistory = WorkoutSession(
+    name: "Typed History",
+    phases: [
+        GymSessionLogPhase(
+            phaseType: .coreWork,
+            name: "Core",
+            exerciseItems: typedItems
+        )
+    ]
+)
+let typedBackup = BackupPayload(
+    templates: [timedTemplate],
+    gymRoutines: [typedRoutine],
+    history: [typedHistory],
+    customExercises: [],
+    bodyWeights: [],
+    settings: AppSettings()
+)
+if let backupData = try? Backup.encode(typedBackup),
+   let restoredBackup = try? Backup.decode(backupData) {
+    expect(
+        restoredBackup.gymRoutines.first?.phases.first?.exerciseItems == typedItems,
+        "backup round-trip preserves structured routine items"
+    )
+    expect(
+        restoredBackup.history.first?.phases.first?.exerciseItems == typedItems,
+        "backup round-trip preserves structured history items"
+    )
+} else {
+    failures += 1; print("FAIL structured phase backup did not round-trip")
+}
+
+let timedWatchPlan = WatchStartableWorkout(
+    template: timedTemplate,
+    library: ExerciseLibrary.byID,
+    settings: AppSettings()
+)
+if let cacheData = try? JSONEncoder().encode(
+    WatchPlanCache(workouts: [timedWatchPlan])
+),
+   let restoredCache = try? JSONDecoder().decode(WatchPlanCache.self, from: cacheData) {
+    let restoredSet = restoredCache.workouts.first?.makeFreshSession()
+        .exercises.first?.sets.first
+    expect(restoredSet?.durationSeconds == 60, "Watch plan cache preserves timed-set duration")
+} else {
+    failures += 1; print("FAIL timed Watch plan cache did not round-trip")
+}
+
+let legacyTimedWatchPlan = WatchStartableWorkout(
+    templateID: UUID(),
+    name: "Legacy Timed Plan",
+    category: .stretching,
+    exercises: [
+        WatchStartableExercise(
+            exerciseID: timedExerciseID,
+            name: "Plank",
+            sets: [WatchStartableSet(reps: 0, weight: 0)],
+            restSeconds: 0,
+            usesWeight: false,
+            durationSeconds: 45
+        )
+    ]
+)
+expect(
+    legacyTimedWatchPlan.makeFreshSession().exercises.first?.sets.first?.durationSeconds == 45,
+    "legacy Watch cache exercise duration migrates onto its fresh session set"
+)
+
 // MARK: - #90 phase-boundary navigation availability
 //
 // The flat `exercises` array concatenates every phase, so a global bound is not

@@ -86,7 +86,7 @@ loggable part of the session on both devices.
 - [x] **[#90] Previous/Next disabled state ignores the phase boundary** 📱⌚️ 🐞 — navigation
   buttons gate on the global exercise index while the actions are phase-scoped, so enabled
   controls become no-ops at every phase boundary.
-- [ ] **[#91] Structured phase exercise list and per-set duration** 📱⌚️ — replace the untyped
+- [x] **[#91] Structured phase exercise list and per-set duration** 📱⌚️ — replace the untyped
   `[String]` phase list with `PhaseExerciseItem`, and carry `durationSeconds` onto `SetEntry`
   so timed work survives into execution. Model + migration; gates #92–#95.
 - [ ] **[#92] Materialize every phase's exercises into the active session** 📱⌚️ — generalize
