@@ -137,6 +137,7 @@ history/Health result.
 | 2.21 | Exercise navigation is phase-scoped: Previous/Next is disabled exactly at the current phase boundary, and the Watch offers Next Phase instead of Finish Workout between phases | Model/manager contract tests plus paired-simulator UI inspection | ✅ IMPLEMENTED (#90); automated contract coverage added, paired-simulator UI validation pending |
 | 2.22 | Each duration-based set has a replicated iPhone/Watch timer with pause, adjust, reset, overtime, explicit completion, and ownership-transfer continuity | Manager/wire tests, paired-simulator UI, physical audio/haptic check | ✅ PASS (#93) — paired sims showed the matching timer and phone→Watch pause at the same `1:17`; physical cues pending |
 | 2.23 | Timed non-weighted exercises use a guided, accessible Done/Next stepper on iPhone and Watch while weighted/mixed exercises retain normal set logging | Shape/manager tests, both builds, paired-simulator guided walkthrough | ✅ PASS (#94) — automated contract/builds and paired-simulator layout pass; interaction is manager-tested because desktop UI input was locked |
+| 2.24 | A live workout can add/swap/remove session-only exercises with phase-correct insertion, logged-work protection, Watch contextual swap/remove and selection-stable sync | Model/manager/wire tests, both builds, paired-simulator UI walkthrough | ✅ PASS (#96) — automated contract and both-target builds pass; paired simulators confirmed iPhone add/swap/remove plus selection-stable Watch replication. Watch menu interaction remains physical-device acceptance |
 
 ### Automated protocol and persistence tests
 
@@ -222,6 +223,40 @@ interval completion, multi-interval behavior, phase-boundary protection and a
 timed item inside strength. Both schemes must build. Visible hierarchy,
 whole-phase coexistence and VoiceOver output remain paired-simulator acceptance
 checks (AC-D21–D28).
+
+### Live exercise-list editing checks (#96)
+
+1. Start a multi-phase routine on iPhone and select an exercise in a later
+   phase. Open **Exercise Options → Add Exercise**, search/filter the full
+   library, and add a movement to the current phase. Verify it appears at the
+   end of that phase without changing the selected exercise on either device.
+2. Add to a phase that previously had no exercises. Verify the item appears in
+   that phase before the next phase's flat-array run and is navigable.
+3. Choose **Swap Current Exercise**. Verify the replacement keeps the same
+   phase-relative position and receives template-parity sets, loading behavior,
+   timing, rest, bar minimum and warmups.
+4. Remove an exercise with no completed sets, confirming the warning that the
+   saved plan is unchanged. Complete a set and verify both Swap and Remove are
+   blocked with explanatory copy.
+5. Reopen the saved template or routine and verify names, order and targets
+   were not changed by any live edit.
+6. On Watch, open Workout Options. Verify there is no Add/full-library action;
+   Swap shows no more than six contextual same-muscle alternatives and Remove
+   is available only before logging work.
+7. Perform an insertion/removal before the exercise displayed on the peer.
+   Inspect the replicated checkpoint and verify `currentExerciseID` preserves
+   the same session instance even as `currentExerciseIndex` changes.
+
+`Tests/run.sh` covers shared construction parity, phase insertion including an
+empty phase, replacement attribution and completed-set guards.
+`Tests/run_sync.sh` covers manager ownership/mutation, selected UUID stability,
+checkpoint persistence/adoption, contextual-list bounds and saved-plan
+isolation. The paired-simulator walkthrough confirmed the iPhone controls,
+searchable full-library add, in-place swap, guarded confirmation/remove flow,
+selection stability and replicated Watch exercise count/name. The Watch
+Workout Options menu is build- and contract-verified but still requires
+physical-device interaction because the watchOS Simulator did not expose its
+accessibility tree (AC-D29–D34, AC-G8, AC-H11).
 
 ### Per-exercise timer checks (#93)
 
@@ -381,6 +416,7 @@ Later, per Aravind.
 | 2026-07-28 | Goal 2.22 — per-exercise timer (#93) | **PASS** automated contract, builds, and paired-simulator visible replication | Matching iPhone/Watch timed set; phone pause reached Watch at `1:17`; controls exposed to iPhone accessibility; physical audio/haptic pending |
 | 2026-07-28 | Goal 2.23 — guided exercise stepper (#94) | **PASS** automated shape/manager contract, iOS/watchOS builds and paired-simulator visual inspection | iPhone showed phase and exercise timers, `1 of 3 · Leg Swings`, progress, controls and Done & Next; Watch showed the same name/position plus phase overtime and exercise time in a scrollable view. Desktop lock prevented UI tapping; explicit Done/Next behavior passed manager tests |
 | 2026-07-28 | Goal 1.11 — routine phase-item composer (#95) | **PASS** model/persistence/materialization/Watch-cache contracts, both-target build and read-only Simulator rendering; interactive edit walkthrough pending | `Tests/run.sh`; iPhone showed saved item names and derived targets; toolbar Edit was visible but unavailable to UI automation; AC-B13–B21 |
+| 2026-07-29 | Goal 2.24 — live exercise-list edits (#96) | **PASS** model/manager/replica contracts, all 86 E2E tests, separate iOS/watchOS Simulator builds and paired-simulator iPhone walkthrough | Added Push-Up at the phase end while Elliptical stayed selected on both peers; swapped Elliptical in place for Stationary Bike; removed it and advanced to Treadmill Incline. Watch showed the replicated `1 of 3 · Elliptical`; Watch menu interaction remains physical-device acceptance. AC-D29–D34, AC-G8, AC-H11 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 
