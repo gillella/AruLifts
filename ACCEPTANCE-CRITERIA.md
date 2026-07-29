@@ -523,8 +523,7 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 | I HealthKit | AC-I1–I8 | #84 |
 | J Persistence | AC-J1–J4 | #85 |
 
-Shipped in PR #79 (#74–#78) and PR #88 (#80–#86); epic #87. This document's baseline is
-**v3.0.0** (`a1e2434`).
+Shipped through PR #99; epic #87. This document's baseline is **v3.1.0**.
 
 **Epic F progress.** Guided multi-phase session execution (#90–#96). Each issue adds its
 criteria here as it lands, per §17.
