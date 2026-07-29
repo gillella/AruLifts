@@ -268,6 +268,8 @@ mutates that `WorkoutTemplate`; starting the linked phase still uses the templat
 steppers retain full control-row height at supported text sizes; their labels and
 increment/decrement controls do not overlap.
 
+**AC-B23** — **4-Day Gym Visit Routines & Phase Templates**. Built-in routines include Tuesday (Upper Body Focus, linked to Upper Body A & Stair Stepper), Wednesday (Lower Body Focus, linked to Lower Body A & Elliptical), Thursday (Upper Body Hypertrophy, linked to Upper Body B & Treadmill Run), and Friday (Lower Body Hypertrophy, linked to Lower Body B & Stationary Bike). Each day's 7 phases are pre-attached to dedicated phase templates.
+
 ---
 
 ## 7. Area C — Home and starting a workout

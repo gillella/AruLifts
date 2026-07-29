@@ -528,8 +528,10 @@ final class WorkoutStore: ObservableObject {
         }
 
         if gymRoutines.isEmpty {
-            gymRoutines = [GymSessionRoutine.defaultCompleteGymVisit(templates: templates)]
+            gymRoutines = GymSessionRoutine.default4DayRoutines(templates: templates)
             saveGymRoutines()
+        } else {
+            ensureDefaultRoutinesExist()
         }
     }
 
@@ -545,6 +547,21 @@ final class WorkoutStore: ObservableObject {
         }
         if addedAny {
             saveTemplates()
+        }
+    }
+
+    func ensureDefaultRoutinesExist() {
+        let defaults = GymSessionRoutine.default4DayRoutines(templates: templates)
+        let existingNames = Set(gymRoutines.map(\.name))
+        var addedAny = false
+        for def in defaults {
+            if !existingNames.contains(def.name) {
+                gymRoutines.append(def)
+                addedAny = true
+            }
+        }
+        if addedAny {
+            saveGymRoutines()
         }
     }
 
