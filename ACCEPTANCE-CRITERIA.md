@@ -264,6 +264,10 @@ Starting that cached routine offline produces the same names, order and targets.
 **AC-B21** *(#95)* — Editing fallback phase items while a template is linked never
 mutates that `WorkoutTemplate`; starting the linked phase still uses the template.
 
+**AC-B22** *(#108)* — In the routine phase-item composer, the **Reps** and **Sets**
+steppers retain full control-row height at supported text sizes; their labels and
+increment/decrement controls do not overlap.
+
 ---
 
 ## 7. Area C — Home and starting a workout

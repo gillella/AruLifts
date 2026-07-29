@@ -26,7 +26,8 @@ The active frontier is **Epic F** — turning a multi-phase gym routine into a
 genuinely guided, phase-by-phase session on both devices. Its phase models,
 materialized exercise lists, and replicated per-exercise timers are now in place.
 Post-v3.1 stabilization includes preserving an active per-exercise countdown across
-unrelated live structural edits ([#107]).
+unrelated live structural edits ([#107]) and keeping routine-composer Reps/Sets
+controls visually separated ([#108]).
 
 ---
 

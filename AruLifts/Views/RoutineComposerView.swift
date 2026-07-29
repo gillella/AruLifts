@@ -636,17 +636,20 @@ private struct PhaseExerciseItemEditor: View {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     Stepper(
-                        "Reps: \(item.reps > 0 ? item.reps : defaultReps)",
                         value: repsBinding,
                         in: 1...100
-                    )
+                    ) {
+                        Text("Reps: \(item.reps > 0 ? item.reps : defaultReps)")
+                            .font(.caption)
+                    }
                     Stepper(
-                        "Sets: \(item.sets)",
                         value: $item.sets,
                         in: 1...20
-                    )
+                    ) {
+                        Text("Sets: \(item.sets)")
+                            .font(.caption)
+                    }
                 }
-                .font(.caption)
             }
 
             if let matchingExercise {

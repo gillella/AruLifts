@@ -258,6 +258,15 @@ Workout Options menu is build- and contract-verified but still requires
 physical-device interaction because the watchOS Simulator did not expose its
 accessibility tree (AC-D29–D34, AC-G8, AC-H11).
 
+### Routine composer stepper layout (#108)
+
+1. Open **Complete Gym Visit → Edit**, select a phase item and switch its target to
+   **Reps**.
+2. Verify the Reps and Sets rows retain separate full-height stepper controls with no
+   capsule or label overlap at the default text size.
+3. Repeat at a larger Dynamic Type size and verify both rows remain readable and tappable
+   without visual collision (AC-B22).
+
 ### Per-exercise timer checks (#93)
 
 1. Start a session containing a 60-second timed set. Verify both devices show the
@@ -422,6 +431,7 @@ Later, per Aravind.
 | 2026-07-28 | Goal 1.11 — routine phase-item composer (#95) | **PASS** model/persistence/materialization/Watch-cache contracts, both-target build and read-only Simulator rendering; interactive edit walkthrough pending | `Tests/run.sh`; iPhone showed saved item names and derived targets; toolbar Edit was visible but unavailable to UI automation; AC-B13–B21 |
 | 2026-07-29 | Goal 2.24 — live exercise-list edits (#96) | **PASS** model/manager/replica contracts, all 86 E2E tests, separate iOS/watchOS Simulator builds and paired-simulator iPhone walkthrough | Added Push-Up at the phase end while Elliptical stayed selected on both peers; swapped Elliptical in place for Stationary Bike; removed it and advanced to Treadmill Incline. Watch showed the replicated `1 of 3 · Elliptical`; Watch menu interaction remains physical-device acceptance. AC-D29–D34, AC-G8, AC-H11 |
 | 2026-07-29 | Post-v3.1 — structural-edit timer continuity (#107) | **PASS** running-timer regression, logic/sync/E2E suites and both simulator builds | A partially elapsed timed set survives an unrelated live exercise insertion without re-arming; AC-E21 |
+| 2026-07-29 | Post-v3.1 — routine composer stepper layout (#108) | **PASS** rendered default/XXXL text layouts, live Reps/Sets increment taps, logic/sync/E2E suites and both simulator builds | Both rows remained visually separate and tappable; test edits were cancelled and simulator text size restored; AC-B22 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 
