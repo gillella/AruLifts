@@ -23,7 +23,8 @@ and Dynamic Island, watchOS complications, iCloud Documents sync, and a durable
 WatchConnectivity replication layer with ownership handoff.
 
 The active frontier is **Epic F** — turning a multi-phase gym routine into a
-genuinely guided, phase-by-phase session on both devices.
+genuinely guided, phase-by-phase session on both devices. Its phase models,
+materialized exercise lists, and replicated per-exercise timers are now in place.
 
 ---
 
@@ -91,7 +92,7 @@ loggable part of the session on both devices.
   so timed work survives into execution. Model + migration; gates #92–#95.
 - [x] **[#92] Materialize every phase's exercises into the active session** 📱⌚️ — generalize
   the template-or-core-work special case so any phase with declared exercises becomes navigable.
-- [ ] **[#93] Per-exercise countdown timer, replicated to Watch** 📱⌚️ — a third timer alongside
+- [x] **[#93] Per-exercise countdown timer, replicated to Watch** 📱⌚️ — a third timer alongside
   rest and phase, with the same overtime / never-auto-advance contract and full sync replication.
 - [ ] **[#94] Guided exercise stepper UI** 📱⌚️ — "3 of 5 · Hip Mobility" with its countdown,
   chosen by exercise shape rather than phase type. The visible payoff of #92 + #93.
