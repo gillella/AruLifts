@@ -101,6 +101,12 @@ struct SessionExercise: Identifiable, Codable, Hashable {
 
     var completedSets: Int { sets.filter { $0.isCompleted }.count }
     var isComplete: Bool { !sets.isEmpty && sets.allSatisfy { $0.isCompleted } }
+    /// Timed, non-weighted work uses the guided exercise stepper. Deriving the
+    /// presentation from execution shape keeps a mobility interval in a
+    /// strength phase guided while preserving the set logger for weighted work.
+    var usesGuidedTimedStepper: Bool {
+        !usesWeight && !sets.isEmpty && sets.allSatisfy { $0.durationSeconds > 0 }
+    }
     /// Work sets only — warmups don't count toward training volume.
     var volume: Double {
         sets.filter { $0.isCompleted && !$0.isWarmup }
