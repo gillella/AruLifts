@@ -8,6 +8,9 @@ struct ActiveWorkoutView: View {
     @State private var showingMirrorDiscardConfirm = false
     @State private var showingNotes = false
     @State private var showingReorder = false
+    @State private var exercisePickerMode: LiveExercisePickerMode?
+    @State private var showingExerciseRemovalConfirm = false
+    @State private var exerciseEditError: String?
 
     var body: some View {
         NavigationStack {
@@ -73,6 +76,16 @@ struct ActiveWorkoutView: View {
                 ActiveSessionReorderSheet()
                     .environmentObject(active)
             }
+            .sheet(item: $exercisePickerMode) { mode in
+                ExercisePickerView(
+                    category: active.session?.category ?? .custom,
+                    title: mode.title,
+                    actionTitle: mode.actionTitle
+                ) { exercise in
+                    applyExerciseSelection(exercise, mode: mode)
+                }
+                .environmentObject(store)
+            }
             .sheet(isPresented: $active.showingPhaseTransitionModal) {
                 PhaseTransitionSheet()
                     .environmentObject(active)
@@ -92,6 +105,35 @@ struct ActiveWorkoutView: View {
                 Button("Keep waiting", role: .cancel) {}
             } message: {
                 Text("This removes the workout from iPhone only. If Apple Watch is still running it, finish or discard it there too.")
+            }
+            .confirmationDialog(
+                "Remove this exercise?",
+                isPresented: $showingExerciseRemovalConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Remove from This Workout", role: .destructive) {
+                    guard active.removeExercise(
+                        at: active.currentExerciseIndex
+                    ) else {
+                        exerciseEditError =
+                            "This exercise has completed sets and cannot be removed."
+                        return
+                    }
+                }
+                Button("Keep Exercise", role: .cancel) {}
+            } message: {
+                Text("Your saved template or routine will not change.")
+            }
+            .alert(
+                "Exercise Not Changed",
+                isPresented: Binding(
+                    get: { exerciseEditError != nil },
+                    set: { if !$0 { exerciseEditError = nil } }
+                )
+            ) {
+                Button("OK") { exerciseEditError = nil }
+            } message: {
+                Text(exerciseEditError ?? "")
             }
         }
     }
@@ -114,6 +156,7 @@ struct ActiveWorkoutView: View {
             // phase's lifts.
             if !session.currentPhaseExerciseIndices.isEmpty {
                 ExercisePager(session: session)
+                liveExerciseControls(for: session)
 
                 ScrollView {
                     if let idx = currentIndex(in: session) {
@@ -144,10 +187,112 @@ struct ActiveWorkoutView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    Button {
+                        exercisePickerMode = .add(
+                            phaseIndex: session.currentPhaseIndex
+                        )
+                    } label: {
+                        Label("Add Exercise to This Phase", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(!active.canEdit)
                     Spacer()
                 }
                 .padding()
+            } else {
+                ContentUnavailableView {
+                    Label("No Exercises", systemImage: "figure.strengthtraining.traditional")
+                } description: {
+                    Text("Add an exercise for this workout without changing the saved template.")
+                } actions: {
+                    Button {
+                        exercisePickerMode = .add(phaseIndex: 0)
+                    } label: {
+                        Label("Add Exercise", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(!active.canEdit)
+                }
             }
+        }
+    }
+
+    private func liveExerciseControls(
+        for session: WorkoutSession
+    ) -> some View {
+        HStack {
+            Text("Changes apply to this workout only")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Menu {
+                Button {
+                    exercisePickerMode = .add(
+                        phaseIndex: session.currentPhaseIndex
+                    )
+                } label: {
+                    Label("Add Exercise", systemImage: "plus")
+                }
+
+                Button {
+                    exercisePickerMode = .replace(
+                        index: active.currentExerciseIndex
+                    )
+                } label: {
+                    Label("Swap Current Exercise", systemImage: "arrow.triangle.2.circlepath")
+                }
+
+                Button(role: .destructive) {
+                    if active.canRemoveExercise(
+                        at: active.currentExerciseIndex
+                    ) {
+                        showingExerciseRemovalConfirm = true
+                    } else {
+                        exerciseEditError =
+                            "This exercise has completed sets and cannot be removed or swapped."
+                    }
+                } label: {
+                    Label("Remove Current Exercise", systemImage: "trash")
+                }
+            } label: {
+                Label("Exercise Options", systemImage: "ellipsis.circle")
+            }
+            .disabled(!active.canEdit)
+            .accessibilityHint(
+                "Add, swap, or remove exercises for this workout without changing the saved plan"
+            )
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 4)
+    }
+
+    private func applyExerciseSelection(
+        _ exercise: Exercise,
+        mode: LiveExercisePickerMode
+    ) {
+        let preferredWeight = store.lastWeight(for: exercise.id)
+        let changed: Bool
+        switch mode {
+        case .add(let phaseIndex):
+            changed = active.addExercise(
+                exercise,
+                toPhase: phaseIndex,
+                settings: store.settings,
+                preferredWeight: preferredWeight
+            )
+        case .replace(let index):
+            changed = active.replaceExercise(
+                at: index,
+                with: exercise,
+                settings: store.settings,
+                preferredWeight: preferredWeight
+            )
+        }
+        if !changed {
+            exerciseEditError =
+                "This exercise has completed sets or the current phase is no longer editable."
         }
     }
 
@@ -270,6 +415,32 @@ struct ActiveWorkoutView: View {
 
     private var isRestPresented: Bool {
         active.restTimer.isRunning || active.restTimer.isPaused
+    }
+}
+
+private enum LiveExercisePickerMode: Identifiable {
+    case add(phaseIndex: Int)
+    case replace(index: Int)
+
+    var id: String {
+        switch self {
+        case .add(let phaseIndex): return "add-\(phaseIndex)"
+        case .replace(let index): return "replace-\(index)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .add: return "Add Exercise"
+        case .replace: return "Swap Exercise"
+        }
+    }
+
+    var actionTitle: String {
+        switch self {
+        case .add: return "Add"
+        case .replace: return "Swap"
+        }
     }
 }
 
