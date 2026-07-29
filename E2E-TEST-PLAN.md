@@ -110,6 +110,7 @@ history/Health result.
 | 2.20 | User-facing guidance explains phone-start, Watch-start, offline, takeover and finish/sync flows | In-app guide inspection | ⏳ PENDING |
 | 2.21 | Exercise navigation is phase-scoped: Previous/Next is disabled exactly at the current phase boundary, and the Watch offers Next Phase instead of Finish Workout between phases | Model/manager contract tests plus paired-simulator UI inspection | ✅ IMPLEMENTED (#90); automated contract coverage added, paired-simulator UI validation pending |
 | 2.22 | Each duration-based set has a replicated iPhone/Watch timer with pause, adjust, reset, overtime, explicit completion, and ownership-transfer continuity | Manager/wire tests, paired-simulator UI, physical audio/haptic check | ✅ PASS (#93) — paired sims showed the matching timer and phone→Watch pause at the same `1:17`; physical cues pending |
+| 2.23 | Timed non-weighted exercises use a guided, accessible Done/Next stepper on iPhone and Watch while weighted/mixed exercises retain normal set logging | Shape/manager tests, both builds, paired-simulator guided walkthrough | ✅ PASS (#94) — automated contract/builds and paired-simulator layout pass; interaction is manager-tested because desktop UI input was locked |
 
 ### Automated protocol and persistence tests
 
@@ -167,6 +168,34 @@ acceptance checks (AC-D11–D16), not claims made by those script suites.
 phases, duration derivation/clamping, rest defaults, activity classification,
 and Watch-plan construction. Visible phone/Watch navigation remains a paired
 simulator acceptance check (AC-D17–D20).
+
+### Guided exercise stepper checks (#94)
+
+1. Start the default Complete Gym Visit and advance to Dynamic Warm-Up. On both
+   devices verify the first item reads **1 of 3 · Leg Swings**, the exercise
+   countdown is prominent, and the whole-phase countdown remains visible.
+2. Let an exercise pass zero. Verify overtime appears without completion or
+   navigation. Tap **Done & Next** and verify the item gains a checkmark and
+   Arm Circles opens; repeat through Hip Mobility.
+3. Use a routine containing two timed intervals in one exercise. The first Done
+   must start the second interval without changing exercise; the final Done may
+   advance within the phase.
+4. Complete the phase's last item. Verify the phase does not advance until
+   **Next Phase** is tapped.
+5. Place a timed non-weighted item in Main Strength and verify it uses the guided
+   stepper. Verify a weighted timed hold and mixed timed/rep exercise use
+   `SetLogList` instead.
+6. Advance to Sauna and Steam. Verify each shows intentional Recovery phase
+   guidance, its phase timer and an explicit phase action.
+7. Inspect iPhone and Watch accessibility trees. Verify exercise name, position,
+   interval progress and remaining/overtime time are announced, and every timer
+   and Done/Next control has a label and hint.
+
+`Tests/run.sh` covers shape selection. `Tests/run_sync.sh` covers explicit
+interval completion, multi-interval behavior, phase-boundary protection and a
+timed item inside strength. Both schemes must build. Visible hierarchy,
+whole-phase coexistence and VoiceOver output remain paired-simulator acceptance
+checks (AC-D21–D28).
 
 ### Per-exercise timer checks (#93)
 
@@ -324,6 +353,7 @@ Later, per Aravind.
 | 2026-07-24 | Goal 2 — Watch-start → phone rejoin | **PASS** on paired sims (iPhone 17 Pro iOS 26.3 + Series 11 46mm watchOS 26.1) | See below |
 | 2026-07-28 | Goal 2.21 — phase-boundary navigation (#90) | **PASS** automated model/manager contract tests and iOS/watchOS builds; paired-simulator UI checks pending | `Tests/run.sh`, `Tests/run_sync.sh`, `Tests/run_e2e.sh`; AC-D11–D16 |
 | 2026-07-28 | Goal 2.22 — per-exercise timer (#93) | **PASS** automated contract, builds, and paired-simulator visible replication | Matching iPhone/Watch timed set; phone pause reached Watch at `1:17`; controls exposed to iPhone accessibility; physical audio/haptic pending |
+| 2026-07-28 | Goal 2.23 — guided exercise stepper (#94) | **PASS** automated shape/manager contract, iOS/watchOS builds and paired-simulator visual inspection | iPhone showed phase and exercise timers, `1 of 3 · Leg Swings`, progress, controls and Done & Next; Watch showed the same name/position plus phase overtime and exercise time in a scrollable view. Desktop lock prevented UI tapping; explicit Done/Next behavior passed manager tests |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 
