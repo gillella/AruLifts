@@ -548,6 +548,7 @@ final class ActiveWorkoutManager: ObservableObject {
             current.currentPhaseIndex += 1
             showingPhaseTransitionModal = false
             current.currentPhaseStartedAt = Date()
+            restTimer.stop()
             session = current
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
@@ -567,6 +568,7 @@ final class ActiveWorkoutManager: ObservableObject {
             current.currentPhaseIndex -= 1
             showingPhaseTransitionModal = false
             current.currentPhaseStartedAt = Date()
+            restTimer.stop()
             session = current
             moveToCurrentPhaseExercise()
             checkAndStartPhaseTimer()
@@ -578,8 +580,12 @@ final class ActiveWorkoutManager: ObservableObject {
 
     func selectPhase(at index: Int) {
         guard canEdit, var current = session, current.phases.indices.contains(index) else { return }
+        let phaseChanged = index != current.currentPhaseIndex
         current.currentPhaseIndex = index
         current.currentPhaseStartedAt = Date()
+        if phaseChanged {
+            restTimer.stop()
+        }
         session = current
         showingPhaseTransitionModal = false
         moveToCurrentPhaseExercise()
