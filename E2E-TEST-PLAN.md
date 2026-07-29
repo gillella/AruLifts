@@ -108,6 +108,7 @@ history/Health result.
 | 2.18 | Speech, haptics, coaching level, contrast, large targets and VoiceOver are configurable/accessible | Settings inspection, Accessibility Inspector, physical Watch | ⏳ PENDING |
 | 2.19 | Live Activity/Smart Stack is included only if lifecycle tests do not produce stale/lingering workout state | Platform feasibility check and lifecycle tests | ⏳ PENDING |
 | 2.20 | User-facing guidance explains phone-start, Watch-start, offline, takeover and finish/sync flows | In-app guide inspection | ⏳ PENDING |
+| 2.21 | Exercise navigation is phase-scoped: Previous/Next is disabled exactly at the current phase boundary, and the Watch offers Next Phase instead of Finish Workout between phases | Model/manager contract tests plus paired-simulator UI inspection | ✅ IMPLEMENTED (#90); automated contract coverage added, paired-simulator UI validation pending |
 
 ### Automated protocol and persistence tests
 
@@ -122,6 +123,30 @@ history/Health result.
 8. A terminal tombstone rejects every later checkpoint/mutation for its session.
 9. Duplicate finalization produces one history entry and one progression update.
 10. Cached workout construction generates fresh session, exercise and set IDs.
+
+### Phase-boundary navigation checks (#90)
+
+1. In a multi-phase routine, open the first exercise of a later phase. Verify
+   **Previous** is visibly disabled even though the flat exercise index is
+   greater than zero.
+2. Open the last exercise of a non-final phase. Verify **Next** is visibly
+   disabled even though later phases contain exercises.
+3. Repeat with a phase containing one exercise. Verify both controls are
+   disabled.
+4. On Watch, complete the last exercise of a non-final phase. The completion
+   card must offer **Next Phase**, and pressing it must advance to the next
+   phase. It must not offer **Finish Workout**.
+5. At the last exercise of the final phase, verify the card offers **Finish
+   Workout**; with another exercise in the current phase, verify it offers
+   **Next Exercise**.
+6. Repeat with a plain single-template session. Navigation must span the whole
+   exercise list, and **Next Phase** must never appear.
+
+`Tests/run.sh` covers the pure `WorkoutSession` boundary helpers.
+`Tests/run_sync.sh` sweeps every exercise position and asserts that manager
+availability agrees with whether the corresponding navigation action moves.
+The visible disabled states and the Watch card labels remain paired-simulator
+acceptance checks (AC-D11–D16), not claims made by those script suites.
 
 ### Rejoin and delivery-volume tests (`Tests/run_sync.sh`)
 
@@ -255,6 +280,7 @@ Later, per Aravind.
 |------|------|--------|-------|
 | 2026-07-21 | Goal 1 — workout creation | Core creation/edit/persistence PASS; suggestions (1.2), cardio (1.5), stretching (1.6), recovery (1.7) FAIL; watch live-sync bug found | See checklist + bugs above |
 | 2026-07-24 | Goal 2 — Watch-start → phone rejoin | **PASS** on paired sims (iPhone 17 Pro iOS 26.3 + Series 11 46mm watchOS 26.1) | See below |
+| 2026-07-28 | Goal 2.21 — phase-boundary navigation (#90) | **PASS** automated model/manager contract tests and iOS/watchOS builds; paired-simulator UI checks pending | `Tests/run.sh`, `Tests/run_sync.sh`, `Tests/run_e2e.sh`; AC-D11–D16 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 

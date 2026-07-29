@@ -1014,5 +1014,85 @@ if let snapshotData = try? JSONEncoder().encode(timerSnapshot),
     failures += 1; print("FAIL PhaseTimerSnapshot JSON encode/decode round-trip")
 }
 
+// MARK: - #90 phase-boundary navigation availability
+//
+// The flat `exercises` array concatenates every phase, so a global bound is not
+// a phase bound. These assert the two must not be confused: availability is
+// always phase-relative, and it has to agree with what the navigation actions
+// actually do.
+
+func phaseBoundarySession() -> WorkoutSession {
+    // Phase 0: two exercises (global 0,1). Phase 1: two exercises (global 2,3).
+    var exercises: [SessionExercise] = (0..<4).map { i in
+        SessionExercise(
+            exerciseID: UUID(),
+            name: "Exercise \(i)",
+            sets: [SetEntry(reps: 5, weight: 50)]
+        )
+    }
+    exercises[0].phaseIndex = 0
+    exercises[1].phaseIndex = 0
+    exercises[2].phaseIndex = 1
+    exercises[3].phaseIndex = 1
+    return WorkoutSession(
+        name: "Boundary",
+        exercises: exercises,
+        phases: [
+            GymSessionLogPhase(phaseType: .warmupStretches, name: "Warm-Up"),
+            GymSessionLogPhase(phaseType: .mainStrength, name: "Strength")
+        ],
+        currentPhaseIndex: 0
+    )
+}
+
+var boundary = phaseBoundarySession()
+
+// Phase 0, first exercise: no previous, has next.
+expect(!boundary.hasPreviousExerciseInCurrentPhase(before: 0), "phase start has no previous exercise")
+expect(boundary.hasNextExerciseInCurrentPhase(after: 0), "phase start has a next exercise")
+
+// Phase 0, last exercise. Global index 1 is NOT the last of the flat array
+// (which has 4), so a global bound would wrongly report a next exercise here.
+expect(boundary.hasPreviousExerciseInCurrentPhase(before: 1), "phase end has a previous exercise")
+expect(!boundary.hasNextExerciseInCurrentPhase(after: 1), "phase end reports no next exercise despite later phases existing")
+
+// Phase 1, first exercise. Global index 2 is > 0, so a global bound would
+// wrongly report a previous exercise here.
+boundary.currentPhaseIndex = 1
+expect(!boundary.hasPreviousExerciseInCurrentPhase(before: 2), "later phase's first exercise reports no previous despite a non-zero global index")
+expect(boundary.hasNextExerciseInCurrentPhase(after: 2), "later phase's first exercise has a next")
+expect(!boundary.hasNextExerciseInCurrentPhase(after: 3), "final exercise of final phase has no next")
+
+// An index belonging to another phase is out of scope in both directions.
+expect(!boundary.hasNextExerciseInCurrentPhase(after: 0), "an index from another phase reports no next")
+expect(!boundary.hasPreviousExerciseInCurrentPhase(before: 1), "an index from another phase reports no previous")
+
+// hasNextPhase drives the Watch's "what comes next" choice.
+boundary.currentPhaseIndex = 0
+expect(boundary.hasNextPhase, "a further phase is reported while one remains")
+boundary.currentPhaseIndex = 1
+expect(!boundary.hasNextPhase, "no further phase is reported on the last phase")
+
+// A single-exercise phase has neither direction available.
+var lonePhase = phaseBoundarySession()
+lonePhase.exercises = [lonePhase.exercises[0]]
+expect(!lonePhase.hasNextExerciseInCurrentPhase(after: 0), "a one-exercise phase has no next")
+expect(!lonePhase.hasPreviousExerciseInCurrentPhase(before: 0), "a one-exercise phase has no previous")
+
+// A plain template session has no phases: navigation spans the whole list and
+// must behave exactly as it did before phase scoping existed.
+let plain = WorkoutSession(
+    name: "Plain",
+    exercises: (0..<3).map {
+        SessionExercise(exerciseID: UUID(), name: "E\($0)", sets: [SetEntry(reps: 5, weight: 50)])
+    }
+)
+expect(!plain.hasPreviousExerciseInCurrentPhase(before: 0), "plain session: first exercise has no previous")
+expect(plain.hasNextExerciseInCurrentPhase(after: 0), "plain session: first exercise has a next")
+expect(plain.hasNextExerciseInCurrentPhase(after: 1), "plain session: middle exercise has a next")
+expect(!plain.hasNextExerciseInCurrentPhase(after: 2), "plain session: last exercise has no next")
+expect(plain.hasPreviousExerciseInCurrentPhase(before: 2), "plain session: last exercise has a previous")
+expect(!plain.hasNextPhase, "plain session reports no next phase")
+
 print(failures == 0 ? "ALL TESTS PASSED" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

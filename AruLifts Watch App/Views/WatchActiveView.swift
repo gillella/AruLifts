@@ -328,14 +328,24 @@ struct WatchActiveView: View {
                 .foregroundStyle(.green)
             Text("Exercise complete")
                 .font(.headline)
-            if active.currentExerciseIndex < (active.session?.exercises.count ?? 1) - 1 {
+            // Three-way, because the last exercise of a phase is not the end of
+            // the workout. Bounding on the flat `exercises` array offered
+            // "Finish Workout" partway through a routine (#90).
+            if active.hasNextExerciseInPhase {
                 Button("Next Exercise") { active.goToNextExercise() }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
+                    .disabled(!active.canEdit)
+            } else if active.hasNextPhase {
+                Button("Next Phase") { active.advancePhase() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(!active.canEdit)
             } else {
                 Button("Finish Workout") { showingFinishConfirmation = true }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
+                    .disabled(!active.canEdit)
             }
         }
         .frame(maxWidth: .infinity)

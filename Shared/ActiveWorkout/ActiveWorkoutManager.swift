@@ -707,7 +707,7 @@ final class ActiveWorkoutManager: ObservableObject {
     func goToNextExercise() {
         guard canEdit, let session else { return }
         let scope = session.currentPhaseExerciseIndices
-        guard let position = scope.firstIndex(of: currentExerciseIndex) else {
+        guard let position = session.positionInCurrentPhase(of: currentExerciseIndex) else {
             // Index is outside the current phase (e.g. mid-migration); snap back in.
             if let landing = session.landingExerciseIndex(forPhase: session.currentPhaseIndex) {
                 currentExerciseIndex = landing
@@ -722,26 +722,31 @@ final class ActiveWorkoutManager: ObservableObject {
     func goToPreviousExercise() {
         guard canEdit, let session else { return }
         let scope = session.currentPhaseExerciseIndices
-        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return }
+        guard let position = session.positionInCurrentPhase(of: currentExerciseIndex) else { return }
         if position > 0 {
             currentExerciseIndex = scope[position - 1]
         }
     }
 
     /// True when a further exercise exists inside the current phase.
+    ///
+    /// Views must gate their navigation controls on this rather than on the
+    /// index into the flat `exercises` array: that array concatenates every
+    /// phase, so a global bound leaves the control enabled at a phase boundary
+    /// where the action is a no-op (#90).
     var hasNextExerciseInPhase: Bool {
-        guard let session else { return false }
-        let scope = session.currentPhaseExerciseIndices
-        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return false }
-        return position + 1 < scope.count
+        session?.hasNextExerciseInCurrentPhase(after: currentExerciseIndex) ?? false
     }
 
     /// True when an earlier exercise exists inside the current phase.
     var hasPreviousExerciseInPhase: Bool {
-        guard let session else { return false }
-        let scope = session.currentPhaseExerciseIndices
-        guard let position = scope.firstIndex(of: currentExerciseIndex) else { return false }
-        return position > 0
+        session?.hasPreviousExerciseInCurrentPhase(before: currentExerciseIndex) ?? false
+    }
+
+    /// True when the routine has a phase after the one in progress. Drives the
+    /// "what comes next" choice when a phase's last exercise is finished.
+    var hasNextPhase: Bool {
+        session?.hasNextPhase ?? false
     }
 
     /// The phone remains a read-only mirror until the Watch durably accepts

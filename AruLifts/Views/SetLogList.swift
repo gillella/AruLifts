@@ -117,7 +117,7 @@ struct SetLogList: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
             }
             .buttonStyle(.bordered)
-            .disabled(active.currentExerciseIndex == 0)
+            .disabled(!active.hasPreviousExerciseInPhase)
 
             Button {
                 active.goToNextExercise()
@@ -127,7 +127,7 @@ struct SetLogList: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.orange)
-            .disabled(active.currentExerciseIndex >= (active.session?.exercises.count ?? 1) - 1)
+            .disabled(!active.hasNextExerciseInPhase)
         }
         .padding(.top, 8)
     }

@@ -202,6 +202,35 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         return exerciseIndices(inPhase: currentPhaseIndex)
     }
 
+    /// Position of `index` within the current phase's exercise scope, or `nil`
+    /// when it belongs to a different phase.
+    ///
+    /// Navigation availability and the navigation actions themselves must agree
+    /// on what "next" means, so both are derived from this one function. Asking
+    /// the flat `exercises` array instead is what made navigation controls stay
+    /// enabled at a phase boundary while doing nothing (#90).
+    func positionInCurrentPhase(of index: Int) -> Int? {
+        currentPhaseExerciseIndices.firstIndex(of: index)
+    }
+
+    /// True when the current phase holds a further exercise after `index`.
+    func hasNextExerciseInCurrentPhase(after index: Int) -> Bool {
+        guard let position = positionInCurrentPhase(of: index) else { return false }
+        return position + 1 < currentPhaseExerciseIndices.count
+    }
+
+    /// True when the current phase holds an earlier exercise before `index`.
+    func hasPreviousExerciseInCurrentPhase(before index: Int) -> Bool {
+        guard let position = positionInCurrentPhase(of: index) else { return false }
+        return position > 0
+    }
+
+    /// True when a later phase exists. Always false for a single-template
+    /// session, which has no phases to advance through.
+    var hasNextPhase: Bool {
+        isMultiPhase && currentPhaseIndex + 1 < phases.count
+    }
+
     /// Where navigation should land when a phase becomes current: its first
     /// unfinished exercise, or its first exercise when everything is done.
     func landingExerciseIndex(forPhase phaseIndex: Int) -> Int? {
