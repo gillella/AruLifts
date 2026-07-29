@@ -1697,6 +1697,198 @@ MainActor.assumeIsolated {
     )
 }
 
+// MARK: - Issue #96: live exercise add/swap/remove and identity sync
+
+MainActor.assumeIsolated {
+    let phaseA = SessionExercise(
+        exerciseID: UUID(),
+        name: "Warm A",
+        sets: [SetEntry(reps: 10, weight: 0)],
+        usesWeight: false,
+        phaseIndex: 0
+    )
+    let phaseB = SessionExercise(
+        exerciseID: UUID(),
+        name: "Warm B",
+        sets: [SetEntry(reps: 10, weight: 0)],
+        usesWeight: false,
+        phaseIndex: 0
+    )
+    let selectedLater = SessionExercise(
+        exerciseID: UUID(),
+        name: "Selected Later",
+        sets: [SetEntry(reps: 10, weight: 0)],
+        usesWeight: false,
+        phaseIndex: 2
+    )
+    let liveSession = WorkoutSession(
+        name: "Live Structural Edits",
+        exercises: [phaseA, phaseB, selectedLater],
+        phases: [
+            GymSessionLogPhase(phaseType: .warmupStretches, name: "Warm-Up"),
+            GymSessionLogPhase(phaseType: .mainStrength, name: "Strength"),
+            GymSessionLogPhase(phaseType: .postStretching, name: "Cool-Down")
+        ],
+        currentPhaseIndex: 0
+    )
+    let liveRepo = repository("live-structural-edits")
+    let liveManager = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: liveRepo
+    )
+    liveManager.start(liveSession)
+    liveManager.selectPhase(at: 2)
+    let selectedIDBeforeAdd = liveManager.currentExercise?.id
+    let selectedIndexBeforeAdd = liveManager.currentExerciseIndex
+    let bench = ExerciseLibrary.all.first {
+        $0.name == "Barbell Bench Press"
+    }!
+    expect(
+        liveManager.addExercise(
+            bench,
+            toPhase: 0,
+            settings: AppSettings(),
+            preferredWeight: 80
+        ),
+        "manager adds an exercise to a live phase"
+    )
+    expect(
+        liveManager.session?.exerciseIndices(inPhase: 0).last == 2,
+        "manager insert lands at the end of the requested phase"
+    )
+    expect(
+        liveManager.currentExercise?.id == selectedIDBeforeAdd,
+        "adding before the selected exercise preserves its instance identity"
+    )
+    expect(
+        liveManager.currentExerciseIndex == selectedIndexBeforeAdd + 1,
+        "selected index follows its identity after an earlier insertion"
+    )
+    expect(
+        liveRepo.load().activeReplica?.currentExerciseID
+            == selectedIDBeforeAdd,
+        "structural edit checkpoint carries the selected exercise UUID"
+    )
+
+    expect(
+        liveManager.removeExercise(at: 0),
+        "manager removes an unstarted exercise"
+    )
+    expect(
+        liveManager.currentExercise?.id == selectedIDBeforeAdd,
+        "removing another exercise preserves the one on screen"
+    )
+
+    var completedSession = liveManager.session!
+    completedSession.exercises[0].sets[0].isCompleted = true
+    liveManager.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: completedSession,
+                owner: .phone,
+                version: SessionVersion(ownershipEpoch: 0, revision: 50),
+                currentExerciseIndex: liveManager.currentExerciseIndex,
+                currentExerciseID: liveManager.currentExercise?.id
+            ),
+            authorityState: .authoritative,
+            syncStatus: .synced
+        )
+    )
+    expect(
+        !liveManager.removeExercise(at: 0),
+        "manager blocks removal when completed sets would be lost"
+    )
+
+    let selectedIndexBeforeSwap = liveManager.currentExerciseIndex
+    let cable = ExerciseLibrary.all.first {
+        $0.name == "Incline Dumbbell Press"
+    }!
+    expect(
+        liveManager.replaceExercise(
+            at: selectedIndexBeforeSwap,
+            with: cable,
+            settings: AppSettings()
+        ),
+        "manager swaps an unstarted current exercise"
+    )
+    expect(
+        liveManager.currentExerciseIndex == selectedIndexBeforeSwap
+            && liveManager.currentExercise?.exerciseID == cable.id
+            && liveManager.currentExercise?.phaseIndex == 2,
+        "swap keeps position and phase while selecting the replacement"
+    )
+
+    let alternatives = liveManager.contextualExerciseAlternatives(limit: 4)
+    expect(
+        alternatives.count <= 4
+            && !alternatives.contains(where: {
+                $0.id == liveManager.currentExercise?.exerciseID
+            }),
+        "Watch contextual list stays short and excludes the current exercise"
+    )
+
+    // Deliberately provide a stale numeric index. The stable UUID must win
+    // when the counterpart adopts a structural checkpoint.
+    let mirroredSession = liveManager.session!
+    let mirroredSelectedID = mirroredSession.exercises.last!.id
+    let mirrorManager = ActiveWorkoutManager(
+        localDevice: .watch,
+        repository: repository("live-structural-mirror")
+    )
+    mirrorManager.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: mirroredSession,
+                owner: .phone,
+                version: SessionVersion(ownershipEpoch: 3, revision: 4),
+                currentExerciseIndex: 0,
+                currentExerciseID: mirroredSelectedID
+            ),
+            authorityState: .mirror,
+            syncStatus: .synced
+        )
+    )
+    expect(
+        mirrorManager.currentExercise?.id == mirroredSelectedID,
+        "counterpart resolves selected identity before a stale array index"
+    )
+
+    let savedTemplate = WorkoutTemplate(
+        name: "Saved Plan",
+        exercises: [
+            TemplateExercise(
+                exerciseID: bench.id,
+                name: bench.name
+            )
+        ]
+    )
+    let savedRoutine = GymSessionRoutine.defaultCompleteGymVisit(
+        templates: [savedTemplate]
+    )
+    let templateSnapshot = savedTemplate
+    let routineSnapshot = savedRoutine
+    let isolationManager = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: repository("live-plan-isolation")
+    )
+    isolationManager.start(
+        WorkoutSession.from(
+            routine: savedRoutine,
+            templates: [savedTemplate],
+            library: ExerciseLibrary.byID
+        ),
+        broadcast: false
+    )
+    _ = isolationManager.addExercise(
+        cable,
+        toPhase: isolationManager.session?.currentPhaseIndex ?? 0
+    )
+    expect(
+        savedTemplate == templateSnapshot && savedRoutine == routineSnapshot,
+        "live add never mutates the saved template or routine values"
+    )
+}
+
 try? FileManager.default.removeItem(at: root)
 print(failures == 0 ? "ALL SYNC TESTS PASSED" : "\(failures) SYNC TEST(S) FAILED")
 exit(failures == 0 ? 0 : 1)
