@@ -10,6 +10,9 @@ struct WatchActiveView: View {
     @State private var showingAdjustment = false
     @State private var showingOverview = false
     @State private var showingFinishConfirmation = false
+    @State private var showingSwapPicker = false
+    @State private var showingRemoveConfirmation = false
+    @State private var exerciseEditError: String?
     @State private var isReordering = false
     @State private var crownAdjustment: CrownAdjustment = .reps
     @State private var crownValue = 0.0
@@ -598,6 +601,40 @@ struct WatchActiveView: View {
                     }
 
                     if active.canEdit {
+                        if let current = active.currentExercise {
+                            Section("Current Exercise") {
+                                Button {
+                                    showingSwapPicker = true
+                                } label: {
+                                    Label(
+                                        "Swap \(current.name)",
+                                        systemImage: "arrow.triangle.2.circlepath"
+                                    )
+                                }
+                                .disabled(current.completedSets > 0)
+
+                                Button(role: .destructive) {
+                                    showingRemoveConfirmation = true
+                                } label: {
+                                    Label(
+                                        "Remove \(current.name)",
+                                        systemImage: "trash"
+                                    )
+                                }
+                                .disabled(current.completedSets > 0)
+
+                                if current.completedSets > 0 {
+                                    Text("Completed sets protect this exercise from being replaced or removed.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("This workout only — the saved plan stays unchanged.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
                         Section {
                             Button(active.isWorkoutPaused ? "Resume Workout" : "Pause Workout") {
                                 active.toggleWorkoutPause()
@@ -632,6 +669,40 @@ struct WatchActiveView: View {
                         .accessibilityLabel(isReordering ? "Finish reordering exercises" : "Reorder today's exercises")
                     }
                 }
+            }
+            .sheet(isPresented: $showingSwapPicker) {
+                WatchExerciseSwapView()
+                    .environmentObject(active)
+            }
+            .confirmationDialog(
+                "Remove this exercise?",
+                isPresented: $showingRemoveConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Remove from This Workout", role: .destructive) {
+                    guard active.removeExercise(
+                        at: active.currentExerciseIndex
+                    ) else {
+                        exerciseEditError =
+                            "Completed sets protect this exercise from removal."
+                        return
+                    }
+                    showingOverview = false
+                }
+                Button("Keep Exercise", role: .cancel) {}
+            } message: {
+                Text("Your saved workout plan will not change.")
+            }
+            .alert(
+                "Exercise Not Changed",
+                isPresented: Binding(
+                    get: { exerciseEditError != nil },
+                    set: { if !$0 { exerciseEditError = nil } }
+                )
+            ) {
+                Button("OK") { exerciseEditError = nil }
+            } message: {
+                Text(exerciseEditError ?? "")
             }
         }
     }
@@ -770,6 +841,66 @@ struct WatchActiveView: View {
                 }
                 .font(.caption2)
                 .accessibilityLabel("Heart rate \(Int(bpm)) beats per minute")
+            }
+        }
+    }
+}
+
+private struct WatchExerciseSwapView: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var error: String?
+
+    private var alternatives: [Exercise] {
+        active.contextualExerciseAlternatives()
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if alternatives.isEmpty {
+                    Text("No contextual alternatives are available.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(alternatives) { exercise in
+                        Button {
+                            if active.replaceExercise(
+                                at: active.currentExerciseIndex,
+                                with: exercise
+                            ) {
+                                dismiss()
+                            } else {
+                                error =
+                                    "Completed sets protect this exercise from being swapped."
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(exercise.name)
+                                Text(exercise.primaryMuscle.displayName)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Swap Exercise")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .alert(
+                "Exercise Not Changed",
+                isPresented: Binding(
+                    get: { error != nil },
+                    set: { if !$0 { error = nil } }
+                )
+            ) {
+                Button("OK") { error = nil }
+            } message: {
+                Text(error ?? "")
             }
         }
     }
