@@ -498,12 +498,16 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
                 phaseExercises[i].phaseIndex = phaseIndex
             }
 
+            let itemsForLog = phase.exerciseItems.isEmpty && !phaseExercises.isEmpty
+                ? phaseExercises.map { PhaseExerciseItem(name: $0.name) }
+                : phase.exerciseItems
+
             allExercises.append(contentsOf: phaseExercises)
             logPhases.append(GymSessionLogPhase(
                 phaseType: phase.phaseType,
                 name: phase.name,
                 durationSeconds: phase.durationSeconds,
-                exerciseItems: phase.exerciseItems,
+                exerciseItems: itemsForLog,
                 notes: phase.notes
             ))
         }

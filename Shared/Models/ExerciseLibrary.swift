@@ -439,6 +439,22 @@ enum ExerciseLibrary {
             usesWeight: false,
             isTimed: true
         ),
+        Exercise(
+            id: uid(94),
+            name: "Stair Stepper",
+            primaryMuscle: .cardio,
+            secondaryMuscles: [.quads, .glutes, .calves],
+            equipment: .machine,
+            instructions: [
+                "Step onto the pedals and maintain an upright posture.",
+                "Maintain a steady stepping cadence at a comfortable resistance.",
+                "Avoid leaning heavily on the handrails."
+            ],
+            tips: ["Great for lower body warm-up and cardiovascular endurance."],
+            symbol: "figure.stair.stepper",
+            usesWeight: false,
+            isTimed: true
+        ),
 
         // MARK: - Stretching / Mobility (timed)
         Exercise(
@@ -536,6 +552,40 @@ enum ExerciseLibrary {
             symbol: "figure.cooldown",
             usesWeight: false,
             isTimed: true
+        ),
+
+        // MARK: - Recovery & Heat Therapy (timed)
+        Exercise(
+            id: uid(200),
+            name: "Sauna Heat Exposure",
+            primaryMuscle: .cardio,
+            secondaryMuscles: [.fullBody],
+            equipment: .bodyweight,
+            instructions: [
+                "Sit comfortably in the sauna with relaxed posture.",
+                "Breathe slowly and deeply through your nose.",
+                "Hydrate thoroughly before and after the session."
+            ],
+            tips: ["Promotes muscular relaxation and circulatory recovery."],
+            symbol: "flame.fill",
+            usesWeight: false,
+            isTimed: true
+        ),
+        Exercise(
+            id: uid(201),
+            name: "Steam Room Session",
+            primaryMuscle: .cardio,
+            secondaryMuscles: [.fullBody],
+            equipment: .bodyweight,
+            instructions: [
+                "Relax in the steam room environment.",
+                "Maintain steady, calm breathing.",
+                "Cool down gradually after finishing."
+            ],
+            tips: ["Eases joint stiffness and aids respiratory relaxation."],
+            symbol: "cloud.fog.fill",
+            usesWeight: false,
+            isTimed: true
         )
     ]
 
@@ -588,7 +638,10 @@ enum ExerciseLibrary {
         "Chest Doorway Stretch": .init(imageName: "chest_doorway_stretch", videoURL: "https://www.youtube.com/watch?v=N6Lp6fW0M88", videoName: "chest_doorway_stretch"),
         "Shoulder Cross-Body Stretch": .init(imageName: "shoulder_cross_body_stretch", videoURL: "https://www.youtube.com/watch?v=I7X1vY3t0bM", videoName: "shoulder_cross_body_stretch"),
         "Hip Flexor Stretch": .init(imageName: "hip_flexor_stretch", videoURL: "https://www.youtube.com/watch?v=YQmpO9VTk4E", videoName: "hip_flexor_stretch"),
-        "Child's Pose": .init(imageName: "childs_pose", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "childs_pose")
+        "Child's Pose": .init(imageName: "childs_pose", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "childs_pose"),
+        "Stair Stepper": .init(imageName: "stair_stepper", videoURL: "https://www.youtube.com/watch?v=33K16298nFk", videoName: "stair_stepper"),
+        "Sauna Heat Exposure": .init(imageName: "sauna_heat_exposure", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "sauna_heat_exposure"),
+        "Steam Room Session": .init(imageName: "steam_room_session", videoURL: "https://www.youtube.com/watch?v=eqVMAPM00DM", videoName: "steam_room_session")
     ]
 
     static let all: [Exercise] = rawAll.map { raw in
@@ -703,6 +756,131 @@ enum ExerciseLibrary {
                     timed(104, "Hip Flexor Stretch", seconds: 45),
                     timed(102, "Chest Doorway Stretch", seconds: 45),
                     timed(105, "Child's Pose", seconds: 60)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Cardio - Stair Stepper",
+                category: .cardio,
+                exercises: [
+                    timed(94, "Stair Stepper", seconds: 900)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Cardio - Elliptical",
+                category: .cardio,
+                exercises: [
+                    timed(92, "Elliptical", seconds: 900)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Cardio - Treadmill Run",
+                category: .cardio,
+                exercises: [
+                    timed(90, "Treadmill", seconds: 900)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Cardio - Stationary Bike",
+                category: .cardio,
+                exercises: [
+                    timed(91, "Stationary Bike", seconds: 900)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Active Warm Up - Upper Body Mobility",
+                category: .stretching,
+                exercises: [
+                    timed(102, "Chest Doorway Stretch", seconds: 60),
+                    timed(103, "Shoulder Stretch", seconds: 60),
+                    timed(105, "Child's Pose", seconds: 60)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Active Warm Up - Lower Body & Core",
+                category: .stretching,
+                exercises: [
+                    timed(100, "Hamstring Stretch", seconds: 60),
+                    timed(104, "Hip Flexor Stretch", seconds: 60),
+                    timed(101, "Quad Stretch", seconds: 60)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Active Warm Up - Dynamic Full Body",
+                category: .stretching,
+                exercises: [
+                    timed(100, "Hamstring Stretch", seconds: 45),
+                    timed(102, "Chest Doorway Stretch", seconds: 45),
+                    timed(104, "Hip Flexor Stretch", seconds: 45)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Post Stretch - Upper Body & Spine",
+                category: .stretching,
+                exercises: [
+                    timed(102, "Chest Doorway Stretch", seconds: 60),
+                    timed(103, "Shoulder Stretch", seconds: 60),
+                    timed(105, "Child's Pose", seconds: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Post Stretch - Lower Body & Hips",
+                category: .stretching,
+                exercises: [
+                    timed(100, "Hamstring Stretch", seconds: 60),
+                    timed(101, "Quad Stretch", seconds: 60),
+                    timed(104, "Hip Flexor Stretch", seconds: 60),
+                    timed(105, "Child's Pose", seconds: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Post Stretch - Full Body Recovery",
+                category: .stretching,
+                exercises: [
+                    timed(100, "Hamstring Stretch", seconds: 60),
+                    timed(102, "Chest Doorway Stretch", seconds: 60),
+                    timed(101, "Quad Stretch", seconds: 60),
+                    timed(105, "Child's Pose", seconds: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Core Workout - Ab Blast",
+                category: .core,
+                exercises: [
+                    timed(70, "Plank", seconds: 60),
+                    te(71, "Hanging Leg Raise", sets: 3, reps: 15, rest: 90),
+                    te(72, "Cable Crunch", sets: 3, reps: 15, weight: 30, rest: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Core Workout - Mat & Cable Core",
+                category: .core,
+                exercises: [
+                    timed(70, "Plank", seconds: 60),
+                    te(72, "Cable Crunch", sets: 4, reps: 15, weight: 35, rest: 90),
+                    te(71, "Hanging Leg Raise", sets: 3, reps: 12, rest: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Core Workout - Anti-Extension & Rotational",
+                category: .core,
+                exercises: [
+                    timed(70, "Plank", seconds: 90),
+                    te(71, "Hanging Leg Raise", sets: 4, reps: 12, rest: 90),
+                    te(72, "Cable Crunch", sets: 3, reps: 15, weight: 30, rest: 90)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Sauna Heat Therapy - 15m",
+                category: .recovery,
+                exercises: [
+                    timed(200, "Sauna Heat Exposure", seconds: 900)
+                ]
+            ),
+            WorkoutTemplate(
+                name: "Steam Room Session - 10m",
+                category: .recovery,
+                exercises: [
+                    timed(201, "Steam Room Session", seconds: 600)
                 ]
             )
         ]

@@ -164,6 +164,8 @@ struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
         self.templateID = templateID
         if let exerciseItems {
             self.exerciseItems = exerciseItems
+        } else if templateID != nil {
+            self.exerciseItems = []
         } else {
             let names = exerciseNames.isEmpty ? Self.defaultExercises(for: phaseType) : exerciseNames
             self.exerciseItems = names.map { PhaseExerciseItem(name: $0) }
@@ -309,6 +311,150 @@ struct GymSessionRoutine: Identifiable, Codable, Hashable {
         )
     }
 
+    // MARK: - 4-Day Daily Gym Visit Routines
+
+    static func tuesdayUpperBodyRoutine(templates: [WorkoutTemplate] = []) -> GymSessionRoutine {
+        let cardioID = templates.first(where: { $0.name == "Cardio - Stair Stepper" })?.id
+            ?? templates.first(where: { $0.category == .cardio })?.id
+        let warmupID = templates.first(where: { $0.name == "Active Warm Up - Upper Body Mobility" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let upperBodyAID = templates.first(where: { $0.name == "Upper Body A (Strength)" })?.id
+            ?? templates.first(where: { $0.category == .upperBody })?.id
+        let stretchID = templates.first(where: { $0.name == "Post Stretch - Upper Body & Spine" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let coreID = templates.first(where: { $0.name == "Core Workout - Ab Blast" })?.id
+            ?? templates.first(where: { $0.category == .core })?.id
+        let saunaID = templates.first(where: { $0.name == "Sauna Heat Therapy - 15m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+        let steamID = templates.first(where: { $0.name == "Steam Room Session - 10m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+
+        let phases = [
+            GymSessionRoutinePhase(phaseType: .preCardio, name: "Cardio (Stair Stepper)", durationSeconds: 900, templateID: cardioID),
+            GymSessionRoutinePhase(phaseType: .warmupStretches, name: "Active Warm Up", durationSeconds: 300, templateID: warmupID),
+            GymSessionRoutinePhase(phaseType: .mainStrength, name: "Upper Body Lifting (Upper Body A)", durationSeconds: 3600, templateID: upperBodyAID),
+            GymSessionRoutinePhase(phaseType: .postStretching, name: "Cool-Down Stretch", durationSeconds: 900, templateID: stretchID),
+            GymSessionRoutinePhase(phaseType: .coreWork, name: "Abdominal & Core", durationSeconds: 900, templateID: coreID),
+            GymSessionRoutinePhase(phaseType: .saunaRecovery, name: "Sauna Recovery", durationSeconds: 900, templateID: saunaID, notes: "Hydrate with 500ml water"),
+            GymSessionRoutinePhase(phaseType: .steamRecovery, name: "Steam Room Recovery", durationSeconds: 600, templateID: steamID, notes: "Deep diaphragmatic breathing")
+        ]
+
+        return GymSessionRoutine(
+            name: "Tuesday Workout (Upper Body Focus)",
+            notes: "15m Stepper → Warmup → Upper Body A → Stretch → Core → Sauna → Steam",
+            phases: phases
+        )
+    }
+
+    static func wednesdayLowerBodyRoutine(templates: [WorkoutTemplate] = []) -> GymSessionRoutine {
+        let cardioID = templates.first(where: { $0.name == "Cardio - Elliptical" })?.id
+            ?? templates.first(where: { $0.category == .cardio })?.id
+        let warmupID = templates.first(where: { $0.name == "Active Warm Up - Lower Body & Core" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let lowerBodyAID = templates.first(where: { $0.name == "Lower Body A (Strength)" })?.id
+            ?? templates.first(where: { $0.category == .lowerBody })?.id
+        let stretchID = templates.first(where: { $0.name == "Post Stretch - Lower Body & Hips" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let coreID = templates.first(where: { $0.name == "Core Workout - Mat & Cable Core" })?.id
+            ?? templates.first(where: { $0.category == .core })?.id
+        let saunaID = templates.first(where: { $0.name == "Sauna Heat Therapy - 15m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+        let steamID = templates.first(where: { $0.name == "Steam Room Session - 10m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+
+        let phases = [
+            GymSessionRoutinePhase(phaseType: .preCardio, name: "Cardio (Elliptical)", durationSeconds: 900, templateID: cardioID),
+            GymSessionRoutinePhase(phaseType: .warmupStretches, name: "Active Warm Up", durationSeconds: 300, templateID: warmupID),
+            GymSessionRoutinePhase(phaseType: .mainStrength, name: "Lower Body Lifting (Lower Body A)", durationSeconds: 3600, templateID: lowerBodyAID),
+            GymSessionRoutinePhase(phaseType: .postStretching, name: "Cool-Down Stretch", durationSeconds: 900, templateID: stretchID),
+            GymSessionRoutinePhase(phaseType: .coreWork, name: "Abdominal & Core", durationSeconds: 900, templateID: coreID),
+            GymSessionRoutinePhase(phaseType: .saunaRecovery, name: "Sauna Recovery", durationSeconds: 900, templateID: saunaID, notes: "Hydrate with 500ml water"),
+            GymSessionRoutinePhase(phaseType: .steamRecovery, name: "Steam Room Recovery", durationSeconds: 600, templateID: steamID, notes: "Deep breathing cool-down")
+        ]
+
+        return GymSessionRoutine(
+            name: "Wednesday Workout (Lower Body Focus)",
+            notes: "15m Elliptical → Warmup → Lower Body A → Stretch → Core → Sauna → Steam",
+            phases: phases
+        )
+    }
+
+    static func thursdayUpperBodyHypertrophyRoutine(templates: [WorkoutTemplate] = []) -> GymSessionRoutine {
+        let cardioID = templates.first(where: { $0.name == "Cardio - Treadmill Run" })?.id
+            ?? templates.first(where: { $0.category == .cardio })?.id
+        let warmupID = templates.first(where: { $0.name == "Active Warm Up - Upper Body Mobility" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let upperBodyBID = templates.first(where: { $0.name == "Upper Body B (Hypertrophy)" })?.id
+            ?? templates.first(where: { $0.category == .upperBody })?.id
+        let stretchID = templates.first(where: { $0.name == "Post Stretch - Upper Body & Spine" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let coreID = templates.first(where: { $0.name == "Core Workout - Anti-Extension & Rotational" })?.id
+            ?? templates.first(where: { $0.category == .core })?.id
+        let saunaID = templates.first(where: { $0.name == "Sauna Heat Therapy - 15m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+        let steamID = templates.first(where: { $0.name == "Steam Room Session - 10m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+
+        let phases = [
+            GymSessionRoutinePhase(phaseType: .preCardio, name: "Cardio (Treadmill Run)", durationSeconds: 900, templateID: cardioID),
+            GymSessionRoutinePhase(phaseType: .warmupStretches, name: "Active Warm Up", durationSeconds: 300, templateID: warmupID),
+            GymSessionRoutinePhase(phaseType: .mainStrength, name: "Upper Body Hypertrophy (Upper Body B)", durationSeconds: 3600, templateID: upperBodyBID),
+            GymSessionRoutinePhase(phaseType: .postStretching, name: "Cool-Down Stretch", durationSeconds: 900, templateID: stretchID),
+            GymSessionRoutinePhase(phaseType: .coreWork, name: "Abdominal & Core", durationSeconds: 900, templateID: coreID),
+            GymSessionRoutinePhase(phaseType: .saunaRecovery, name: "Sauna Recovery", durationSeconds: 900, templateID: saunaID, notes: "Hydrate with 500ml water"),
+            GymSessionRoutinePhase(phaseType: .steamRecovery, name: "Steam Room Recovery", durationSeconds: 600, templateID: steamID, notes: "Relaxation and recovery")
+        ]
+
+        return GymSessionRoutine(
+            name: "Thursday Workout (Upper Body Hypertrophy)",
+            notes: "15m Treadmill → Warmup → Upper Body B → Stretch → Core → Sauna → Steam",
+            phases: phases
+        )
+    }
+
+    static func fridayLowerBodyHypertrophyRoutine(templates: [WorkoutTemplate] = []) -> GymSessionRoutine {
+        let cardioID = templates.first(where: { $0.name == "Cardio - Stationary Bike" })?.id
+            ?? templates.first(where: { $0.category == .cardio })?.id
+        let warmupID = templates.first(where: { $0.name == "Active Warm Up - Dynamic Full Body" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let lowerBodyBID = templates.first(where: { $0.name == "Lower Body B (Hypertrophy)" })?.id
+            ?? templates.first(where: { $0.category == .lowerBody })?.id
+        let stretchID = templates.first(where: { $0.name == "Post Stretch - Full Body Recovery" })?.id
+            ?? templates.first(where: { $0.category == .stretching })?.id
+        let coreID = templates.first(where: { $0.name == "Core Workout - Ab Blast" })?.id
+            ?? templates.first(where: { $0.category == .core })?.id
+        let saunaID = templates.first(where: { $0.name == "Sauna Heat Therapy - 15m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+        let steamID = templates.first(where: { $0.name == "Steam Room Session - 10m" })?.id
+            ?? templates.first(where: { $0.category == .recovery })?.id
+
+        let phases = [
+            GymSessionRoutinePhase(phaseType: .preCardio, name: "Cardio (Stationary Bike)", durationSeconds: 900, templateID: cardioID),
+            GymSessionRoutinePhase(phaseType: .warmupStretches, name: "Active Warm Up", durationSeconds: 300, templateID: warmupID),
+            GymSessionRoutinePhase(phaseType: .mainStrength, name: "Lower Body Hypertrophy (Lower Body B)", durationSeconds: 3600, templateID: lowerBodyBID),
+            GymSessionRoutinePhase(phaseType: .postStretching, name: "Cool-Down Stretch", durationSeconds: 900, templateID: stretchID),
+            GymSessionRoutinePhase(phaseType: .coreWork, name: "Abdominal & Core", durationSeconds: 900, templateID: coreID),
+            GymSessionRoutinePhase(phaseType: .saunaRecovery, name: "Sauna Recovery", durationSeconds: 900, templateID: saunaID, notes: "Hydrate with 500ml water"),
+            GymSessionRoutinePhase(phaseType: .steamRecovery, name: "Steam Room Recovery", durationSeconds: 600, templateID: steamID, notes: "Full body recovery")
+        ]
+
+        return GymSessionRoutine(
+            name: "Friday Workout (Lower Body Hypertrophy)",
+            notes: "15m Stationary Bike → Warmup → Lower Body B → Stretch → Core → Sauna → Steam",
+            phases: phases
+        )
+    }
+
+    static func default4DayRoutines(templates: [WorkoutTemplate] = []) -> [GymSessionRoutine] {
+        [
+            tuesdayUpperBodyRoutine(templates: templates),
+            wednesdayLowerBodyRoutine(templates: templates),
+            thursdayUpperBodyHypertrophyRoutine(templates: templates),
+            fridayLowerBodyHypertrophyRoutine(templates: templates)
+        ]
+    }
+
+
     var enabledPhases: [GymSessionRoutinePhase] {
         phases.filter { $0.isEnabled }
     }
@@ -339,7 +485,7 @@ enum PhaseActivityKind: String, Codable, Hashable, CaseIterable {
     /// the machine named in the phase (or its linked template) so a stair
     /// stepper is not logged as generic cardio; anything unrecognised falls
     /// back to `mixedCardio`.
-    static func resolve(phaseType: GymSessionPhaseType, exerciseNames: [String]) -> PhaseActivityKind {
+    static func resolve(phaseType: GymSessionPhaseType, exerciseNames: [String], phaseName: String = "") -> PhaseActivityKind {
         switch phaseType {
         case .mainStrength:
             return .traditionalStrengthTraining
@@ -352,7 +498,8 @@ enum PhaseActivityKind: String, Codable, Hashable, CaseIterable {
         case .saunaRecovery, .steamRecovery:
             return .preparationAndRecovery
         case .preCardio:
-            return cardioKind(from: exerciseNames)
+            let namesToSearch = phaseName.isEmpty ? exerciseNames : exerciseNames + [phaseName]
+            return cardioKind(from: namesToSearch)
         }
     }
 
@@ -450,6 +597,6 @@ struct GymSessionLogPhase: Identifiable, Codable, Hashable {
 
     /// How this phase should be tracked in Health.
     var activityKind: PhaseActivityKind {
-        PhaseActivityKind.resolve(phaseType: phaseType, exerciseNames: exerciseNames)
+        PhaseActivityKind.resolve(phaseType: phaseType, exerciseNames: exerciseNames, phaseName: name)
     }
 }

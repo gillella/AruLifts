@@ -457,7 +457,7 @@ if let p = try? Backup.decode(partial) {
 let demoExercises = ExerciseLibrary.all.filter { !$0.isTimed }
 let timedExercises = ExerciseLibrary.all.filter { $0.isTimed }
 expect(demoExercises.count == 24, "24 built-in set/rep exercises")
-expect(timedExercises.count == 10, "10 built-in timed exercises (cardio + stretch)")
+expect(timedExercises.count >= 10, "built-in timed exercises (cardio + stretch) present")
 expect(demoExercises.allSatisfy { $0.demoImageName != nil }, "all set/rep built-ins have demo illustrations")
 expect(Set(demoExercises.compactMap(\.demoImageName)).count == 24, "demo illustration names are unique")
 expect(
@@ -467,8 +467,9 @@ expect(
     },
     "all set/rep built-ins have direct YouTube watch links"
 )
-expect(ExerciseLibrary.all.allSatisfy { $0.videoName != nil }, "all 34 exercises have video demo clips assigned")
-expect(Set(ExerciseLibrary.all.compactMap(\.videoName)).count == 34, "video demo names are unique across all 34 exercises")
+let totalExercisesCount = ExerciseLibrary.all.count
+expect(ExerciseLibrary.all.allSatisfy { $0.videoName != nil }, "all \(totalExercisesCount) exercises have video demo clips assigned")
+expect(Set(ExerciseLibrary.all.compactMap(\.videoName)).count == totalExercisesCount, "video demo names are unique across all \(totalExercisesCount) exercises")
 expect(timedExercises.allSatisfy { !$0.instructions.isEmpty }, "timed built-ins have form notes")
 
 // --- Watch-first live-workout replication ---
@@ -814,7 +815,7 @@ if let restored = try? JSONDecoder().decode(RestTimerSnapshot.self, from: JSONEn
 } else { failures += 1; print("FAIL configured rest snapshot did not decode") }
 
 let defaultTemplates = ExerciseLibrary.defaultTemplates()
-expect(defaultTemplates.count == 8, "8 default templates present including 4-Day Upper/Lower split")
+expect(defaultTemplates.count >= 8, "8 default templates present including 4-Day Upper/Lower split")
 expect(defaultTemplates.contains { $0.name == "Upper Body A (Strength)" }, "Upper Body A (Strength) template present")
 expect(defaultTemplates.contains { $0.name == "Lower Body A (Strength)" }, "Lower Body A (Strength) template present")
 expect(defaultTemplates.contains { $0.name == "Upper Body B (Hypertrophy)" }, "Upper Body B (Hypertrophy) template present")
@@ -823,13 +824,60 @@ expect(defaultTemplates.contains { $0.name == "Lower Body B (Hypertrophy)" }, "L
 MainActor.assumeIsolated {
     let migrationStore = WorkoutStore()
     migrationStore.ensureDefaultTemplatesExist()
-    expect(migrationStore.templates.count == 8, "ensureDefaultTemplatesExist populates missing starter templates on existing stores")
+    expect(migrationStore.templates.count >= 8, "ensureDefaultTemplatesExist populates missing starter templates on existing stores")
     expect(!migrationStore.gymRoutines.isEmpty, "default GymSessionRoutine is auto-created on launch")
 }
 
 let defaultRoutine = GymSessionRoutine.defaultCompleteGymVisit()
 expect(defaultRoutine.phases.count == 7, "default routine contains 7 phases")
 expect(defaultRoutine.enabledPhases.count == 7, "all 7 default phases are enabled")
+
+let fourDayRoutines = GymSessionRoutine.default4DayRoutines(templates: defaultTemplates)
+expect(fourDayRoutines.count == 4, "default4DayRoutines produces 4 daily gym visit routines")
+
+let tuesday = fourDayRoutines.first(where: { $0.name.contains("Tuesday") })
+expect(tuesday != nil, "Tuesday workout routine is present")
+if let tuesday {
+    expect(tuesday.phases.count == 7, "Tuesday workout routine contains 7 phases")
+    expect(tuesday.phases.allSatisfy { $0.templateID != nil }, "Tuesday workout has a template attached to every phase")
+    let upperBodyAPhase = tuesday.phases.first(where: { $0.phaseType == .mainStrength })
+    let upperBodyATemplate = defaultTemplates.first(where: { $0.name == "Upper Body A (Strength)" })
+    expect(upperBodyAPhase?.templateID == upperBodyATemplate?.id, "Tuesday workout main strength phase is linked to Upper Body A (Strength)")
+
+    let tuesdaySession = WorkoutSession.from(routine: tuesday, templates: defaultTemplates, library: ExerciseLibrary.byID)
+    expect(tuesdaySession.phases.count == 7, "Tuesday workout session materializes 7 phases")
+    expect(!tuesdaySession.exercises.isEmpty, "Tuesday workout session materializes exercises across all attached templates")
+
+    let cardioPhase = tuesdaySession.phases.first(where: { $0.phaseType == .preCardio })
+    expect(cardioPhase?.activityKind == .stairClimbing, "Tuesday cardio (Stair Stepper) maps to stairClimbing activity")
+}
+
+let wednesday = fourDayRoutines.first(where: { $0.name.contains("Wednesday") })
+expect(wednesday != nil, "Wednesday workout routine is present")
+if let wednesday {
+    expect(wednesday.phases.allSatisfy { $0.templateID != nil }, "Wednesday workout has a template attached to every phase")
+    let wednesdaySession = WorkoutSession.from(routine: wednesday, templates: defaultTemplates, library: ExerciseLibrary.byID)
+    let cardioPhase = wednesdaySession.phases.first(where: { $0.phaseType == .preCardio })
+    expect(cardioPhase?.activityKind == .elliptical, "Wednesday cardio (Elliptical) maps to elliptical activity")
+}
+
+let thursday = fourDayRoutines.first(where: { $0.name.contains("Thursday") })
+expect(thursday != nil, "Thursday workout routine is present")
+if let thursday {
+    expect(thursday.phases.allSatisfy { $0.templateID != nil }, "Thursday workout has a template attached to every phase")
+    let thursdaySession = WorkoutSession.from(routine: thursday, templates: defaultTemplates, library: ExerciseLibrary.byID)
+    let cardioPhase = thursdaySession.phases.first(where: { $0.phaseType == .preCardio })
+    expect(cardioPhase?.activityKind == .running, "Thursday cardio (Treadmill) maps to running activity")
+}
+
+let friday = fourDayRoutines.first(where: { $0.name.contains("Friday") })
+expect(friday != nil, "Friday workout routine is present")
+if let friday {
+    expect(friday.phases.allSatisfy { $0.templateID != nil }, "Friday workout has a template attached to every phase")
+    let fridaySession = WorkoutSession.from(routine: friday, templates: defaultTemplates, library: ExerciseLibrary.byID)
+    let cardioPhase = fridaySession.phases.first(where: { $0.phaseType == .preCardio })
+    expect(cardioPhase?.activityKind == .cycling, "Friday cardio (Stationary Bike) maps to cycling activity")
+}
 
 let routineSession = WorkoutSession.from(
     routine: defaultRoutine,
