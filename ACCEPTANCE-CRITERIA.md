@@ -427,6 +427,12 @@ pause/resume, +15s, reset and **Done**/**Done & Next** controls remain together 
 secondary navigation scroller. With the sync banner and inline rest bar present, all
 primary interval controls remain simultaneously visible.
 
+**AC-D36** *(#111)* — An offline Watch plan-cache round-trip preserves each set's
+execution shape independently. In an exercise mixing timed and rep-based sets, an
+explicit zero-duration set remains rep-based and the reconstructed exercise continues
+to use the normal set logger; only legacy sets that omitted the duration field inherit
+the exercise-level migration duration.
+
 ---
 
 ## 9. Area E — Timers, overtime and cues

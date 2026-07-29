@@ -220,6 +220,10 @@ simulator acceptance check (AC-D17–D20).
 8. With both the sync/wake banner and inline rest bar visible on iPhone, verify the
    guided summary, countdown, −15s/pause/+15s/reset and **Done**/**Done & Next**
    remain simultaneously visible above the secondary navigation scroller (AC-D35).
+9. Round-trip a Watch cache containing one timed and one explicitly rep-based set in
+   the same exercise. Verify durations remain `[timed, 0]` and the fresh Watch session
+   uses the normal set logger. Separately decode a legacy set with no duration field
+   and verify its exercise-level migration duration still applies (AC-D36).
 
 `Tests/run.sh` covers shape selection. `Tests/run_sync.sh` covers explicit
 interval completion, multi-interval behavior, phase-boundary protection and a
@@ -445,6 +449,7 @@ Later, per Aravind.
 | 2026-07-29 | Post-v3.1 — routine composer stepper layout (#108) | **PASS** rendered default/XXXL text layouts, live Reps/Sets increment taps, logic/sync/E2E suites and both simulator builds | Both rows remained visually separate and tappable; test edits were cancelled and simulator text size restored; AC-B22 |
 | 2026-07-29 | Post-v3.1 — inline rest countdown layout (#109) | **PASS** rendered running/paused rest states, timer-state contract, logic/sync/E2E suites and both simulator builds | **Resting 2:13** and **Rest paused 1:40** remained single-line beside all controls; the same fixed-size path covers the shorter **Rest over** label and `+M:SS`; AC-E22 |
 | 2026-07-29 | Post-v3.1 — guided countdown visibility (#110) | **PASS** constrained iPhone rendering, live timer-control tap, logic/sync/E2E suites and both simulator builds | With wake banner and rest bar visible, summary, overtime countdown, four timer controls and **Done & Next** were simultaneously visible; +15 changed overtime and Reset remained actionable; AC-D35 |
+| 2026-07-29 | Post-v3.1 — Watch mixed-set cache fidelity (#111) | **PASS** explicit-zero and legacy-migration round trips, logic/sync/E2E suites and both simulator builds | Mixed `[30, 0]` durations remain `[30, 0]` and retain the set logger; a legacy omitted duration still inherits 45s; AC-D36 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 

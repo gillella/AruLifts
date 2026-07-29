@@ -97,6 +97,10 @@ struct WatchStartableSet: Identifiable, Codable, Hashable {
     var weight: Double
     var durationSeconds: Int
     var isWarmup: Bool
+    /// False only for caches written before per-set durations existed. Those
+    /// legacy sets may still inherit the exercise-level duration during
+    /// migration; an explicitly encoded zero always remains rep-based.
+    private var hasExplicitDuration: Bool
 
     init(
         id: UUID = UUID(),
@@ -110,6 +114,7 @@ struct WatchStartableSet: Identifiable, Codable, Hashable {
         self.weight = weight
         self.durationSeconds = max(0, durationSeconds)
         self.isWarmup = isWarmup
+        hasExplicitDuration = true
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -123,6 +128,22 @@ struct WatchStartableSet: Identifiable, Codable, Hashable {
         weight = try c.decode(Double.self, forKey: .weight)
         durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds) ?? 0
         isWarmup = try c.decodeIfPresent(Bool.self, forKey: .isWarmup) ?? false
+        hasExplicitDuration = c.contains(.durationSeconds)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(reps, forKey: .reps)
+        try c.encode(weight, forKey: .weight)
+        if hasExplicitDuration {
+            try c.encode(durationSeconds, forKey: .durationSeconds)
+        }
+        try c.encode(isWarmup, forKey: .isWarmup)
+    }
+
+    fileprivate func sessionDuration(fallingBackTo legacyDuration: Int) -> Int {
+        hasExplicitDuration ? durationSeconds : max(0, legacyDuration)
     }
 }
 
@@ -400,9 +421,9 @@ struct WatchStartableWorkout: Identifiable, Codable, Hashable {
                             id: UUID(),
                             reps: cachedSet.reps,
                             weight: cachedSet.weight,
-                            durationSeconds: cachedSet.durationSeconds > 0
-                                ? cachedSet.durationSeconds
-                                : cachedExercise.durationSeconds,
+                            durationSeconds: cachedSet.sessionDuration(
+                                fallingBackTo: cachedExercise.durationSeconds
+                            ),
                             isCompleted: false,
                             isWarmup: cachedSet.isWarmup
                         )
