@@ -148,6 +148,25 @@ availability agrees with whether the corresponding navigation action moves.
 The visible disabled states and the Watch card labels remain paired-simulator
 acceptance checks (AC-D11–D16), not claims made by those script suites.
 
+### Guided phase materialization checks (#92)
+
+1. Start the default Complete Gym Visit without editing it. Verify Pre-Workout
+   Cardio shows Elliptical and Treadmill Incline as navigable exercises.
+2. Advance to Dynamic Warm-Up. Walk Leg Swings → Arm Circles → Hip Mobility
+   using Previous/Next on iPhone and Watch; navigation must remain phase-scoped.
+3. Verify each derived timed set carries a target duration and zero rest, and
+   completing one does not open the recovery rest timer.
+4. Advance to Core Work and verify all four declared defaults are navigable.
+5. Advance through Sauna and Steam and verify both intentionally remain
+   timer-only and advanceable.
+6. Start a routine containing an unmatched free-text item and verify it remains
+   a usable non-weighted entry.
+
+`Tests/run.sh` covers template parity, materialization, unknown names, empty
+phases, duration derivation/clamping, rest defaults, activity classification,
+and Watch-plan construction. Visible phone/Watch navigation remains a paired
+simulator acceptance check (AC-D17–D20).
+
 ### Rejoin and delivery-volume tests (`Tests/run_sync.sh`)
 
 Added 2026-07-24 after a sync outage that all three prior suites missed. This

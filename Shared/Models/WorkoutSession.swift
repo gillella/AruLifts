@@ -377,27 +377,21 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
             let phaseIndex = logPhases.count
             var phaseExercises: [SessionExercise] = []
             // Any phase may link a template, not just main strength — cardio,
-            // warm-up, cool-down and recovery phases are composable too. Core
-            // work falls back to built-in defaults only when nothing is linked.
+            // warm-up, cool-down and recovery phases are composable too. A
+            // linked template wins; otherwise the phase's own structured items
+            // become first-class session exercises.
             if let templateID = phase.templateID, let template = templates.first(where: { $0.id == templateID }) {
                 let templateSession = WorkoutSession.from(template: template, library: library, settings: settings)
                 phaseExercises = templateSession.exercises
-            } else if phase.phaseType == .coreWork {
-                // Pre-populate default core exercises if available
-                let coreNames = phase.exerciseNames.isEmpty ? ["Plank", "Ab Rollout", "Hanging Knee Raise", "Cable Crunch"] : phase.exerciseNames
-                for name in coreNames {
-                    let matchingLib = library.values.first(where: { $0.name.lowercased() == name.lowercased() })
-                    let exID = matchingLib?.id ?? UUID()
-                    let isTimedCore = matchingLib?.isTimed ?? (name.lowercased().contains("plank"))
-                    let set = isTimedCore ? SetEntry(reps: 0, weight: 0) : SetEntry(reps: 15, weight: 0)
-                    phaseExercises.append(SessionExercise(
-                        exerciseID: exID,
-                        name: name,
-                        sets: [set, set, set],
-                        restSeconds: settings?.defaultRestSeconds ?? 60,
-                        usesWeight: false,
-                        loadingMode: .bodyweight
-                    ))
+            } else {
+                phaseExercises = phase.exerciseItems.map { item in
+                    materialize(
+                        item,
+                        in: phase,
+                        itemCount: phase.exerciseItems.count,
+                        library: library,
+                        settings: settings
+                    )
                 }
             }
 
@@ -424,6 +418,62 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
             exercises: allExercises,
             phases: logPhases,
             currentPhaseIndex: 0
+        )
+    }
+
+    /// Converts a routine-owned target into the same executable shape used by
+    /// template exercises. Unknown names remain usable as non-weighted
+    /// bodyweight entries rather than making a saved routine unstartable.
+    private static func materialize(
+        _ item: PhaseExerciseItem,
+        in phase: GymSessionRoutinePhase,
+        itemCount: Int,
+        library: [UUID: Exercise],
+        settings: AppSettings?
+    ) -> SessionExercise {
+        let libraryExercise = library.values.first {
+            $0.name.compare(item.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+        let isTimed: Bool
+        if item.durationSeconds > 0 {
+            isTimed = true
+        } else if item.reps > 0 {
+            isTimed = false
+        } else {
+            isTimed = libraryExercise?.isTimed ?? phase.phaseType.isTimed
+        }
+        let derivedDuration = min(
+            180,
+            max(20, phase.durationSeconds / max(1, itemCount))
+        )
+        let durationSeconds = isTimed
+            ? (item.durationSeconds > 0 ? item.durationSeconds : derivedDuration)
+            : 0
+        let defaultReps = phase.phaseType == .coreWork ? 15 : 10
+        let reps = isTimed ? 0 : (item.reps > 0 ? item.reps : defaultReps)
+        let sets = (0..<max(1, item.sets)).map { _ in
+            SetEntry(
+                reps: reps,
+                weight: 0,
+                durationSeconds: durationSeconds
+            )
+        }
+        let restSeconds: Int
+        if isTimed || phase.phaseType == .warmupStretches || phase.phaseType == .postStretching {
+            restSeconds = 0
+        } else if let settings {
+            restSeconds = settings.defaultRestSeconds
+        } else {
+            restSeconds = phase.phaseType == .coreWork ? 60 : 180
+        }
+
+        return SessionExercise(
+            exerciseID: libraryExercise?.id ?? item.id,
+            name: item.name,
+            sets: sets,
+            restSeconds: restSeconds,
+            usesWeight: isTimed ? false : (libraryExercise?.usesWeight ?? false),
+            loadingMode: libraryExercise?.loadingMode ?? .bodyweight
         )
     }
 }

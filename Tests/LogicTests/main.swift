@@ -1177,6 +1177,250 @@ expect(
     "legacy Watch cache exercise duration migrates onto its fresh session set"
 )
 
+// MARK: - #92 materialize every declared phase exercise
+
+let parityTemplate = defaultTemplates[0]
+let plainParitySession = WorkoutSession.from(
+    template: parityTemplate,
+    library: ExerciseLibrary.byID
+)
+let linkedParityRoutine = GymSessionRoutine(
+    name: "Linked parity",
+    phases: [
+        GymSessionRoutinePhase(
+            phaseType: .mainStrength,
+            templateID: parityTemplate.id,
+            exerciseItems: []
+        )
+    ]
+)
+let linkedParitySession = WorkoutSession.from(
+    routine: linkedParityRoutine,
+    templates: [parityTemplate],
+    library: ExerciseLibrary.byID
+)
+expect(
+    linkedParitySession.exercises.count == plainParitySession.exercises.count,
+    "linked phase keeps the template exercise count"
+)
+expect(
+    zip(linkedParitySession.exercises, plainParitySession.exercises).allSatisfy { linked, plain in
+        linked.exerciseID == plain.exerciseID
+            && linked.name == plain.name
+            && linked.sets.map(\.reps) == plain.sets.map(\.reps)
+            && linked.sets.map(\.weight) == plain.sets.map(\.weight)
+            && linked.sets.map(\.durationSeconds) == plain.sets.map(\.durationSeconds)
+            && linked.restSeconds == plain.restSeconds
+            && linked.usesWeight == plain.usesWeight
+            && linked.loadingMode == plain.loadingMode
+    },
+    "linked phase preserves the template exercise execution shape"
+)
+
+let materializedRoutine = GymSessionRoutine(
+    name: "Materialized phases",
+    phases: [
+        GymSessionRoutinePhase(
+            phaseType: .warmupStretches,
+            durationSeconds: 300,
+            exerciseItems: [
+                PhaseExerciseItem(name: "Leg Swings"),
+                PhaseExerciseItem(name: "Arm Circles", durationSeconds: 45),
+                PhaseExerciseItem(name: "Hip Mobility"),
+                PhaseExerciseItem(name: "Unlisted Mobility Drill"),
+                PhaseExerciseItem(name: "Warm-Up Reps", reps: 12, sets: 2)
+            ]
+        ),
+        GymSessionRoutinePhase(
+            phaseType: .saunaRecovery,
+            durationSeconds: 900,
+            exerciseItems: []
+        )
+    ]
+)
+let materializedSession = WorkoutSession.from(
+    routine: materializedRoutine,
+    templates: [],
+    library: ExerciseLibrary.byID
+)
+let warmupMaterialized = materializedSession.exercises(inPhase: 0)
+expect(warmupMaterialized.count == 5, "one session exercise is materialized per phase item")
+expect(
+    warmupMaterialized.allSatisfy { $0.phaseIndex == 0 },
+    "materialized exercises carry their owning phase index"
+)
+expect(
+    warmupMaterialized[0].sets.first?.durationSeconds == 60
+        && warmupMaterialized[1].sets.first?.durationSeconds == 45,
+    "timed items use derived duration unless an explicit duration wins"
+)
+expect(
+    warmupMaterialized.allSatisfy { $0.restSeconds == 0 },
+    "warm-up materialization defaults to zero rest"
+)
+expect(
+    warmupMaterialized[3].name == "Unlisted Mobility Drill"
+        && !warmupMaterialized[3].usesWeight
+        && warmupMaterialized[3].loadingMode == .bodyweight,
+    "unmatched phase item remains a usable non-weighted entry"
+)
+expect(
+    warmupMaterialized[4].sets.count == 2
+        && warmupMaterialized[4].sets.allSatisfy {
+            $0.reps == 12 && $0.durationSeconds == 0
+        },
+    "explicit rep targets override a timed phase default"
+)
+expect(
+    materializedSession.exercises(inPhase: 1).isEmpty,
+    "an empty recovery phase remains timer-only"
+)
+
+let legacyRecoveryRoutineData = """
+{
+  "id":"00000000-0000-0000-0000-000000000192",
+  "name":"Legacy Recovery",
+  "notes":"",
+  "createdAt":0,
+  "phases":[{
+    "id":"00000000-0000-0000-0000-000000000193",
+    "phaseType":"saunaRecovery",
+    "isEnabled":true,
+    "name":"Sauna Recovery",
+    "durationSeconds":900,
+    "exerciseItems":[{
+      "id":"00000000-0000-0000-0000-000000000194",
+      "name":"Sauna Heat Therapy (Hydrate 500ml)",
+      "durationSeconds":0,
+      "reps":0,
+      "sets":1
+    }],
+    "notes":""
+  }]
+}
+""".data(using: .utf8)!
+if let legacyRecovery = try? JSONDecoder().decode(
+    GymSessionRoutine.self, from: legacyRecoveryRoutineData
+) {
+    expect(
+        legacyRecovery.phases.first?.exerciseItems.isEmpty == true,
+        "legacy shipped Sauna placeholder migrates back to timer-only"
+    )
+} else {
+    failures += 1; print("FAIL legacy recovery routine did not decode")
+}
+
+let lowClampRoutine = GymSessionRoutine(
+    name: "Low duration clamp",
+    phases: [
+        GymSessionRoutinePhase(
+            phaseType: .warmupStretches,
+            durationSeconds: 10,
+            exerciseItems: [
+                PhaseExerciseItem(name: "Quick A"),
+                PhaseExerciseItem(name: "Quick B")
+            ]
+        )
+    ]
+)
+let lowClampSession = WorkoutSession.from(
+    routine: lowClampRoutine,
+    templates: [],
+    library: [:]
+)
+expect(
+    lowClampSession.exercises.allSatisfy { $0.sets.first?.durationSeconds == 20 },
+    "derived item duration clamps to a 20-second minimum"
+)
+
+let highClampRoutine = GymSessionRoutine(
+    name: "High duration clamp",
+    phases: [
+        GymSessionRoutinePhase(
+            phaseType: .postStretching,
+            durationSeconds: 3600,
+            exerciseItems: [
+                PhaseExerciseItem(name: "Long A"),
+                PhaseExerciseItem(name: "Long B")
+            ]
+        )
+    ]
+)
+let highClampSession = WorkoutSession.from(
+    routine: highClampRoutine,
+    templates: [],
+    library: [:]
+)
+expect(
+    highClampSession.exercises.allSatisfy { $0.sets.first?.durationSeconds == 180 },
+    "derived item duration clamps to a 180-second maximum"
+)
+
+let defaultMaterializedRoutine = GymSessionRoutine.defaultCompleteGymVisit(
+    templates: defaultTemplates
+)
+let defaultMaterializedSession = WorkoutSession.from(
+    routine: defaultMaterializedRoutine,
+    templates: defaultTemplates,
+    library: ExerciseLibrary.byID
+)
+let defaultWarmupIndex = defaultMaterializedSession.phases.firstIndex {
+    $0.phaseType == .warmupStretches
+}!
+let defaultWarmupExercises = defaultMaterializedSession.exercises(
+    inPhase: defaultWarmupIndex
+)
+expect(
+    defaultWarmupExercises.count >= 3,
+    "default Dynamic Warm-Up materializes three or more exercises"
+)
+expect(
+    defaultMaterializedSession.hasNextExerciseInCurrentPhase(
+        after: defaultMaterializedSession.exerciseIndices(inPhase: 0).first!
+    ),
+    "default first phase materialization is navigable"
+)
+
+let defaultCoreIndex = defaultMaterializedSession.phases.firstIndex {
+    $0.phaseType == .coreWork
+}!
+expect(
+    defaultMaterializedSession.exercises(inPhase: defaultCoreIndex).map(\.name)
+        == ["Plank", "Ab Rollout", "Hanging Knee Raise", "Cable Crunch"],
+    "core work flows through declared defaults without a special branch"
+)
+let defaultSaunaIndex = defaultMaterializedSession.phases.firstIndex {
+    $0.phaseType == .saunaRecovery
+}!
+let defaultSteamIndex = defaultMaterializedSession.phases.firstIndex {
+    $0.phaseType == .steamRecovery
+}!
+expect(
+    defaultMaterializedSession.exercises(inPhase: defaultSaunaIndex).isEmpty
+        && defaultMaterializedSession.exercises(inPhase: defaultSteamIndex).isEmpty,
+    "default Sauna and Steam remain timer-only"
+)
+let defaultCardioIndex = defaultMaterializedSession.phases.firstIndex {
+    $0.phaseType == .preCardio
+}!
+expect(
+    defaultMaterializedSession.activityKind(forPhase: defaultCardioIndex) == .elliptical,
+    "materialized cardio retains machine-specific activity classification"
+)
+
+let materializedWatchPlan = WatchStartableWorkout(
+    routine: defaultMaterializedRoutine,
+    templates: defaultTemplates,
+    library: ExerciseLibrary.byID,
+    settings: AppSettings()
+)
+let watchWarmup = materializedWatchPlan.makeFreshSession()
+    .exercises(inPhase: defaultWarmupIndex)
+expect(
+    watchWarmup.map(\.name) == defaultWarmupExercises.map(\.name),
+    "offline Watch plan exposes the same materialized warm-up list"
+)
+
 // MARK: - #90 phase-boundary navigation availability
 //
 // The flat `exercises` array concatenates every phase, so a global bound is not

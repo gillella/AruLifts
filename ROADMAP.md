@@ -89,7 +89,7 @@ loggable part of the session on both devices.
 - [x] **[#91] Structured phase exercise list and per-set duration** 📱⌚️ — replace the untyped
   `[String]` phase list with `PhaseExerciseItem`, and carry `durationSeconds` onto `SetEntry`
   so timed work survives into execution. Model + migration; gates #92–#95.
-- [ ] **[#92] Materialize every phase's exercises into the active session** 📱⌚️ — generalize
+- [x] **[#92] Materialize every phase's exercises into the active session** 📱⌚️ — generalize
   the template-or-core-work special case so any phase with declared exercises becomes navigable.
 - [ ] **[#93] Per-exercise countdown timer, replicated to Watch** 📱⌚️ — a third timer alongside
   rest and phase, with the same overtime / never-auto-advance contract and full sync replication.

@@ -173,10 +173,11 @@ struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
             ?? Self.defaultDuration(for: phaseType)
         templateID = try c.decodeIfPresent(UUID.self, forKey: .templateID)
         if let items = try c.decodeIfPresent([PhaseExerciseItem].self, forKey: .exerciseItems) {
-            exerciseItems = items
+            exerciseItems = Self.migratedExerciseItems(items, for: phaseType)
         } else {
-            exerciseItems = try c.decodeIfPresent([String].self, forKey: .exerciseNames)?
+            let legacyItems = try c.decodeIfPresent([String].self, forKey: .exerciseNames)?
                 .map { PhaseExerciseItem(name: $0) } ?? []
+            exerciseItems = Self.migratedExerciseItems(legacyItems, for: phaseType)
         }
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }
@@ -212,9 +213,32 @@ struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
         case .mainStrength: return []
         case .postStretching: return ["Hamstring Stretch", "Chest Opener", "Quad Stretch", "Child's Pose"]
         case .coreWork: return ["Plank", "Ab Rollout", "Hanging Knee Raise", "Cable Crunch"]
-        case .saunaRecovery: return ["Sauna Heat Therapy (Hydrate 500ml)"]
-        case .steamRecovery: return ["Steam Room Session"]
+        case .saunaRecovery, .steamRecovery: return []
         }
+    }
+
+    /// Earlier app versions persisted recovery guidance as if it were an
+    /// exercise. Remove only those exact shipped placeholders; genuine custom
+    /// recovery items remain intact.
+    private static func migratedExerciseItems(
+        _ items: [PhaseExerciseItem],
+        for phaseType: GymSessionPhaseType
+    ) -> [PhaseExerciseItem] {
+        let legacyPlaceholder: String?
+        switch phaseType {
+        case .saunaRecovery:
+            legacyPlaceholder = "Sauna Heat Therapy (Hydrate 500ml)"
+        case .steamRecovery:
+            legacyPlaceholder = "Steam Room Session"
+        default:
+            legacyPlaceholder = nil
+        }
+        guard let legacyPlaceholder,
+              items.count == 1,
+              items[0].name == legacyPlaceholder else {
+            return items
+        }
+        return []
     }
 }
 
