@@ -128,16 +128,16 @@ The seeded routine, used by most criteria below:
 
 | # | Phase | Duration | Timed | Seeded exercises |
 |---|---|---|---|---|
-| 1 | Pre-Workout Cardio | 15 min | yes | none (names only: Elliptical, Treadmill Incline) |
-| 2 | Dynamic Warm-Up Stretches | 5 min | yes | none (names only) |
+| 1 | Pre-Workout Cardio | 15 min | yes | Elliptical, Treadmill Incline |
+| 2 | Dynamic Warm-Up Stretches | 5 min | yes | Leg Swings, Arm Circles, Hip Mobility |
 | 3 | Main Strength Training | 60 min | no | from linked template |
-| 4 | Post-Workout Cool-Down | 15 min | yes | none (names only) |
-| 5 | Abdominal / Mat Core Work | 15 min | yes | built-in core defaults |
+| 4 | Post-Workout Cool-Down | 15 min | yes | Hamstring Stretch, Chest Opener, Child's Pose |
+| 5 | Abdominal / Mat Core Work | 15 min | yes | Plank, Ab Rollout, Hanging Knee Raise, Cable Crunch |
 | 6 | Sauna Recovery | 15 min | yes | none |
 | 7 | Steam Recovery | 10 min | yes | none |
 
-Total ≈ 135 min. **Phases 1, 2, 4, 6, 7 have no logged exercises** — that is expected and
-is exactly what AC-D5 checks.
+Total ≈ 135 min. **Only phases 6 and 7 have no logged exercises** — their timer-only
+recovery presentation is expected and is exactly what AC-D5 checks.
 
 ---
 
@@ -256,16 +256,16 @@ Reset, then start "Complete Gym Visit" from Home.
 
 **AC-D2** *(#80)* — The banner reads **Phase 1 of 7: Pre-Workout Cardio**.
 
-**AC-D3** *(#80)* — **No exercise from another phase is visible.** Phase 1 has no
-exercises, so the screen shows the phase card (icon, phase name, machine names, guidance)
-— **not** Barbell Bench Press. *(This regression was found by running the app after the
-first #80 implementation.)*
+**AC-D3** *(#80/#92)* — **No exercise from another phase is visible.** Phase 1 shows its
+own cardio entries (**Elliptical**, then **Treadmill Incline**) — never Barbell Bench
+Press. *(The cross-phase regression was found by running the app after the first #80
+implementation.)*
 
 **AC-D4** *(#80)* — Tap **Next Phase** twice to reach **Phase 3 of 7: Main Strength
 Training**. The pager now lists **only that phase's** exercises.
 
-**AC-D5** *(#80)* — Phases with no exercises (1, 2, 4, 6, 7) still render correctly and
-are advanceable.
+**AC-D5** *(#80/#92)* — The genuinely empty recovery phases (6 Sauna, 7 Steam) render
+their timer-only screen correctly and remain advanceable.
 
 **AC-D6** *(#80)* — **Prev/Next do not cross a phase boundary.** In phase 3, press Next
 past the last exercise: it stops at the last exercise of that phase and never enters
@@ -309,6 +309,19 @@ it offers **"Next Exercise"**.
 **AC-D16** *(#90)* — **A plain template session is unaffected**: start a single template.
 Previous is disabled only on the first exercise, Next only on the last, and the Watch card
 offers "Next Exercise" then "Finish Workout" with no "Next Phase" ever shown.
+
+**AC-D17** *(#92)* — Without editing or linking another template, phase 2 **Dynamic
+Warm-Up Stretches** exposes at least three phase-scoped exercises. Previous/Next walks
+Leg Swings → Arm Circles → Hip Mobility and never crosses into another phase.
+
+**AC-D18** *(#92)* — A declared timed phase item has one set with a non-zero duration and
+zero rest. Completing it records work in the session without opening the rest timer.
+
+**AC-D19** *(#92)* — Phase 5 **Abdominal / Mat Core Work** exposes its four declared
+exercises through the same phase navigation path; there is no special core-only fallback.
+
+**AC-D20** *(#92)* — A saved custom item whose name is not in the exercise library still
+appears as a usable non-weighted exercise rather than preventing the routine from starting.
 
 ---
 
@@ -515,7 +528,7 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 | A Templates | AC-A1–A6 | #75, #78 |
 | B Composer | AC-B1–B12 | #77, #78, #74 |
 | C Home | AC-C1–C4 | #74, #77 |
-| D Phase scoping | AC-D1–D16 | #80, #86, #90 |
+| D Phase scoping | AC-D1–D20 | #80, #86, #90, #92 |
 | E Timers | AC-E1–E13 | #81, #82, #86 |
 | F Form access | AC-F1–F4 | #76 |
 | G Watch | AC-G1–G7 | #83, #80, #81 |
@@ -530,7 +543,8 @@ criteria here as it lands, per §17.
 
 - #90 — landed, covered by AC-D11–D16
 - #91 — model/migration-only; covered by the automated gates in AC-0.1
-- #92–#96 — open, not yet covered
+- #92 — landed, covered by AC-D3, AC-D5 and AC-D17–D20
+- #93–#96 — open, not yet covered
 
 ### Superseded findings
 

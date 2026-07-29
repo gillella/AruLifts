@@ -1045,6 +1045,52 @@ MainActor.assumeIsolated {
         expect(plainManager.hasPreviousExerciseInPhase, "plain session: a previous exists at the last exercise")
     }
     expect(!plainManager.hasNextPhase, "plain session never reports a next phase")
+
+    // #92: the default routine now supplies real exercises without linked
+    // templates in cardio, warm-up, cool-down and core phases. Exercise
+    // selection and navigation use the same manager path as linked strength.
+    let guidedSession = WorkoutSession.from(
+        routine: GymSessionRoutine.defaultCompleteGymVisit(templates: templates),
+        templates: templates,
+        library: ExerciseLibrary.byID
+    )
+    let guidedManager = ActiveWorkoutManager(
+        localDevice: .watch,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("guidedPhaseNav"))
+    )
+    guidedManager.start(guidedSession, broadcast: false)
+    expect(
+        guidedManager.currentExercise?.name == "Elliptical",
+        "default cardio materialization is visible to the active manager"
+    )
+    guidedManager.goToNextExercise()
+    expect(
+        guidedManager.currentExercise?.name == "Treadmill Incline",
+        "manager navigates the default cardio item list"
+    )
+    if let warmupIndex = guidedManager.session?.phases.firstIndex(where: {
+        $0.phaseType == .warmupStretches
+    }) {
+        guidedManager.selectPhase(at: warmupIndex)
+        expect(
+            guidedManager.currentExercise?.name == "Leg Swings",
+            "selecting Dynamic Warm-Up lands on its first materialized item"
+        )
+        guidedManager.goToNextExercise()
+        expect(
+            guidedManager.currentExercise?.name == "Arm Circles",
+            "Watch manager navigates materialized warm-up items"
+        )
+    }
+    if let saunaIndex = guidedManager.session?.phases.firstIndex(where: {
+        $0.phaseType == .saunaRecovery
+    }) {
+        guidedManager.selectPhase(at: saunaIndex)
+        expect(
+            guidedManager.currentExercise == nil,
+            "selecting Sauna retains the intentional timer-only presentation"
+        )
+    }
 }
 
 // MARK: - Issue #81: timers keep counting past zero and never auto-advance
