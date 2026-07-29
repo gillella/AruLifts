@@ -391,6 +391,33 @@ show the old dead-end “No logged exercises” copy.
 position, interval progress and remaining/overtime duration. Timer controls and Done/Next
 each have an explicit label and action hint on iPhone and Watch.
 
+**AC-D29** *(#96)* — During an editable live session, iPhone **Exercise Options → Add
+Exercise** opens the full searchable, muscle-filterable library. Selecting an exercise
+inserts it at the end of the current phase's contiguous exercise run; an empty phase
+places it before the next populated phase.
+
+**AC-D30** *(#96)* — **Swap Current Exercise** uses the same iPhone library picker and
+replaces the current live instance in place, retaining its phase attribution. The new
+sets, loading mode, bodyweight behavior, timed duration, bar minimum and generated
+warmups use the same shared construction path as template startup.
+
+**AC-D31** *(#96)* — An exercise with **zero completed sets** can be removed after an
+explicit confirmation. Remove and Swap are blocked once any set is completed, with
+user-facing explanation; logged work is never silently discarded.
+
+**AC-D32** *(#96)* — Add, Swap and Remove mutate only the active `WorkoutSession`.
+Reopen the saved `WorkoutTemplate` or `GymSessionRoutine`: its exercise names, order and
+targets are unchanged.
+
+**AC-D33** *(#96)* — Adding or removing an exercise elsewhere in the flat array keeps the
+exercise currently on screen selected by its **session-instance UUID**, even when its
+numeric index changes. Removing the selected exercise lands on the next exercise in the
+same phase, then the previous one.
+
+**AC-D34** *(#96)* — Structural edits are ownership-gated exactly like set logging:
+the authoritative device broadcasts the full edited session, while a read-only mirror
+cannot add, swap or remove.
+
 ---
 
 ## 9. Area E — Timers, overtime and cues
@@ -516,6 +543,11 @@ phase's exercises, with a phase-relative position indicator.
 
 **AC-G7** *(#81)* — Overtime renders on the Watch in green with an `OVER` label.
 
+**AC-G8** *(#96)* — Watch Workout Options offers **Swap** and **Remove**, but not a full
+library browser or Add. Swap presents at most six contextual built-in alternatives based
+on the current exercise's muscle group; both actions protect completed sets and state
+that the saved plan is unchanged.
+
 ---
 
 ## 12. Area H — Sync, ownership and durability
@@ -551,6 +583,10 @@ finished workout.
 
 **AC-H10** *(#81)* — Overtime replicates: a peer adopting an already-overtime timer shows
 overtime and does **not** replay the completion alert.
+
+**AC-H11** *(#96)* — A structural checkpoint carries both the selected array index and
+selected session-exercise UUID. The receiving manager resolves UUID first, so insertion,
+removal or reordered delivery cannot shift the counterpart to another exercise.
 
 ---
 
@@ -625,11 +661,11 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 | A Templates | AC-A1–A6 | #75, #78 |
 | B Composer | AC-B1–B21 | #77, #78, #74, #95 |
 | C Home | AC-C1–C4 | #74, #77 |
-| D Phase scoping | AC-D1–D28 | #80, #86, #90, #92, #94 |
+| D Phase scoping | AC-D1–D34 | #80, #86, #90, #92, #94, #96 |
 | E Timers | AC-E1–E20 | #81, #82, #86, #93 |
 | F Form access | AC-F1–F4 | #76 |
-| G Watch | AC-G1–G7 | #83, #80, #81 |
-| H Sync | AC-H1–H10 | Goal 2, #81, #82 |
+| G Watch | AC-G1–G8 | #83, #80, #81, #96 |
+| H Sync | AC-H1–H11 | Goal 2, #81, #82, #96 |
 | I HealthKit | AC-I1–I8 | #84 |
 | J Persistence | AC-J1–J4 | #85 |
 
@@ -644,7 +680,7 @@ criteria here as it lands, per §17.
 - #93 — implemented, covered by AC-E14–E20
 - #94 — implemented, covered by AC-D21–D28
 - #95 — implemented, covered by AC-B13–B21
-- #96 — open, not yet covered
+- #96 — implemented, covered by AC-D29–D34, AC-G8 and AC-H11
 
 ### Superseded findings
 
