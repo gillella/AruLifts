@@ -926,9 +926,15 @@ MainActor.assumeIsolated {
     }
 
     // Advancing the phase is what moves you on — and it repositions the exercise.
+    // Rest belongs to the phase/set that started it and cannot cross this boundary.
+    manager.restTimer.start(seconds: 120)
     manager.advancePhase()
     let phase1 = manager.session?.exerciseIndices(inPhase: 1) ?? []
     expect(manager.session?.currentPhaseIndex == 1, "advancePhase moves to phase 1")
+    expect(
+        !manager.restTimer.isRunning && !manager.restTimer.isPaused,
+        "advancePhase stops rest from the completed phase"
+    )
     expect(
         phase1.contains(manager.currentExerciseIndex),
         "advancing a phase repositions the live exercise into that phase"
@@ -938,13 +944,31 @@ MainActor.assumeIsolated {
         "advancing lands on the new phase's first unfinished exercise"
     )
 
-    // Going back a phase repositions too.
+    // Going back a phase repositions too and also clears phase-local rest.
+    manager.restTimer.start(seconds: 120)
+    manager.restTimer.pause()
     manager.previousPhase()
+    expect(
+        !manager.restTimer.isRunning && !manager.restTimer.isPaused,
+        "previousPhase stops rest from the phase being left"
+    )
     expect(
         phase0.contains(manager.currentExerciseIndex),
         "previousPhase repositions the live exercise back into the earlier phase"
     )
     expect(!manager.hasPreviousExerciseInPhase || phase0.count > 1, "phase-relative Previous is consistent")
+
+    manager.restTimer.sync(
+        endDate: Date().addingTimeInterval(-10),
+        totalSeconds: 120
+    )
+    expect(manager.restTimer.isOvertime, "selectPhase setup enters rest overtime")
+    manager.selectPhase(at: 1)
+    expect(
+        !manager.restTimer.isRunning && !manager.restTimer.isPaused,
+        "selectPhase stops rest when selecting a different phase"
+    )
+    manager.selectPhase(at: 0)
 
     // MARK: #90 — availability must agree with what the action does
     //

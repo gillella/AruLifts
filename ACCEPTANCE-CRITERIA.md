@@ -524,6 +524,11 @@ different exercise/set still arms that target from its full prescribed duration.
 **Rest over** label and `M:SS`/`+M:SS` countdown on one line at the default text size,
 without wrapping digits between lines beside the +30, Skip and options controls.
 
+**AC-E23** *(#112)* — Rest is scoped to the phase/set that started it. Advancing,
+returning to or directly selecting a different phase stops running, paused or overtime
+rest before the new phase is presented and replicates no rest snapshot, so the new
+phase never inherits a stale countdown or **UP NEXT** label.
+
 ---
 
 ## 10. Area F — Exercise form access during a workout

@@ -281,6 +281,10 @@ accessibility tree (AC-D29–D34, AC-G8, AC-H11).
 2. Pause rest and verify **Rest paused** and its countdown remain single-line.
 3. Let or synchronize rest into overtime; verify **Rest over** and `+M:SS` remain
    single-line and do not split their digits across rows (AC-E22).
+4. While rest is running, advance to another phase, return to the previous phase and
+   directly select a different phase. After each actual phase change, verify rest is
+   stopped, the inline bar is gone and the replicated checkpoint contains no rest
+   snapshot (AC-E23).
 
 ### Per-exercise timer checks (#93)
 
@@ -450,6 +454,7 @@ Later, per Aravind.
 | 2026-07-29 | Post-v3.1 — inline rest countdown layout (#109) | **PASS** rendered running/paused rest states, timer-state contract, logic/sync/E2E suites and both simulator builds | **Resting 2:13** and **Rest paused 1:40** remained single-line beside all controls; the same fixed-size path covers the shorter **Rest over** label and `+M:SS`; AC-E22 |
 | 2026-07-29 | Post-v3.1 — guided countdown visibility (#110) | **PASS** constrained iPhone rendering, live timer-control tap, logic/sync/E2E suites and both simulator builds | With wake banner and rest bar visible, summary, overtime countdown, four timer controls and **Done & Next** were simultaneously visible; +15 changed overtime and Reset remained actionable; AC-D35 |
 | 2026-07-29 | Post-v3.1 — Watch mixed-set cache fidelity (#111) | **PASS** explicit-zero and legacy-migration round trips, logic/sync/E2E suites and both simulator builds | Mixed `[30, 0]` durations remain `[30, 0]` and retain the set logger; a legacy omitted duration still inherits 45s; AC-D36 |
+| 2026-07-29 | Post-v3.1 — phase-scoped rest cleanup (#112) | **PASS** rendered phase transition, manager advance/previous/select regression, logic/sync/E2E suites and both simulator builds | A visible **Resting 2:55** bar disappeared when returning from Strength to Dynamic Warm-Up; the new phase showed no stale rest or UP NEXT label; AC-E23 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 
