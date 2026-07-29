@@ -1445,10 +1445,82 @@ let legacyTimedWatchPlan = WatchStartableWorkout(
         )
     ]
 )
-expect(
-    legacyTimedWatchPlan.makeFreshSession().exercises.first?.sets.first?.durationSeconds == 45,
-    "legacy Watch cache exercise duration migrates onto its fresh session set"
+if let encodedLegacyPlan = try? JSONEncoder().encode(legacyTimedWatchPlan),
+   var legacyObject = try? JSONSerialization.jsonObject(
+       with: encodedLegacyPlan
+   ) as? [String: Any],
+   var legacyExercises = legacyObject["exercises"] as? [[String: Any]],
+   var legacyExercise = legacyExercises.first,
+   var legacySets = legacyExercise["sets"] as? [[String: Any]],
+   var legacySet = legacySets.first {
+    legacySet.removeValue(forKey: "durationSeconds")
+    legacySets[0] = legacySet
+    legacyExercise["sets"] = legacySets
+    legacyExercises[0] = legacyExercise
+    legacyObject["exercises"] = legacyExercises
+    if let legacyData = try? JSONSerialization.data(withJSONObject: legacyObject),
+       let decodedLegacyPlan = try? JSONDecoder().decode(
+           WatchStartableWorkout.self,
+           from: legacyData
+       ) {
+        expect(
+            decodedLegacyPlan.makeFreshSession()
+                .exercises.first?.sets.first?.durationSeconds == 45,
+            "legacy Watch cache exercise duration migrates onto its fresh session set"
+        )
+    } else {
+        failures += 1
+        print("FAIL legacy Watch cache fixture did not decode")
+    }
+} else {
+    failures += 1
+    print("FAIL legacy Watch cache fixture could not be created")
+}
+
+let mixedWatchPlan = WatchStartableWorkout(
+    templateID: UUID(),
+    name: "Mixed Set Plan",
+    category: .core,
+    exercises: [
+        WatchStartableExercise(
+            exerciseID: UUID(),
+            name: "Mixed Hold",
+            sets: [
+                WatchStartableSet(
+                    reps: 0,
+                    weight: 0,
+                    durationSeconds: 30
+                ),
+                WatchStartableSet(
+                    reps: 8,
+                    weight: 0,
+                    durationSeconds: 0
+                )
+            ],
+            restSeconds: 60,
+            usesWeight: false,
+            durationSeconds: 30
+        )
+    ]
 )
+if let mixedData = try? JSONEncoder().encode(mixedWatchPlan),
+   let decodedMixedPlan = try? JSONDecoder().decode(
+       WatchStartableWorkout.self,
+       from: mixedData
+   ) {
+    let restoredMixed = decodedMixedPlan.makeFreshSession().exercises[0]
+    expect(
+        restoredMixed.sets.map(\.durationSeconds) == [30, 0],
+        "Watch cache keeps explicit rep sets rep-based in a mixed exercise"
+    )
+    expect(
+        !restoredMixed.usesGuidedTimedStepper,
+        "Watch cache round-trip keeps a mixed exercise in the set logger"
+    )
+} else {
+    failures += 1
+    print("FAIL mixed Watch plan cache did not round-trip")
+}
 
 // MARK: - #92 materialize every declared phase exercise
 

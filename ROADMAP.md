@@ -29,7 +29,8 @@ Post-v3.1 stabilization includes preserving an active per-exercise countdown acr
 unrelated live structural edits ([#107]) and keeping routine-composer Reps/Sets
 controls visually separated ([#108]). Inline rest countdowns remain single-line beside
 their controls ([#109]), and guided interval timing stays visible while its detail/action
-area scrolls ([#110]).
+area scrolls ([#110]). Watch plan caching preserves mixed timed/rep set shapes without
+weakening legacy duration migration ([#111]).
 
 ---
 
