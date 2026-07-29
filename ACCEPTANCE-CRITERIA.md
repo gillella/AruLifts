@@ -376,6 +376,35 @@ that phase** — not elapsed time of the whole session. *(Verify in History.)*
 session in the watch-owned state, the phase timer keeps its remaining time and does not
 reset to `00:00`.
 
+**AC-E14** *(#93)* — A timed set (`durationSeconds > 0`) automatically shows a
+per-exercise countdown on **both iPhone and Watch**, associated with that exact exercise
+and set. A rep-based set shows no exercise timer.
+
+**AC-E15** *(#93)* — The timer supports **pause/resume, −15 s, +15 s, and Reset** on both
+devices. Every action replicates to the peer. Reset returns to the set's prescribed
+duration, not an adjusted duration.
+
+**AC-E16** *(#93)* — At zero the exercise timer alerts once and continues as visually
+distinct overtime (`+M:SS`). It does **not** complete the set, change the exercise, or
+advance the phase.
+
+**AC-E17** *(#93)* — **Paused overtime round-trips.** Pause after zero, transfer ownership,
+and resume on the other device: the same overtime magnitude is retained and continues
+counting upward.
+
+**AC-E18** *(#93)* — Completing the timed set arms the next incomplete timed set at its
+full prescribed duration. Selecting another exercise resets to that exercise's first
+incomplete timed set; selecting a rep-based exercise clears the exercise timer.
+
+**AC-E19** *(#93)* — **Sync cannot blank or misattach an exercise timer.** An older
+checkpoint without an exercise-timer snapshot preserves a newly armed local timer for
+the same set, while a snapshot carrying another exercise/set identity is never displayed
+on the current set. Ownership handoff preserves the latest matching snapshot.
+
+**AC-E20** *(#93)* — Completion uses the existing haptic/spoken-cue policy: both devices
+may provide their local haptic, while only the phone owns speech. The announcement names
+the timed exercise. *(Physical haptic/audio remain `BLOCKED-SIM`.)*
+
 ---
 
 ## 10. Area F — Exercise form access during a workout
@@ -529,7 +558,7 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 | B Composer | AC-B1–B12 | #77, #78, #74 |
 | C Home | AC-C1–C4 | #74, #77 |
 | D Phase scoping | AC-D1–D20 | #80, #86, #90, #92 |
-| E Timers | AC-E1–E13 | #81, #82, #86 |
+| E Timers | AC-E1–E20 | #81, #82, #86, #93 |
 | F Form access | AC-F1–F4 | #76 |
 | G Watch | AC-G1–G7 | #83, #80, #81 |
 | H Sync | AC-H1–H10 | Goal 2, #81, #82 |
@@ -544,7 +573,8 @@ criteria here as it lands, per §17.
 - #90 — landed, covered by AC-D11–D16
 - #91 — model/migration-only; covered by the automated gates in AC-0.1
 - #92 — landed, covered by AC-D3, AC-D5 and AC-D17–D20
-- #93–#96 — open, not yet covered
+- #93 — implemented, covered by AC-E14–E20
+- #94–#96 — open, not yet covered
 
 ### Superseded findings
 
