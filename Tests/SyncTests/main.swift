@@ -1278,6 +1278,225 @@ MainActor.assumeIsolated {
     )
 }
 
+// MARK: - Issue #93: per-exercise timer replication
+
+let timedExerciseID = UUID()
+let timedSetID = UUID()
+let exerciseSnapshot = ExerciseTimerSnapshot(
+    endDate: Date().addingTimeInterval(45),
+    totalSeconds: 60,
+    pausedRemainingSeconds: -12,
+    exerciseID: timedExerciseID,
+    setID: timedSetID
+)
+if let encoded = try? JSONEncoder().encode(exerciseSnapshot),
+   let decoded = try? JSONDecoder().decode(ExerciseTimerSnapshot.self, from: encoded) {
+    expect(decoded == exerciseSnapshot, "exercise timer snapshot round-trips exactly")
+    expect(
+        decoded.pausedRemainingSeconds == -12,
+        "exercise timer snapshot preserves paused overtime"
+    )
+} else {
+    expect(false, "exercise timer snapshot encodes and decodes")
+}
+
+func timedSession() -> WorkoutSession {
+    WorkoutSession(
+        name: "Timed Holds",
+        exercises: [
+            SessionExercise(
+                exerciseID: UUID(),
+                name: "Wall Sit",
+                sets: [
+                    SetEntry(reps: 0, weight: 0, durationSeconds: 60),
+                    SetEntry(reps: 0, weight: 0, durationSeconds: 45)
+                ],
+                usesWeight: false
+            ),
+            SessionExercise(
+                exerciseID: UUID(),
+                name: "Goblet Squat",
+                sets: [SetEntry(reps: 8, weight: 25)]
+            )
+        ]
+    )
+}
+
+MainActor.assumeIsolated {
+    let timer = ExerciseTimerManager(localDevice: .phone)
+    timer.syncPaused(remainingSeconds: -18, totalSeconds: 60)
+    expect(timer.isPaused, "exercise timer adopts a paused snapshot")
+    expect(timer.isOvertime, "exercise timer adopts paused overtime")
+    expect(timer.overtimeSeconds == 18, "paused overtime magnitude is preserved")
+    timer.resume()
+    expect(timer.isRunning && timer.isOvertime, "paused overtime resumes in overtime")
+
+    let timedRepo = repository("exercise-timer-manager")
+    let manager = ActiveWorkoutManager(localDevice: .phone, repository: timedRepo)
+    let session = timedSession()
+    let firstSetID = session.exercises[0].sets[0].id
+    let secondSetID = session.exercises[0].sets[1].id
+    manager.start(session)
+
+    expect(manager.exerciseTimerSetID == firstSetID, "timed workout arms its first set")
+    expect(manager.exerciseTimer.isRunning, "timed set countdown starts running")
+    expect(
+        manager.exerciseTimer.totalSeconds == 60,
+        "timed set countdown uses the set duration"
+    )
+    expect(
+        timedRepo.load().activeReplica?.exerciseTimer?.setID == firstSetID,
+        "the armed exercise timer is persisted for replication"
+    )
+
+    manager.toggleExerciseTimerPause()
+    let paused = timedRepo.load().activeReplica?.exerciseTimer
+    expect(paused?.pausedRemainingSeconds != nil, "pause is replicated as a paused snapshot")
+    manager.adjustExerciseTimer(by: 15)
+    let adjusted = timedRepo.load().activeReplica?.exerciseTimer
+    expect(
+        (adjusted?.pausedRemainingSeconds ?? 0) > (paused?.pausedRemainingSeconds ?? 0),
+        "timer adjustment is replicated"
+    )
+    manager.resetExerciseTimer()
+    let reset = timedRepo.load().activeReplica?.exerciseTimer
+    expect(reset?.pausedRemainingSeconds == nil, "reset replicates a running timer")
+    expect(reset?.totalSeconds == 60, "reset restores the original duration")
+
+    var advanced = session
+    advanced.exercises[0].sets[0].isCompleted = true
+    manager.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: advanced,
+                owner: .phone,
+                version: SessionVersion(ownershipEpoch: 0, revision: 20),
+                currentExerciseIndex: 0
+            ),
+            syncStatus: .synced
+        )
+    )
+    expect(
+        manager.exerciseTimerSetID == secondSetID,
+        "completing a timed set arms the next timed set"
+    )
+    expect(manager.exerciseTimer.totalSeconds == 45, "the next timed set gets a fresh duration")
+
+    manager.currentExerciseIndex = 1
+    expect(manager.exerciseTimerSetID == nil, "rep-based exercise has no exercise timer")
+    expect(!manager.exerciseTimer.isRunning, "rep-based exercise stops the exercise timer")
+
+    let preserveRepo = repository("exercise-timer-no-snapshot")
+    let preserve = ActiveWorkoutManager(localDevice: .phone, repository: preserveRepo)
+    let preserveSession = timedSession()
+    preserve.start(preserveSession, broadcast: false)
+    let preservedSetID = preserve.exerciseTimerSetID
+    preserve.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: preserveSession,
+                owner: .watch,
+                version: SessionVersion(ownershipEpoch: 1, revision: 1),
+                currentExerciseIndex: 0,
+                exerciseTimer: nil
+            ),
+            syncStatus: .synced
+        )
+    )
+    expect(
+        preserve.exerciseTimerSetID == preservedSetID && preserve.exerciseTimer.isRunning,
+        "missing peer snapshot does not blank a newly armed exercise timer"
+    )
+
+    let synthRepo = repository("exercise-timer-synthesized-owner")
+    let synthSession = timedSession()
+    var synthState = WorkoutRuntimeState(
+        activeReplica: WorkoutReplica(
+            session: synthSession,
+            owner: .watch,
+            version: SessionVersion(ownershipEpoch: 1, revision: 1),
+            currentExerciseIndex: 0,
+            exerciseTimer: nil
+        ),
+        authorityState: .authoritative,
+        syncStatus: .synced
+    )
+    _ = synthRepo.save(synthState)
+    let synthOwner = ActiveWorkoutManager(localDevice: .watch, repository: synthRepo)
+    expect(synthOwner.exerciseTimer.isRunning, "new owner derives a missing exercise timer")
+    synthState = synthRepo.load()
+    expect(
+        synthState.activeReplica?.exerciseTimer?.setID == synthSession.exercises[0].sets[0].id,
+        "new owner immediately publishes its synthesized exercise timer"
+    )
+
+    let overtimeSet = preserveSession.exercises[0].sets[0]
+    preserve.applyRuntimeStateForTesting(
+        WorkoutRuntimeState(
+            activeReplica: WorkoutReplica(
+                session: preserveSession,
+                owner: .watch,
+                version: SessionVersion(ownershipEpoch: 1, revision: 2),
+                currentExerciseIndex: 0,
+                exerciseTimer: ExerciseTimerSnapshot(
+                    endDate: Date().addingTimeInterval(-20),
+                    totalSeconds: overtimeSet.durationSeconds,
+                    exerciseID: preserveSession.exercises[0].id,
+                    setID: overtimeSet.id
+                )
+            ),
+            syncStatus: .synced
+        )
+    )
+    expect(preserve.exerciseTimer.isOvertime, "exercise timer replicates active overtime")
+    expect(
+        preserve.session?.exercises[0].sets[0].isCompleted == false,
+        "exercise timer reaching overtime does not complete the set"
+    )
+    expect(preserve.currentExerciseIndex == 0, "exercise timer never auto-advances")
+}
+
+// The phone may keep editing while it is offering ownership to the Watch. Its
+// final timer snapshot must be merged into the commit rather than replaced by
+// the older snapshot carried in the Watch's acceptance receipt.
+let (timerOfferPhone, timerOfferPhoneWire) = makeCoordinator(.phone, "timer-offer-phone")
+let timerOfferSession = timedSession()
+expect(timerOfferPhone.start(timerOfferSession), "phone offers timed workout")
+let offeredTimer = ExerciseTimerSnapshot(
+    endDate: Date().addingTimeInterval(37),
+    totalSeconds: 60,
+    exerciseID: timerOfferSession.exercises[0].id,
+    setID: timerOfferSession.exercises[0].sets[0].id
+)
+_ = timerOfferPhone.mutate(
+    session: timerOfferSession,
+    currentExerciseIndex: 0,
+    restTimer: nil,
+    isWorkoutPaused: false,
+    exerciseTimer: offeredTimer
+)
+let timerOfferWatchRepo = repository("timer-offer-watch")
+let timerOfferWatch = WorkoutSyncCoordinator(
+    localDevice: .watch,
+    repository: timerOfferWatchRepo
+)
+expect(
+    timerOfferWatch.receive(timerOfferPhoneWire.last(.ownershipOffer)!) == .applied,
+    "watch accepts the timed workout offer"
+)
+if let acceptance = queuedEnvelope(.ownershipAcceptance, in: timerOfferWatchRepo) {
+    expect(
+        timerOfferPhone.receive(acceptance) == .applied,
+        "phone commits timed workout ownership"
+    )
+    expect(
+        timerOfferPhone.replica?.exerciseTimer == offeredTimer,
+        "ownership commit preserves the latest exercise timer snapshot"
+    )
+} else {
+    expect(false, "watch queued a timed workout acceptance")
+}
+
 // MARK: - Issue #86: a freshly started phase timer must not be blanked
 
 MainActor.assumeIsolated {
