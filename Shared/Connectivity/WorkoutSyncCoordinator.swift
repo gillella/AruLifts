@@ -124,7 +124,8 @@ final class WorkoutSyncCoordinator {
         currentExerciseIndex: Int,
         restTimer: RestTimerSnapshot?,
         isWorkoutPaused: Bool,
-        phaseTimer: PhaseTimerSnapshot? = nil
+        phaseTimer: PhaseTimerSnapshot? = nil,
+        exerciseTimer: ExerciseTimerSnapshot? = nil
     ) -> Bool {
         guard var replica = state.activeReplica, canEdit,
               replica.session.id == session.id else { return false }
@@ -133,6 +134,7 @@ final class WorkoutSyncCoordinator {
         replica.restTimer = restTimer
         replica.isWorkoutPaused = isWorkoutPaused
         replica.phaseTimer = phaseTimer
+        replica.exerciseTimer = exerciseTimer
         replica.version = replica.version.advanced()
         do {
             let stillOffering = state.authorityState == .offeringTransfer
@@ -424,6 +426,8 @@ final class WorkoutSyncCoordinator {
             committedReplica.currentExerciseIndex = current.currentExerciseIndex
             committedReplica.restTimer = current.restTimer
             committedReplica.isWorkoutPaused = current.isWorkoutPaused
+            committedReplica.phaseTimer = current.phaseTimer
+            committedReplica.exerciseTimer = current.exerciseTimer
         }
 
         do {
