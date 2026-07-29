@@ -34,6 +34,14 @@ struct SetLogList: View {
                     Spacer()
                 }
 
+                if active.exerciseTimerExerciseID == exercise.id,
+                   active.exerciseTimerSetID != nil {
+                    ExerciseTimerCard(
+                        timer: active.exerciseTimer,
+                        exerciseName: exercise.name
+                    )
+                }
+
                 // Everything below the header edits the session, so it is gated
                 // on edit ownership. The exercise-name button above stays live
                 // even when the Watch owns the session — checking form guidance
@@ -171,6 +179,75 @@ struct SetLogList: View {
             adaptiveRest: store.settings.adaptiveRestEnabled,
             failedSetRestMultiplier: store.settings.failedSetRestMultiplier
         )
+    }
+}
+
+/// Controls the timed set independently of the whole-phase and recovery timers.
+private struct ExerciseTimerCard: View {
+    @EnvironmentObject private var active: ActiveWorkoutManager
+    @ObservedObject var timer: ExerciseTimerManager
+    let exerciseName: String
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("EXERCISE TIMER")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(exerciseName)
+                        .font(.subheadline.weight(.semibold))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(timer.formattedRemaining)
+                        .font(.system(size: 28, weight: .bold, design: .monospaced))
+                        .foregroundStyle(timer.isOvertime ? Color.green : Color.orange)
+                        .accessibilityLabel(
+                            timer.isOvertime
+                                ? "\(exerciseName) overtime \(timer.formattedRemaining.dropFirst())"
+                                : "\(exerciseName), \(timer.formattedRemaining) remaining"
+                        )
+                    if timer.isOvertime {
+                        Text("OVERTIME")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.green)
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button("-15s") { active.adjustExerciseTimer(by: -15) }
+                    .buttonStyle(.bordered)
+
+                Button {
+                    active.toggleExerciseTimerPause()
+                } label: {
+                    Label(
+                        timer.isRunning ? "Pause" : "Resume",
+                        systemImage: timer.isRunning ? "pause.fill" : "play.fill"
+                    )
+                    .labelStyle(.iconOnly)
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+
+                Button("+15s") { active.adjustExerciseTimer(by: 15) }
+                    .buttonStyle(.bordered)
+
+                Button {
+                    active.resetExerciseTimer()
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Reset exercise timer")
+            }
+            .disabled(!active.canEdit)
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
