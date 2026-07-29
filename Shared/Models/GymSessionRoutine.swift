@@ -116,6 +116,19 @@ struct PhaseExerciseItem: Identifiable, Codable, Hashable {
         reps = max(0, try c.decodeIfPresent(Int.self, forKey: .reps) ?? 0)
         sets = max(1, try c.decodeIfPresent(Int.self, forKey: .sets) ?? 1)
     }
+
+    /// Resolves the execution shape using the same precedence everywhere:
+    /// an explicit duration, explicit reps, matching library metadata, then
+    /// the owning phase's default. The composer and session materializer must
+    /// not disagree about which controls or workout UI an item receives.
+    func resolvesAsTimed(
+        in phaseType: GymSessionPhaseType,
+        matchedExercise: Exercise?
+    ) -> Bool {
+        if durationSeconds > 0 { return true }
+        if reps > 0 { return false }
+        return matchedExercise?.isTimed ?? phaseType.isTimed
+    }
 }
 
 /// A phase entry in a customizable `GymSessionRoutine`.
@@ -215,6 +228,17 @@ struct GymSessionRoutinePhase: Identifiable, Codable, Hashable {
         case .coreWork: return ["Plank", "Ab Rollout", "Hanging Knee Raise", "Cable Crunch"]
         case .saunaRecovery, .steamRecovery: return []
         }
+    }
+
+    /// Default target for an item without an explicit duration. Keep this in
+    /// the routine model so the composer can display exactly what starting the
+    /// workout will materialize.
+    func derivedExerciseDuration(itemCount: Int? = nil) -> Int {
+        min(180, max(20, durationSeconds / max(1, itemCount ?? exerciseItems.count)))
+    }
+
+    func defaultExerciseReps() -> Int {
+        phaseType == .coreWork ? 15 : 10
     }
 
     /// Earlier app versions persisted recovery guidance as if it were an
