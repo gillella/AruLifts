@@ -267,6 +267,14 @@ accessibility tree (AC-D29–D34, AC-G8, AC-H11).
 3. Repeat at a larger Dynamic Type size and verify both rows remain readable and tappable
    without visual collision (AC-B22).
 
+### Inline rest-bar layout (#109)
+
+1. Complete a weighted set on iPhone to start rest and verify **Resting** plus the `M:SS`
+   countdown each stay on a single line beside +30, Skip and options.
+2. Pause rest and verify **Rest paused** and its countdown remain single-line.
+3. Let or synchronize rest into overtime; verify **Rest over** and `+M:SS` remain
+   single-line and do not split their digits across rows (AC-E22).
+
 ### Per-exercise timer checks (#93)
 
 1. Start a session containing a 60-second timed set. Verify both devices show the
@@ -432,6 +440,7 @@ Later, per Aravind.
 | 2026-07-29 | Goal 2.24 — live exercise-list edits (#96) | **PASS** model/manager/replica contracts, all 86 E2E tests, separate iOS/watchOS Simulator builds and paired-simulator iPhone walkthrough | Added Push-Up at the phase end while Elliptical stayed selected on both peers; swapped Elliptical in place for Stationary Bike; removed it and advanced to Treadmill Incline. Watch showed the replicated `1 of 3 · Elliptical`; Watch menu interaction remains physical-device acceptance. AC-D29–D34, AC-G8, AC-H11 |
 | 2026-07-29 | Post-v3.1 — structural-edit timer continuity (#107) | **PASS** running-timer regression, logic/sync/E2E suites and both simulator builds | A partially elapsed timed set survives an unrelated live exercise insertion without re-arming; AC-E21 |
 | 2026-07-29 | Post-v3.1 — routine composer stepper layout (#108) | **PASS** rendered default/XXXL text layouts, live Reps/Sets increment taps, logic/sync/E2E suites and both simulator builds | Both rows remained visually separate and tappable; test edits were cancelled and simulator text size restored; AC-B22 |
+| 2026-07-29 | Post-v3.1 — inline rest countdown layout (#109) | **PASS** rendered running/paused rest states, timer-state contract, logic/sync/E2E suites and both simulator builds | **Resting 2:13** and **Rest paused 1:40** remained single-line beside all controls; the same fixed-size path covers the shorter **Rest over** label and `+M:SS`; AC-E22 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 
