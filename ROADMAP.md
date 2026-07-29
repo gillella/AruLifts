@@ -83,7 +83,7 @@ A routine phase currently produces navigable exercises only when a template is l
 phases are bare countdowns. This epic makes every phase a first-class, guided,
 loggable part of the session on both devices.
 
-- [ ] **[#90] Previous/Next disabled state ignores the phase boundary** 📱⌚️ 🐞 — navigation
+- [x] **[#90] Previous/Next disabled state ignores the phase boundary** 📱⌚️ 🐞 — navigation
   buttons gate on the global exercise index while the actions are phase-scoped, so enabled
   controls become no-ops at every phase boundary.
 - [ ] **[#91] Structured phase exercise list and per-set duration** 📱⌚️ — replace the untyped

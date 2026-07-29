@@ -284,6 +284,32 @@ navigation spans all its exercises with no phase clamping.
 correct per-phase completed sets. *(The per-phase record was permanently stale before
 #80 — it was a copy never updated after session creation.)*
 
+**AC-D11** *(#90)* — **No enabled navigation control is a no-op.** In phase 3 (Main
+Strength), navigate to the phase's **last** exercise. The **Next** button must be
+**visibly disabled** — greyed, not tappable. Before #90 it stayed enabled and did
+nothing when pressed, because it was bounded by the flat exercise array rather than the
+phase. *(#80 made the* action *stop at the boundary; #90 makes the* control *agree.)*
+
+**AC-D12** *(#90)* — Navigate to the **first** exercise of phase 3. **Previous** must be
+**visibly disabled**, even though earlier phases hold exercises and the underlying index
+is greater than zero.
+
+**AC-D13** *(#90)* — A phase holding exactly **one** exercise shows **both** Previous and
+Next disabled.
+
+**AC-D14** *(#90)* — **Watch: the end of a phase is not the end of the workout.** On the
+Watch, complete every set of the last exercise in phase 3 so the "Exercise complete" card
+appears. It must offer **"Next Phase"** — not "Finish Workout". Pressing it advances to
+phase 4. *(Before #90 the card offered "Finish Workout" partway through a routine.)*
+
+**AC-D15** *(#90)* — On the Watch, in the **final** phase with its last exercise complete,
+the same card offers **"Finish Workout"**. With a further exercise remaining in the phase
+it offers **"Next Exercise"**.
+
+**AC-D16** *(#90)* — **A plain template session is unaffected**: start a single template.
+Previous is disabled only on the first exercise, Next only on the last, and the Watch card
+offers "Next Exercise" then "Finish Workout" with no "Next Phase" ever shown.
+
 ---
 
 ## 9. Area E — Timers, overtime and cues
@@ -489,7 +515,7 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 | A Templates | AC-A1–A6 | #75, #78 |
 | B Composer | AC-B1–B12 | #77, #78, #74 |
 | C Home | AC-C1–C4 | #74, #77 |
-| D Phase scoping | AC-D1–D10 | #80, #86 |
+| D Phase scoping | AC-D1–D16 | #80, #86, #90 |
 | E Timers | AC-E1–E13 | #81, #82, #86 |
 | F Form access | AC-F1–F4 | #76 |
 | G Watch | AC-G1–G7 | #83, #80, #81 |
@@ -500,8 +526,11 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 Shipped in PR #79 (#74–#78) and PR #88 (#80–#86); epic #87. This document's baseline is
 **v3.0.0** (`a1e2434`).
 
-**Not yet covered.** Epic F (#90–#96) — guided multi-phase session execution — is open at
-the time of writing. Each of those issues adds criteria here as it lands, per §17.
+**Epic F progress.** Guided multi-phase session execution (#90–#96). Each issue adds its
+criteria here as it lands, per §17.
+
+- #90 — landed, covered by AC-D11–D16
+- #91–#96 — open, not yet covered
 
 ### Superseded findings
 

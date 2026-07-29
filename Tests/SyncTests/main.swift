@@ -945,6 +945,106 @@ MainActor.assumeIsolated {
         "previousPhase repositions the live exercise back into the earlier phase"
     )
     expect(!manager.hasPreviousExerciseInPhase || phase0.count > 1, "phase-relative Previous is consistent")
+
+    // MARK: #90 — availability must agree with what the action does
+    //
+    // These are the properties the iPhone and Watch navigation controls bind
+    // to. The bug was that the views gated on the index into the flat
+    // `exercises` array instead, which is not a phase bound, so a control could
+    // be enabled while its action did nothing.
+
+    // The contract, stated directly: a control is enabled exactly when pressing
+    // it moves. Checked at every position of every phase, in both directions.
+    for phaseIndex in (manager.session?.phases.indices ?? 0..<0) {
+        manager.selectPhase(at: phaseIndex)
+        let scope = manager.session?.exerciseIndices(inPhase: phaseIndex) ?? []
+        for index in scope {
+            manager.currentExerciseIndex = index
+
+            let claimsNext = manager.hasNextExerciseInPhase
+            manager.goToNextExercise()
+            let movedNext = manager.currentExerciseIndex != index
+            expect(
+                claimsNext == movedNext,
+                "phase \(phaseIndex) index \(index): Next availability matches whether Next moves"
+            )
+
+            manager.currentExerciseIndex = index
+            let claimsPrevious = manager.hasPreviousExerciseInPhase
+            manager.goToPreviousExercise()
+            let movedPrevious = manager.currentExerciseIndex != index
+            expect(
+                claimsPrevious == movedPrevious,
+                "phase \(phaseIndex) index \(index): Previous availability matches whether Previous moves"
+            )
+            manager.currentExerciseIndex = index
+        }
+    }
+
+    // The two specific mis-reports the global bound produced. Both need a phase
+    // that actually holds more than one exercise to be meaningful.
+    if let richPhase = manager.session?.phases.indices.first(where: {
+        (manager.session?.exerciseIndices(inPhase: $0).count ?? 0) > 1
+    }) {
+        let scope = manager.session?.exerciseIndices(inPhase: richPhase) ?? []
+        let total = manager.session?.exercises.count ?? 0
+        manager.selectPhase(at: richPhase)
+
+        // End of a phase that is not the end of the workout.
+        manager.currentExerciseIndex = scope.last!
+        expect(
+            !manager.hasNextExerciseInPhase,
+            "no next exercise at a phase boundary"
+        )
+        if scope.last! < total - 1 {
+            expect(
+                !manager.hasNextExerciseInPhase,
+                "no next exercise at a phase boundary even though later exercises exist in the flat array"
+            )
+        }
+
+        // Start of a phase whose global index is non-zero.
+        manager.currentExerciseIndex = scope.first!
+        expect(
+            !manager.hasPreviousExerciseInPhase,
+            "no previous exercise at the start of a phase"
+        )
+        if scope.first! > 0 {
+            expect(
+                !manager.hasPreviousExerciseInPhase,
+                "no previous exercise at a phase start even though earlier exercises exist in the flat array"
+            )
+        }
+    }
+
+    // hasNextPhase drives the Watch's Next Exercise / Next Phase / Finish
+    // choice, so "last exercise of a phase" must not read as "end of workout".
+    if let phaseCount = manager.session?.phases.count, phaseCount > 1 {
+        manager.selectPhase(at: 0)
+        expect(manager.hasNextPhase, "a routine mid-way reports a further phase")
+        manager.selectPhase(at: phaseCount - 1)
+        expect(!manager.hasNextPhase, "the final phase reports no further phase")
+    }
+
+    // A plain template session must be untouched by phase scoping.
+    let plainManager = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: ActiveWorkoutRepository(directory: root.appendingPathComponent("plainNav"))
+    )
+    plainManager.start(
+        WorkoutSession.from(template: templates[0], library: ExerciseLibrary.byID),
+        broadcast: false
+    )
+    let plainCount = plainManager.session?.exercises.count ?? 0
+    if plainCount > 1 {
+        plainManager.currentExerciseIndex = 0
+        expect(!plainManager.hasPreviousExerciseInPhase, "plain session: no previous at the first exercise")
+        expect(plainManager.hasNextExerciseInPhase, "plain session: a next exists at the first exercise")
+        plainManager.currentExerciseIndex = plainCount - 1
+        expect(!plainManager.hasNextExerciseInPhase, "plain session: no next at the last exercise")
+        expect(plainManager.hasPreviousExerciseInPhase, "plain session: a previous exists at the last exercise")
+    }
+    expect(!plainManager.hasNextPhase, "plain session never reports a next phase")
 }
 
 // MARK: - Issue #81: timers keep counting past zero and never auto-advance
