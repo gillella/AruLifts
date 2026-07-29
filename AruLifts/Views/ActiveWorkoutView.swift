@@ -158,17 +158,18 @@ struct ActiveWorkoutView: View {
                 ExercisePager(session: session)
                 liveExerciseControls(for: session)
 
-                ScrollView {
-                    if let idx = currentIndex(in: session) {
-                        if session.exercises[idx].usesGuidedTimedStepper {
-                            GuidedTimedExerciseView(exerciseIndex: idx)
-                        } else {
+                if let idx = currentIndex(in: session) {
+                    if session.exercises[idx].usesGuidedTimedStepper {
+                        GuidedTimedExerciseView(exerciseIndex: idx)
+                            .opacity(active.canEdit ? 1 : 0.72)
+                    } else {
+                        ScrollView {
                             SetLogList(exerciseIndex: idx)
                         }
+                        .padding(.bottom, 16)
+                        .opacity(active.canEdit ? 1 : 0.72)
                     }
                 }
-                .padding(.bottom, 16)
-                .opacity(active.canEdit ? 1 : 0.72)
             } else if session.isMultiPhase {
                 VStack(spacing: 12) {
                     Spacer()
@@ -590,102 +591,152 @@ private struct GuidedTimedExerciseView: View {
 
     var body: some View {
         if let session, let exercise {
-            VStack(spacing: 18) {
-                VStack(spacing: 6) {
-                    Text("\(position) of \(max(scope.count, 1)) · \(exercise.name)")
-                        .font(.title2.bold())
-                        .multilineTextAlignment(.center)
-                    Text("\(exercise.completedSets) of \(exercise.sets.count) intervals complete")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(
-                    "\(exercise.name), exercise \(position) of \(max(scope.count, 1)), "
-                    + "\(exercise.completedSets) of \(exercise.sets.count) intervals complete"
-                )
+            VStack(spacing: 0) {
+                guidedSummary(for: exercise)
+                    .padding(.horizontal)
+                    .padding(.top, 6)
 
-                phaseProgress(in: session)
+                exerciseTimerCard(for: exercise)
+                    .padding(.horizontal)
+                    .padding(.top, 6)
 
-                VStack(spacing: 12) {
-                    Text(active.exerciseTimer.formattedRemaining)
-                        .font(.system(size: 52, weight: .bold, design: .monospaced))
-                        .foregroundStyle(active.exerciseTimer.isOvertime ? Color.green : Color.orange)
-                        .minimumScaleFactor(0.7)
-                        .accessibilityLabel(timerAccessibilityLabel(for: exercise))
+                doneButton(for: exercise)
+                    .padding(.horizontal)
+                    .padding(.top, 6)
 
-                    if active.exerciseTimer.isOvertime {
-                        Text("OVERTIME")
-                            .font(.caption.bold())
-                            .foregroundStyle(.green)
-                    }
+                ScrollView {
+                    VStack(spacing: 18) {
+                        phaseProgress(in: session)
 
-                    HStack(spacing: 10) {
-                        Button("-15s") { active.adjustExerciseTimer(by: -15) }
-                            .accessibilityHint("Subtracts 15 seconds from this exercise timer")
-                        Button {
-                            active.toggleExerciseTimerPause()
-                        } label: {
-                            Label(
-                                active.exerciseTimer.isRunning ? "Pause" : "Resume",
-                                systemImage: active.exerciseTimer.isRunning ? "pause.fill" : "play.fill"
-                            )
-                            .labelStyle(.iconOnly)
-                            .frame(maxWidth: .infinity)
+                        HStack(spacing: 12) {
+                            Button {
+                                active.goToPreviousExercise()
+                            } label: {
+                                Label("Previous", systemImage: "chevron.left")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .disabled(!active.hasPreviousExerciseInPhase)
+
+                            Button {
+                                active.goToNextExercise()
+                            } label: {
+                                Label("Next", systemImage: "chevron.right")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .disabled(!active.hasNextExerciseInPhase)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                        .accessibilityHint("Pauses or resumes only this exercise timer")
-                        Button("+15s") { active.adjustExerciseTimer(by: 15) }
-                            .accessibilityHint("Adds 15 seconds to this exercise timer")
-                        Button {
-                            active.resetExerciseTimer()
-                        } label: {
-                            Image(systemName: "arrow.counterclockwise")
-                        }
-                        .accessibilityLabel("Reset exercise timer")
-                        .accessibilityHint("Returns this exercise to its planned duration")
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(!active.canEdit)
+                    .padding()
                 }
-                .padding()
-                .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
-
-                Button {
-                    active.completeGuidedTimedSetAndAdvance()
-                } label: {
-                    Label(doneButtonTitle, systemImage: "checkmark.circle.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(!active.canEdit || active.isFinalizing || exercise.isComplete)
-                .accessibilityLabel("\(doneButtonTitle), \(exercise.name)")
-                .accessibilityHint(doneButtonHint)
-
-                HStack(spacing: 12) {
-                    Button {
-                        active.goToPreviousExercise()
-                    } label: {
-                        Label("Previous", systemImage: "chevron.left")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .disabled(!active.hasPreviousExerciseInPhase)
-
-                    Button {
-                        active.goToNextExercise()
-                    } label: {
-                        Label("Next", systemImage: "chevron.right")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .disabled(!active.hasNextExerciseInPhase)
-                }
-                .buttonStyle(.bordered)
             }
-            .padding()
         }
+    }
+
+    private func guidedSummary(for exercise: SessionExercise) -> some View {
+        HStack(spacing: 8) {
+            Text("\(position) of \(max(scope.count, 1)) · \(exercise.name)")
+                .font(.headline)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            Text("\(exercise.completedSets)/\(exercise.sets.count) intervals")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(exercise.name), exercise \(position) of \(max(scope.count, 1)), "
+            + "\(exercise.completedSets) of \(exercise.sets.count) intervals complete"
+        )
+    }
+
+    private func exerciseTimerCard(for exercise: SessionExercise) -> some View {
+        HStack(spacing: 10) {
+            VStack(spacing: 1) {
+                Text(active.exerciseTimer.formattedRemaining)
+                    .font(.system(size: 42, weight: .bold, design: .monospaced))
+                    .foregroundStyle(active.exerciseTimer.isOvertime ? Color.green : Color.orange)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                    .accessibilityLabel(timerAccessibilityLabel(for: exercise))
+
+                if active.exerciseTimer.isOvertime {
+                    Text("OVERTIME")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.green)
+                }
+            }
+
+            Spacer(minLength: 0)
+            timerAdjustmentControls
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private var timerAdjustmentControls: some View {
+        HStack(spacing: 6) {
+            Button {
+                active.adjustExerciseTimer(by: -15)
+            } label: {
+                Text("−15")
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+                .accessibilityLabel("Subtract 15 seconds")
+                .accessibilityHint("Subtracts 15 seconds from this exercise timer")
+            Button {
+                active.toggleExerciseTimerPause()
+            } label: {
+                Image(
+                    systemName: active.exerciseTimer.isRunning
+                        ? "pause.fill"
+                        : "play.fill"
+                )
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+            .accessibilityLabel(
+                active.exerciseTimer.isRunning ? "Pause" : "Resume"
+            )
+            .accessibilityHint("Pauses or resumes only this exercise timer")
+            Button {
+                active.adjustExerciseTimer(by: 15)
+            } label: {
+                Text("+15")
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+                .accessibilityLabel("Add 15 seconds")
+                .accessibilityHint("Adds 15 seconds to this exercise timer")
+            Button {
+                active.resetExerciseTimer()
+            } label: {
+                Image(systemName: "arrow.counterclockwise")
+            }
+            .accessibilityLabel("Reset exercise timer")
+            .accessibilityHint("Returns this exercise to its planned duration")
+        }
+        .font(.subheadline)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(!active.canEdit)
+    }
+
+    private func doneButton(for exercise: SessionExercise) -> some View {
+        Button {
+            active.completeGuidedTimedSetAndAdvance()
+        } label: {
+            Label(doneButtonTitle, systemImage: "checkmark.circle.fill")
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.green)
+        .disabled(!active.canEdit || active.isFinalizing || exercise.isComplete)
+        .accessibilityLabel("\(doneButtonTitle), \(exercise.name)")
+        .accessibilityHint(doneButtonHint)
     }
 
     private var doneButtonTitle: String {

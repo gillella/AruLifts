@@ -422,6 +422,11 @@ same phase, then the previous one.
 the authoritative device broadcasts the full edited session, while a read-only mirror
 cannot add, swap or remove.
 
+**AC-D35** *(#110)* — On iPhone, the guided exercise summary, countdown, −15s,
+pause/resume, +15s, reset and **Done**/**Done & Next** controls remain together above the
+secondary navigation scroller. With the sync banner and inline rest bar present, all
+primary interval controls remain simultaneously visible.
+
 ---
 
 ## 9. Area E — Timers, overtime and cues
