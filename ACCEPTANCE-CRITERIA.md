@@ -500,6 +500,11 @@ on the current set. Ownership handoff preserves the latest matching snapshot.
 may provide their local haptic, while only the phone owns speech. The announcement names
 the timed exercise. *(Physical haptic/audio remain `BLOCKED-SIM`.)*
 
+**AC-E21** *(#107)* — Adding, removing or swapping an exercise, or changing the set list,
+does not restart a running or paused exercise timer when the selected timed set and its
+prescribed duration are unchanged. Completing/undoing a set or selecting a genuinely
+different exercise/set still arms that target from its full prescribed duration.
+
 ---
 
 ## 10. Area F — Exercise form access during a workout

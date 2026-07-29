@@ -273,10 +273,14 @@ accessibility tree (AC-D29–D34, AC-G8, AC-H11).
    target duration. Change exercises and verify no previous-set timer is attached.
 6. Deliver an older checkpoint without `exerciseTimer`. Verify it cannot blank a
    locally armed matching timer.
+7. Let a timed set count down, then add/remove another exercise and add/remove a set.
+   Verify the current countdown continues without jumping back to its prescribed duration;
+   select a different timed set and verify that target starts fresh.
 
 `Tests/run_sync.sh` covers snapshot coding, active/paused/overtime adoption,
 pause/adjust/reset persistence, target transitions, rep-set suppression,
-missing-snapshot preservation, no auto-advance, and ownership-commit continuity.
+missing-snapshot preservation, structural-edit timer continuity, no auto-advance, and
+ownership-commit continuity.
 The iPhone/Watch presentation is compiled in both targets. Spoken and haptic delivery
 remain physical-device checks (AC-E14–E20).
 
@@ -417,6 +421,7 @@ Later, per Aravind.
 | 2026-07-28 | Goal 2.23 — guided exercise stepper (#94) | **PASS** automated shape/manager contract, iOS/watchOS builds and paired-simulator visual inspection | iPhone showed phase and exercise timers, `1 of 3 · Leg Swings`, progress, controls and Done & Next; Watch showed the same name/position plus phase overtime and exercise time in a scrollable view. Desktop lock prevented UI tapping; explicit Done/Next behavior passed manager tests |
 | 2026-07-28 | Goal 1.11 — routine phase-item composer (#95) | **PASS** model/persistence/materialization/Watch-cache contracts, both-target build and read-only Simulator rendering; interactive edit walkthrough pending | `Tests/run.sh`; iPhone showed saved item names and derived targets; toolbar Edit was visible but unavailable to UI automation; AC-B13–B21 |
 | 2026-07-29 | Goal 2.24 — live exercise-list edits (#96) | **PASS** model/manager/replica contracts, all 86 E2E tests, separate iOS/watchOS Simulator builds and paired-simulator iPhone walkthrough | Added Push-Up at the phase end while Elliptical stayed selected on both peers; swapped Elliptical in place for Stationary Bike; removed it and advanced to Treadmill Incline. Watch showed the replicated `1 of 3 · Elliptical`; Watch menu interaction remains physical-device acceptance. AC-D29–D34, AC-G8, AC-H11 |
+| 2026-07-29 | Post-v3.1 — structural-edit timer continuity (#107) | **PASS** running-timer regression, logic/sync/E2E suites and both simulator builds | A partially elapsed timed set survives an unrelated live exercise insertion without re-arming; AC-E21 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 

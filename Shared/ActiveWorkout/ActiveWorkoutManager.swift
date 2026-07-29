@@ -472,8 +472,17 @@ final class ActiveWorkoutManager: ObservableObject {
     /// exercise or completing a timed set always creates a fresh run; remote
     /// adoption uses the snapshot path below instead.
     private func checkAndStartExerciseTimer() {
+        guard let target = currentTimedSetTarget else {
+            stopExerciseTimer()
+            return
+        }
+        if target.exerciseID == exerciseTimerExerciseID,
+           target.setID == exerciseTimerSetID,
+           target.durationSeconds == exerciseTimer.totalSeconds,
+           exerciseTimer.isRunning || exerciseTimer.isPaused {
+            return
+        }
         stopExerciseTimer()
-        guard let target = currentTimedSetTarget else { return }
         exerciseTimerExerciseID = target.exerciseID
         exerciseTimerSetID = target.setID
         exerciseTimer.start(
