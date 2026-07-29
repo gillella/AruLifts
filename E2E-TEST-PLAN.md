@@ -109,6 +109,7 @@ history/Health result.
 | 2.19 | Live Activity/Smart Stack is included only if lifecycle tests do not produce stale/lingering workout state | Platform feasibility check and lifecycle tests | ⏳ PENDING |
 | 2.20 | User-facing guidance explains phone-start, Watch-start, offline, takeover and finish/sync flows | In-app guide inspection | ⏳ PENDING |
 | 2.21 | Exercise navigation is phase-scoped: Previous/Next is disabled exactly at the current phase boundary, and the Watch offers Next Phase instead of Finish Workout between phases | Model/manager contract tests plus paired-simulator UI inspection | ✅ IMPLEMENTED (#90); automated contract coverage added, paired-simulator UI validation pending |
+| 2.22 | Each duration-based set has a replicated iPhone/Watch timer with pause, adjust, reset, overtime, explicit completion, and ownership-transfer continuity | Manager/wire tests, paired-simulator UI, physical audio/haptic check | ✅ PASS (#93) — paired sims showed the matching timer and phone→Watch pause at the same `1:17`; physical cues pending |
 
 ### Automated protocol and persistence tests
 
@@ -166,6 +167,28 @@ acceptance checks (AC-D11–D16), not claims made by those script suites.
 phases, duration derivation/clamping, rest defaults, activity classification,
 and Watch-plan construction. Visible phone/Watch navigation remains a paired
 simulator acceptance check (AC-D17–D20).
+
+### Per-exercise timer checks (#93)
+
+1. Start a session containing a 60-second timed set. Verify both devices show the
+   countdown on the same exercise/set; navigate to a rep-based exercise and verify
+   the timer disappears.
+2. Pause on either device, adjust by −15/+15, and Reset. Verify the peer converges
+   after every action and Reset returns to 60 seconds.
+3. Let the timer cross zero. Verify it shows `+M:SS`, alerts once, and does not
+   complete the set, change the exercise, or advance the phase.
+4. Pause in overtime, transfer ownership, and resume. Verify overtime magnitude and
+   direction survive the round-trip.
+5. Complete the first timed set. Verify the next timed set starts at its own full
+   target duration. Change exercises and verify no previous-set timer is attached.
+6. Deliver an older checkpoint without `exerciseTimer`. Verify it cannot blank a
+   locally armed matching timer.
+
+`Tests/run_sync.sh` covers snapshot coding, active/paused/overtime adoption,
+pause/adjust/reset persistence, target transitions, rep-set suppression,
+missing-snapshot preservation, no auto-advance, and ownership-commit continuity.
+The iPhone/Watch presentation is compiled in both targets. Spoken and haptic delivery
+remain physical-device checks (AC-E14–E20).
 
 ### Rejoin and delivery-volume tests (`Tests/run_sync.sh`)
 
@@ -300,6 +323,7 @@ Later, per Aravind.
 | 2026-07-21 | Goal 1 — workout creation | Core creation/edit/persistence PASS; suggestions (1.2), cardio (1.5), stretching (1.6), recovery (1.7) FAIL; watch live-sync bug found | See checklist + bugs above |
 | 2026-07-24 | Goal 2 — Watch-start → phone rejoin | **PASS** on paired sims (iPhone 17 Pro iOS 26.3 + Series 11 46mm watchOS 26.1) | See below |
 | 2026-07-28 | Goal 2.21 — phase-boundary navigation (#90) | **PASS** automated model/manager contract tests and iOS/watchOS builds; paired-simulator UI checks pending | `Tests/run.sh`, `Tests/run_sync.sh`, `Tests/run_e2e.sh`; AC-D11–D16 |
+| 2026-07-28 | Goal 2.22 — per-exercise timer (#93) | **PASS** automated contract, builds, and paired-simulator visible replication | Matching iPhone/Watch timed set; phone pause reached Watch at `1:17`; controls exposed to iPhone accessibility; physical audio/haptic pending |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 
