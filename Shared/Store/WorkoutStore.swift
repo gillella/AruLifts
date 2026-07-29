@@ -332,25 +332,10 @@ final class WorkoutStore: ObservableObject {
     }
 
     func templateExercise(for exercise: Exercise) -> TemplateExercise {
-        if exercise.isTimed {
-            let seconds = exercise.primaryMuscle == .cardio ? 600 : 45
-            return TemplateExercise(
-                exerciseID: exercise.id,
-                name: exercise.name,
-                targetSets: 1,
-                targetReps: 0,
-                restSeconds: 0,
-                durationSeconds: seconds
-            )
-        }
-        let minimumWeight = exercise.loadingMode == .barbell
-            ? (settings.barWeight ?? Warmup.defaultBarWeight(units: settings.units))
-            : 0
-        return TemplateExercise(
-            exerciseID: exercise.id,
-            name: exercise.name,
-            weight: max(lastWeight(for: exercise.id) ?? 0, minimumWeight),
-            restSeconds: settings.defaultRestSeconds
+        TemplateExercise.defaultConfiguration(
+            for: exercise,
+            settings: settings,
+            preferredWeight: lastWeight(for: exercise.id)
         )
     }
 
