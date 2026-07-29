@@ -695,6 +695,32 @@ final class ActiveWorkoutManager: ObservableObject {
         broadcast()
     }
 
+    /// Completes one guided interval only after an explicit tap, then advances
+    /// within the current phase when that was the exercise's final interval.
+    /// Timer expiry never calls this action.
+    func completeGuidedTimedSetAndAdvance() {
+        guard canEdit,
+              !isWorkoutPaused,
+              let exercise = currentExercise,
+              exercise.usesGuidedTimedStepper,
+              let setIndex = exercise.sets.firstIndex(where: { !$0.isCompleted }) else {
+            return
+        }
+
+        completeSet(
+            exerciseIndex: currentExerciseIndex,
+            setIndex: setIndex,
+            autoStartRest: false,
+            restAlerts: false
+        )
+
+        if let session,
+           session.exercises.indices.contains(currentExerciseIndex),
+           session.exercises[currentExerciseIndex].isComplete {
+            goToNextExercise()
+        }
+    }
+
     /// Reverts the most recent one-tap completion during its five-second
     /// safety window. The just-started rest is stopped so the user returns to
     /// the corrected working set immediately.
