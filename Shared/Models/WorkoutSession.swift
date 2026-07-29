@@ -440,22 +440,15 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
         let libraryExercise = library.values.first {
             $0.name.compare(item.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
         }
-        let isTimed: Bool
-        if item.durationSeconds > 0 {
-            isTimed = true
-        } else if item.reps > 0 {
-            isTimed = false
-        } else {
-            isTimed = libraryExercise?.isTimed ?? phase.phaseType.isTimed
-        }
-        let derivedDuration = min(
-            180,
-            max(20, phase.durationSeconds / max(1, itemCount))
+        let isTimed = item.resolvesAsTimed(
+            in: phase.phaseType,
+            matchedExercise: libraryExercise
         )
+        let derivedDuration = phase.derivedExerciseDuration(itemCount: itemCount)
         let durationSeconds = isTimed
             ? (item.durationSeconds > 0 ? item.durationSeconds : derivedDuration)
             : 0
-        let defaultReps = phase.phaseType == .coreWork ? 15 : 10
+        let defaultReps = phase.defaultExerciseReps()
         let reps = isTimed ? 0 : (item.reps > 0 ? item.reps : defaultReps)
         let sets = (0..<max(1, item.sets)).map { _ in
             SetEntry(

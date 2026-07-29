@@ -45,6 +45,7 @@ visible/usable on Watch.
 | 1.8 | Multiple workouts per day supported | ⏸ NOT TESTED — belongs to Goal 2 (tracking) |
 | 1.9 | Edit an existing workout: rename, recategorize, reorder/remove exercises | ✅ PASS — drag-reorder persisted after save; delete buttons present; name/category/steppers editable |
 | 1.10 | Created workout syncs to / is startable from the Watch app | ⚠️ PARTIAL — watch is mirror-only ("Start a workout on your iPhone"); cannot browse or start templates from the watch. Active sessions do appear once synced |
+| 1.11 | Routine phases can directly edit, persist and cache ordered timed or reps × sets exercise targets with library suggestions and free-text fallback | ✅ IMPLEMENTED (#95) — model/persistence/materialization/Watch-cache contracts and builds pass; read-only Simulator rendering passed, interactive edit walkthrough pending |
 | — | Templates persist across app relaunch | ✅ PASS — 5 plans intact after terminate/relaunch |
 
 ### E2E test procedure
@@ -67,6 +68,31 @@ visible/usable on Watch.
 11. Launch Watch app paired with the iPhone simulator.
 12. Verify created workouts appear on the Watch (template sync).
 13. Start one created workout from the Watch; verify exercises/sets/reps match.
+
+### Routine phase-item composer checks (#95)
+
+1. Open Complete Gym Visit read-only. Verify each non-empty phase lists its
+   exercise names and target summaries with no edit controls.
+2. Tap Edit and open Dynamic Warm-Up. Add an exercise, type part of a library
+   name and choose a filtered suggestion; add a second unmatched free-text name.
+3. Switch one item between Time and Reps. Verify Time accepts seconds and shows
+   the derived phase-duration default when blank; verify Reps exposes separate
+   repetitions and sets steppers.
+4. Move both new items up/down, remove one, and Save. Read-only mode must show
+   the exact final order and targets.
+5. Link a template. Verify the composer says the template runs and phase items
+   are fallback. Edit fallback items and verify the linked template is unchanged.
+6. Terminate and relaunch. Reopen the routine and verify names, order and targets
+   persisted.
+7. Start the routine without a linked template and verify the active phase uses
+   the edited list. Rebuild the Watch plan cache and start it offline; verify the
+   Watch receives the same list and targets.
+
+`Tests/run.sh` covers target inference, derived duration parity, JSON relaunch,
+add/remove/reorder state, active-session materialization, linked-template
+precedence/isolation and Watch offline-cache construction. Visible autocomplete,
+controls, read-only rendering and save/relaunch flow remain simulator acceptance
+checks (AC-B13–B21).
 
 ### Known gaps found by code inspection (verify during test)
 
@@ -354,6 +380,7 @@ Later, per Aravind.
 | 2026-07-28 | Goal 2.21 — phase-boundary navigation (#90) | **PASS** automated model/manager contract tests and iOS/watchOS builds; paired-simulator UI checks pending | `Tests/run.sh`, `Tests/run_sync.sh`, `Tests/run_e2e.sh`; AC-D11–D16 |
 | 2026-07-28 | Goal 2.22 — per-exercise timer (#93) | **PASS** automated contract, builds, and paired-simulator visible replication | Matching iPhone/Watch timed set; phone pause reached Watch at `1:17`; controls exposed to iPhone accessibility; physical audio/haptic pending |
 | 2026-07-28 | Goal 2.23 — guided exercise stepper (#94) | **PASS** automated shape/manager contract, iOS/watchOS builds and paired-simulator visual inspection | iPhone showed phase and exercise timers, `1 of 3 · Leg Swings`, progress, controls and Done & Next; Watch showed the same name/position plus phase overtime and exercise time in a scrollable view. Desktop lock prevented UI tapping; explicit Done/Next behavior passed manager tests |
+| 2026-07-28 | Goal 1.11 — routine phase-item composer (#95) | **PASS** model/persistence/materialization/Watch-cache contracts, both-target build and read-only Simulator rendering; interactive edit walkthrough pending | `Tests/run.sh`; iPhone showed saved item names and derived targets; toolbar Edit was visible but unavailable to UI automation; AC-B13–B21 |
 
 ### 2026-07-24 — Watch-start rejoin, paired simulators
 

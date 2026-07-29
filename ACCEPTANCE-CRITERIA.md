@@ -214,7 +214,8 @@ opens **directly in edit mode**.
 phase-appropriate label (Cardio Template, Warm-Up Template, Strength Template, Cool-Down
 Template, Core Template, Recovery Template) — not only Main Strength.
 
-**AC-B8** *(#78)* — Each picker offers **"None (Timed Only)"** plus every workout template.
+**AC-B8** *(#78/#95)* — Each picker offers **"None (Use Phase Exercises)"** plus every
+workout template.
 
 **AC-B9** *(#78)* — Timed phases show a **duration stepper alongside** the template
 picker; both are usable.
@@ -229,6 +230,39 @@ silently dropped it.)*
 
 **AC-B12** *(#74/#75)* — Routines can be deleted (long-press a Home routine card →
 **Delete Routine**).
+
+**AC-B13** *(#95)* — In edit mode, every enabled phase exposes its **Phase Exercises**
+list. **Add Exercise** inserts an editable row; each row has explicit move-earlier,
+move-later and remove controls.
+
+**AC-B14** *(#95)* — Typing an item name filters exercise-library suggestions. Choosing
+one fills the canonical library name and target type; an unmatched free-text name remains
+saveable and is identified as a usable custom name.
+
+**AC-B15** *(#95)* — Each item can select **Time** or **Reps**. Time accepts an explicit
+duration in seconds; Reps exposes independent repetitions and sets steppers. Switching
+target type clears the incompatible target.
+
+**AC-B16** *(#95)* — A timed item with no explicit duration shows the exact derived
+default as placeholder and explanatory copy. Changing the phase duration or item count
+updates that value using the same 20–180 second clamping rule as workout start.
+
+**AC-B17** *(#95)* — Template precedence is unambiguous in both modes: when linked, the
+composer states that the template runs and phase exercises remain a fallback; with no
+template, it states that the phase exercises run.
+
+**AC-B18** *(#95)* — Save, return to read-only and verify every phase item appears with
+its duration or reps × sets summary and no edit controls. Terminate and relaunch; names,
+order and targets are unchanged.
+
+**AC-B19** *(#95)* — Start the edited routine. The active phase contains the saved names
+in the saved order with the saved explicit/derived targets.
+
+**AC-B20** *(#95)* — The next Watch plan-cache revision contains the edited phase list.
+Starting that cached routine offline produces the same names, order and targets.
+
+**AC-B21** *(#95)* — Editing fallback phase items while a template is linked never
+mutates that `WorkoutTemplate`; starting the linked phase still uses the template.
 
 ---
 
@@ -589,7 +623,7 @@ the banner (`Phase 1 of 7`). *(Audio is `BLOCKED-SIM`; the numbering is covered 
 |---|---|---|
 | Gates | AC-0.1–0.2 | — |
 | A Templates | AC-A1–A6 | #75, #78 |
-| B Composer | AC-B1–B12 | #77, #78, #74 |
+| B Composer | AC-B1–B21 | #77, #78, #74, #95 |
 | C Home | AC-C1–C4 | #74, #77 |
 | D Phase scoping | AC-D1–D28 | #80, #86, #90, #92, #94 |
 | E Timers | AC-E1–E20 | #81, #82, #86, #93 |
@@ -609,7 +643,8 @@ criteria here as it lands, per §17.
 - #92 — landed, covered by AC-D3, AC-D5 and AC-D17–D20
 - #93 — implemented, covered by AC-E14–E20
 - #94 — implemented, covered by AC-D21–D28
-- #95–#96 — open, not yet covered
+- #95 — implemented, covered by AC-B13–B21
+- #96 — open, not yet covered
 
 ### Superseded findings
 

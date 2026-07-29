@@ -1141,6 +1141,133 @@ if let backupData = try? Backup.encode(typedBackup),
     failures += 1; print("FAIL structured phase backup did not round-trip")
 }
 
+// MARK: - #95 routine composer item editing contract
+
+let libraryTimed = ExerciseLibrary.all.first(where: { $0.name == "Hamstring Stretch" })
+expect(
+    PhaseExerciseItem(name: "Hamstring Stretch").resolvesAsTimed(
+        in: .mainStrength,
+        matchedExercise: libraryTimed
+    ),
+    "library metadata makes a timed item timed even inside strength"
+)
+expect(
+    !PhaseExerciseItem(name: "Custom Reps", reps: 12).resolvesAsTimed(
+        in: .warmupStretches,
+        matchedExercise: nil
+    ),
+    "an explicit rep target overrides a timed phase default"
+)
+
+var composerPhase = GymSessionRoutinePhase(
+    phaseType: .warmupStretches,
+    durationSeconds: 300,
+    exerciseItems: [
+        PhaseExerciseItem(name: "Leg Swings"),
+        PhaseExerciseItem(name: "Arm Circles", durationSeconds: 40),
+        PhaseExerciseItem(name: "Custom Drill", reps: 12, sets: 2)
+    ]
+)
+expect(
+    composerPhase.derivedExerciseDuration() == 100,
+    "composer derived duration matches session materialization"
+)
+
+// Mirror add/remove/reorder edits made through bindings in the composer.
+composerPhase.exerciseItems.swapAt(0, 1)
+composerPhase.exerciseItems.remove(at: 2)
+composerPhase.exerciseItems.append(
+    PhaseExerciseItem(name: "Hip Mobility", durationSeconds: 55)
+)
+let editedRoutine = GymSessionRoutine(
+    name: "Edited Routine",
+    phases: [composerPhase]
+)
+
+if let persisted = try? JSONEncoder().encode(editedRoutine),
+   let relaunched = try? JSONDecoder().decode(GymSessionRoutine.self, from: persisted) {
+    expect(
+        relaunched.phases[0].exerciseItems.map(\.name)
+            == ["Arm Circles", "Leg Swings", "Hip Mobility"],
+        "phase item add/remove/reorder survives persistence and relaunch"
+    )
+    expect(
+        relaunched.phases[0].exerciseItems[0].durationSeconds == 40
+            && relaunched.phases[0].exerciseItems[2].durationSeconds == 55,
+        "per-item duration targets survive persistence"
+    )
+} else {
+    failures += 1; print("FAIL edited routine did not persist")
+}
+
+let editedSession = WorkoutSession.from(
+    routine: editedRoutine,
+    templates: [],
+    library: ExerciseLibrary.byID
+)
+expect(
+    editedSession.exercises.map(\.name)
+        == ["Arm Circles", "Leg Swings", "Hip Mobility"],
+    "starting an edited routine runs the edited item order"
+)
+expect(
+    editedSession.exercises[0].sets[0].durationSeconds == 40
+        && editedSession.exercises[1].sets[0].durationSeconds == 100
+        && editedSession.exercises[2].sets[0].durationSeconds == 55,
+    "explicit and derived composer durations reach the active session"
+)
+
+let editedWatchPlan = WatchStartableWorkout(
+    routine: editedRoutine,
+    templates: [],
+    library: ExerciseLibrary.byID,
+    settings: AppSettings()
+)
+expect(
+    editedWatchPlan.makeFreshSession().exercises.map(\.name)
+        == editedSession.exercises.map(\.name),
+    "edited phase items reach the Watch offline-start cache"
+)
+let composerExecutionSettings = WatchExecutionSettings()
+let composerCacheBefore = WatchPlanCache().advanced(
+    workouts: [],
+    executionSettings: composerExecutionSettings
+)
+let composerCacheAfter = composerCacheBefore.advanced(
+    workouts: [editedWatchPlan],
+    executionSettings: composerExecutionSettings
+)
+expect(
+    composerCacheAfter.revision == composerCacheBefore.revision + 1,
+    "saving edited phase items produces a newer Watch plan-cache revision"
+)
+expect(
+    composerCacheAfter.workouts.first?.phases.first?.exerciseItems
+        == composerPhase.exerciseItems,
+    "the newer Watch cache snapshots edited names, order and targets"
+)
+
+var linkedPhase = composerPhase
+linkedPhase.templateID = timedTemplate.id
+let linkedRoutine = GymSessionRoutine(
+    name: "Linked Precedence",
+    phases: [linkedPhase]
+)
+let templateBeforeComposerEdit = timedTemplate
+let linkedSession = WorkoutSession.from(
+    routine: linkedRoutine,
+    templates: [timedTemplate],
+    library: ExerciseLibrary.byID
+)
+expect(
+    linkedSession.exercises.map(\.name) == timedSession.exercises.map(\.name),
+    "a linked template takes precedence over the phase item fallback"
+)
+expect(
+    timedTemplate == templateBeforeComposerEdit,
+    "editing phase items never mutates the linked workout template"
+)
+
 let timedWatchPlan = WatchStartableWorkout(
     template: timedTemplate,
     library: ExerciseLibrary.byID,
