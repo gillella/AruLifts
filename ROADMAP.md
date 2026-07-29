@@ -10,7 +10,7 @@ cannot drift apart.
 
 **Legend:** 🔴 High · 🟡 Medium · 🟢 Low · 📱 iPhone · ⌚️ Watch
 
-## Current status (baseline — v3.0.0)
+## Current status (baseline — v3.1.0)
 
 Epics A–D are complete and Epic E is all but one item. Shipped: two-target iOS +
 watchOS app, custom workouts by category, workout builder (sets/reps/weight/rest,
