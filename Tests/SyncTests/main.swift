@@ -1887,6 +1887,51 @@ MainActor.assumeIsolated {
         savedTemplate == templateSnapshot && savedRoutine == routineSnapshot,
         "live add never mutates the saved template or routine values"
     )
+
+    let timedEditManager = ActiveWorkoutManager(
+        localDevice: .phone,
+        repository: repository("live-timed-structural-edit")
+    )
+    let timedEditSession = timedSession()
+    timedEditManager.start(timedEditSession, broadcast: false)
+    let timedSetID = timedEditManager.exerciseTimerSetID
+    timedEditManager.exerciseTimer.sync(
+        endDate: Date().addingTimeInterval(20),
+        totalSeconds: 60
+    )
+    let remainingBeforeEdit = timedEditManager.exerciseTimer.secondsRemaining
+    expect(
+        timedEditManager.addExercise(
+            bench,
+            toPhase: 0,
+            settings: AppSettings()
+        ),
+        "structural edit succeeds while a timed set is running"
+    )
+    let remainingAfterEdit = timedEditManager.exerciseTimer.secondsRemaining
+    expect(
+        timedEditManager.exerciseTimerSetID == timedSetID
+            && timedEditManager.exerciseTimer.isRunning
+            && remainingAfterEdit <= remainingBeforeEdit
+            && remainingAfterEdit >= remainingBeforeEdit - 1,
+        "unrelated structural edit preserves the running exercise timer"
+    )
+    timedEditManager.toggleExerciseTimerPause()
+    let pausedRemaining = timedEditManager.exerciseTimer.secondsRemaining
+    timedEditManager.addSet(exerciseIndex: 0)
+    expect(
+        timedEditManager.exerciseTimerSetID == timedSetID
+            && timedEditManager.exerciseTimer.isPaused
+            && timedEditManager.exerciseTimer.secondsRemaining == pausedRemaining,
+        "adding a set preserves the paused exercise timer"
+    )
+    timedEditManager.removeSet(exerciseIndex: 0, setIndex: 2)
+    expect(
+        timedEditManager.exerciseTimerSetID == timedSetID
+            && timedEditManager.exerciseTimer.isPaused
+            && timedEditManager.exerciseTimer.secondsRemaining == pausedRemaining,
+        "removing an unrelated set preserves the paused exercise timer"
+    )
 }
 
 try? FileManager.default.removeItem(at: root)
