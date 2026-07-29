@@ -249,6 +249,8 @@ struct ExercisePickerView: View {
     /// Exercise whose detail sheet is open for preview, if any.
     @State private var preview: Exercise?
     let category: WorkoutCategory
+    var title = "Add Exercise"
+    var actionTitle = "Add"
     let onSelect: (Exercise) -> Void
 
     private var matching: [Exercise] {
@@ -303,7 +305,7 @@ struct ExercisePickerView: View {
                 }
             }
             .searchable(text: $search, prompt: "Search exercises")
-            .navigationTitle("Add Exercise")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -315,7 +317,7 @@ struct ExercisePickerView: View {
                     ExerciseDetailView(exercise: ex)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
-                                Button("Add") { add(ex) }
+                                Button(actionTitle) { add(ex) }
                             }
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Done") { preview = nil }
